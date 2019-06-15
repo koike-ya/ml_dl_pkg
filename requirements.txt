@@ -1,0 +1,15 @@
+pandas
+numpy
+matplotlib
+scipy
+torch
+torchvision
+glibc
+tqdm
+librosa
+tensorboardX
+tensorflow
+tensorboard
+lightgbm
+xgboost
+pyedflib
