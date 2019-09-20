@@ -9,7 +9,8 @@ tqdm
 librosa
 tensorboardX
 tensorflow
-tensorboard
+tensorboard==1.14.0
 lightgbm
 xgboost
 pyedflib
+catboost
