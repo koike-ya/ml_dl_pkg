@@ -79,7 +79,7 @@ class SequenceWise(nn.Module):
         t, n = x.size(0), x.size(1)
         # if sequence-wise, normalize at last dimension, should be n x t direction
         x = x.view(t * n, -1)   # t x n x h -> (t x n) x h
-        x = self.module(x)
+        x = self.module(x.to(torch.float))
         x = x.view(t, n, -1)
         return x
 
@@ -97,7 +97,7 @@ class BatchRNN(nn.Module):
         self.batch_size = batch_size
         self.hidden_size = hidden_size
         self.bidirectional = bidirectional
-        self.batch_norm = SequenceWise(nn.BatchNorm1d(batch_size)) if batch_norm else None
+        self.batch_norm = SequenceWise(nn.BatchNorm1d(input_size)) if batch_norm else None
         self.rnn = rnn_type(input_size=input_size, hidden_size=hidden_size,
                                             bidirectional=bidirectional, bias=True)
         self.num_directions = 2 if bidirectional else 1
