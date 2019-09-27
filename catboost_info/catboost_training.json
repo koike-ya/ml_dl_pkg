@@ -1,0 +1,6 @@
+{
+"meta":{"launch_mode":"Train","name":"experiment","iteration_count":2,"learn_metrics":[{"best_value":"Max","name":"Accuracy"},{"best_value":"Min","name":"MultiClass"}],"test_sets":[],"test_metrics":[],"learn_sets":["learn"]},
+"iterations":[
+{"learn":[0.96875,1.09679626],"iteration":0,"passed_time":0.0009890767177,"remaining_time":0.0009890767177},
+{"learn":[0.96875,1.094985336],"iteration":1,"passed_time":0.002086312023,"remaining_time":0}
+]}
