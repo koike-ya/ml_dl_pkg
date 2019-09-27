@@ -4,7 +4,7 @@ with open('README.md') as f:
     readme = f.read()
 
 setup(
-    name='wrapper',
+    name='ml',
     version='0.0.1',
     description='',
     long_description=readme,
