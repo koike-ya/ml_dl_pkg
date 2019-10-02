@@ -49,16 +49,20 @@ class CNN(nn.Module):
 
 
 class CNNMaker:
-    def __init__(self, in_channels, image_size, cfg, n_classes, time=0):
+    def __init__(self, in_channels, image_size, cfg, n_classes, time=0, use_as_extractor=False):
         self.in_channels = in_channels
         self.image_size = list(image_size)
         self.cfg = cfg
         self.n_classes = n_classes
         self.n_dim = 2 if time == 0 else 3
+        self.use_as_extractor = use_as_extractor
 
     def construct_cnn(self):
         layers = self.make_layers()
         feature_size = self.calc_feature_size()
+        if self.use_as_extractor:
+            return layers, feature_size
+
         model = CNN(layers, feature_size, n_classes=self.n_classes)
 
         return model
@@ -89,7 +93,7 @@ class CNNMaker:
         :param feature_size: tuple containing # of rows and # of columns of input data
         :param self.n_dim:
         :param last_shape:
-        :return:
+        :return: int型 (numpy.int型だとRNNの入力数指定のときにエラーになる)
         """
         feature_shape = self.image_size.copy()
         # Based on above convolutions and spectrogram size using conv formula (W - F + 2P)/ S+1
@@ -98,8 +102,21 @@ class CNNMaker:
                 channel, kernel, stride, padding = layer
                 feature_shape[dim] = int(math.floor(
                     feature_shape[dim] + 2 * padding[dim] - kernel[dim]) / stride[dim] + 1)
-        feature_size = np.prod(feature_shape) * self.cfg[-1][0]  # multiply last channel number
-        return feature_size
+
+        return {
+            'n_channels': self.cfg[-1][0],
+            'height': int(feature_shape[0]),
+            'width': int(feature_shape[1])}
+
+
+def construct_cnn(cfg, use_as_extractor=False):
+    layer_info = [
+        (32, (4, 2), (3, 2), (0, 1)),
+        (64, (4, 2), (3, 2), (0, 1)),
+    ]
+    cnn_maker = CNNMaker(in_channels=cfg['n_channels'], image_size=cfg['image_size'], cfg=layer_info,
+                         n_classes=len(cfg['class_names']), use_as_extractor=use_as_extractor)
+    return cnn_maker.construct_cnn()
 
 
 def cnn_16_751_751(n_classes=2):

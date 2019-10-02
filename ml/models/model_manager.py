@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from ml.models.base_model import model_args
 from ml.models.ml_model import MLModel
-from ml.models.nn_model import NNModel
+from ml.models.nn_model import NNModel, supported_nn_models
 
 
 def model_manager_args(parser):
@@ -23,7 +23,7 @@ def model_manager_args(parser):
     model_manager_parser.add_argument('--test-path', help='data file for testing', default='input/test.csv')
 
     model_manager_parser.add_argument('--model-type', default='rnn',
-                                      choices=['rnn', 'cnn', 'xgboost', 'knn', 'catboost', 'sgdc'])
+                                      choices=['rnn', 'cnn', 'cnn_rnn', 'xgboost', 'knn', 'catboost', 'sgdc'])
     model_manager_parser.add_argument('--gpu-id', default=0, type=int, help='ID of GPU to use')
 
     # optimizer params
@@ -95,9 +95,14 @@ class BaseModelManager(metaclass=ABCMeta):
 
     def _init_model(self):
         self.cfg['input_size'] = list(self.dataloaders.values())[0].feature_size
-        if self.cfg['model_type'] in ['rnn', 'cnn']:
-            # TODO eegのときのみ、時系列のときのみの実装なので、要変更
-            self.cfg['seq_len'] = list(self.dataloaders.values())[0].seq_len
+        if self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn']:
+            if self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn']:
+                self.cfg['image_size'] = self.dataloaders['train'].get_image_size()
+                self.cfg['n_channels'] = self.dataloaders['train'].get_image_channels()
+                if self.cfg['model_type'] == 'rnn':
+                    self.cfg['batch_norm'] = self.dataloaders['train'].feature_size
+                elif self.cfg['model_type'] == 'cnn_rnn':
+                    self.cfg['batch_norm'] = self.cfg['batch_size']
             return NNModel(self.class_labels, self.cfg)
         elif self.cfg['model_type'] in ['xgboost', 'catboost', 'sgdc', 'knn']:
             return MLModel(self.class_labels, self.cfg)
@@ -110,7 +115,7 @@ class BaseModelManager(metaclass=ABCMeta):
         random.seed(self.cfg['seed'])
 
     def _init_device(self):
-        if self.cfg['cuda'] and self.cfg['model_type'] in ['rnn', 'cnn']:
+        if self.cfg['cuda'] and self.cfg['model_type'] in supported_nn_models:
             device = torch.device("cuda")
             torch.cuda.set_device(self.cfg['gpu_id'])
         else:

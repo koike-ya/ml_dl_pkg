@@ -1,9 +1,14 @@
 import numpy as np
 import torch
+from typing import Tuple
 from sklearn.exceptions import NotFittedError
 
 from ml.models.base_model import BaseModel
-from ml.models.rnn import construct_rnn
+from ml.models.rnn import construct_rnn, construct_cnn_rnn
+from ml.models.cnn import construct_cnn
+
+
+supported_nn_models = ['cnn', 'rnn', 'cnn_rnn']
 
 
 class NNModel(BaseModel):
@@ -19,8 +24,10 @@ class NNModel(BaseModel):
     def _init_model(self):
         if self.cfg['model_type'] == 'rnn':
             return construct_rnn(self.cfg, len(self.class_labels))
+        elif self.cfg['model_type'] == 'cnn_rnn':
+            return construct_cnn_rnn(self.cfg, len(self.class_labels), self.device)
         elif self.cfg['model_type'] == 'cnn':
-            raise NotImplementedError
+            return construct_cnn(self.cfg, use_as_extractor=False)
             # cnn_maker = CNNMaker(in_channels=self.n_channels, image_size=self.image_size, cfg=self.cfg,
             #                      n_classes=self.n_classes)
             # return cnn_maker.construct_cnn()
@@ -38,7 +45,7 @@ class NNModel(BaseModel):
         }
         return supported_optimizers[self.cfg['optimizer']]
 
-    def _fit_classify(self, inputs, labels, phase) -> tuple((float, np.ndarray)):
+    def _fit_classify(self, inputs, labels, phase) -> Tuple[float, np.ndarray]:
         with torch.set_grad_enabled(phase == 'train'):
             outputs = self.model(inputs)
             y_onehot = torch.zeros(labels.size(0), len(self.class_labels))
@@ -53,7 +60,7 @@ class NNModel(BaseModel):
 
         return loss.item(), preds.cpu().numpy()
 
-    def _fit_regress(self, inputs, labels, phase) -> tuple((float, np.ndarray)):
+    def _fit_regress(self, inputs, labels, phase) -> Tuple[float, np.ndarray]:
         with torch.set_grad_enabled(phase == 'train'):
             preds = self.model(inputs)
             loss = self.criterion(preds, labels.float())
@@ -70,7 +77,7 @@ class NNModel(BaseModel):
             g['lr'] = g['lr'] / learning_anneal
         print('Learning rate annealed to: {lr:.6f}'.format(lr=g['lr']))
 
-    def fit(self, inputs, labels, phase) -> tuple((float, np.ndarray)):
+    def fit(self, inputs, labels, phase) -> Tuple[float, np.ndarray]:
         self.fitted = True
         self.optimizer.zero_grad()
         if self.cfg['task_type'] == 'classify':

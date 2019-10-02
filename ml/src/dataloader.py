@@ -29,6 +29,12 @@ class WrapperDataLoader(DataLoader):
         super(WrapperDataLoader, self).__init__(*args, **kwargs)
         self.feature_size = self.dataset.get_feature_size()
 
+    def get_image_size(self):
+        return self.dataset.get_image_size()
+
+    def get_image_channels(self):
+        return self.dataset.get_image_channels()
+
 
 def make_weights_for_balanced_classes(labels, n_classes, sample_balance):
     labels = np.array(labels, dtype=int)
