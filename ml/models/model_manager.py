@@ -94,16 +94,18 @@ class BaseModelManager(metaclass=ABCMeta):
             assert key in dic.keys(), f'{key} must be in {str(dic)}'
 
     def _init_model(self):
-        self.cfg['input_size'] = list(self.dataloaders.values())[0].feature_size
+        self.cfg['input_size'] = self.dataloaders['train'].get_input_size()
+
         if self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn']:
-            if self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn']:
+            if self.cfg['model_type'] in ['rnn', 'cnn_rnn']:
+                self.cfg['batch_norm_size'] = self.dataloaders['train'].get_batch_norm_size()
+                self.cfg['seq_len'] = self.dataloaders['train'].get_seq_len()
+            else:
                 self.cfg['image_size'] = self.dataloaders['train'].get_image_size()
-                self.cfg['n_channels'] = self.dataloaders['train'].get_image_channels()
-                if self.cfg['model_type'] == 'rnn':
-                    self.cfg['batch_norm'] = self.dataloaders['train'].feature_size
-                elif self.cfg['model_type'] == 'cnn_rnn':
-                    self.cfg['batch_norm'] = self.cfg['batch_size']
+                self.cfg['n_channels'] = self.dataloaders['train'].get_n_channels()
+
             return NNModel(self.class_labels, self.cfg)
+
         elif self.cfg['model_type'] in ['xgboost', 'catboost', 'sgdc', 'knn']:
             return MLModel(self.class_labels, self.cfg)
         

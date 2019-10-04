@@ -28,9 +28,6 @@ class NNModel(BaseModel):
             return construct_cnn_rnn(self.cfg, len(self.class_labels), self.device)
         elif self.cfg['model_type'] == 'cnn':
             return construct_cnn(self.cfg, use_as_extractor=False)
-            # cnn_maker = CNNMaker(in_channels=self.n_channels, image_size=self.image_size, cfg=self.cfg,
-            #                      n_classes=self.n_classes)
-            # return cnn_maker.construct_cnn()
         else:
             raise NotImplementedError('model_type should be either rnn or cnn, nn would be implemented in the future.')
 
@@ -105,6 +102,7 @@ class NNModel(BaseModel):
             raise NotFittedError(f'This NNModel instance is not fitted yet.')
 
         with torch.set_grad_enabled(False):
+
             preds = self.model(inputs)
             if self.cfg['task_type'] == 'classify':
                 _, preds = torch.max(preds, 1)

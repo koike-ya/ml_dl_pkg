@@ -22,16 +22,16 @@ def rnn_args(parser):
     # RNN params
     rnn_parser.add_argument('--rnn-type', default='gru',
                             help='Type of the RNN. rnn|gru|lstm|deepspeech are supported')
-    rnn_parser.add_argument('--rnn-hidden-size', default=400, type=int, help='Hidden size of RNNs')
-    rnn_parser.add_argument('--rnn-n-layers', default=3, type=int, help='Number of RNN layers')
+    rnn_parser.add_argument('--rnn-hidden-size', default=100, type=int, help='Hidden size of RNNs')
+    rnn_parser.add_argument('--rnn-n-layers', default=2, type=int, help='Number of RNN layers')
     rnn_parser.add_argument('--max-norm', default=400, type=int,
                             help='Norm cutoff to prevent explosion of gradients')
     rnn_parser.add_argument('--no-bidirectional', dest='bidirectional', action='store_false', default=True,
                             help='Turn off bi-directional RNNs, introduces lookahead convolution')
     rnn_parser.add_argument('--no-inference-softmax', dest='is_inference_softmax', action='store_false',
                             default=True, help='Turn off inference softmax')
-    rnn_parser.add_argument('--no-batch-norm', dest='batch_norm', action='store_false', default=True,
-                            help='Batch-wise normalization or not')
+    rnn_parser.add_argument('--sequence-wise', dest='sequence_wise', action='store_true',
+                            default=False, help='sequence-wise batch normalization or not')
     return parser
 
 
@@ -59,10 +59,11 @@ def construct_rnn(cfg, output_size):
     }
     :return:
     """
-    return RNNClassifier(cfg['batch_size'], cfg['input_size'], rnn_type=supported_rnns[cfg['rnn_type']],
-                         output_size=output_size, rnn_hidden_size=cfg['rnn_hidden_size'],
-                         n_layers=cfg['rnn_n_layers'], bidirectional=cfg['bidirectional'],
-                         is_inference_softmax=cfg.get('is_inference_softmax', True), batch_norm=cfg['batch_norm'])
+    return RNNClassifier(cfg['batch_size'], cfg['input_size'], out_time_feature=cfg['seq_len'],
+                         rnn_type=supported_rnns[cfg['rnn_type']], output_size=output_size,
+                         rnn_hidden_size=cfg['rnn_hidden_size'], n_layers=cfg['rnn_n_layers'],
+                         bidirectional=cfg['bidirectional'], is_inference_softmax=cfg['is_inference_softmax'],
+                         batch_norm_size=cfg['batch_norm_size'])
 
 
 class SequenceWise(nn.Module):
@@ -91,23 +92,23 @@ class SequenceWise(nn.Module):
 
 
 class BatchRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, batch_size, batch_norm, rnn_type=nn.LSTM, bidirectional=False):
+    def __init__(self, input_size, hidden_size, batch_size, batch_norm_size, sequence_wise=False, rnn_type=nn.LSTM,
+                 bidirectional=False):
         super(BatchRNN, self).__init__()
         self.input_size = input_size
         self.batch_size = batch_size
         self.hidden_size = hidden_size
         self.bidirectional = bidirectional
-        self.batch_norm = SequenceWise(nn.BatchNorm1d(batch_norm)) if batch_norm else None
-        self.rnn = rnn_type(input_size=input_size, hidden_size=hidden_size,
-                                            bidirectional=bidirectional, bias=True)
+        self.batch_norm = SequenceWise(nn.BatchNorm1d(batch_norm_size)) if sequence_wise else nn.BatchNorm1d(batch_norm_size)
+        self.rnn = rnn_type(input_size=input_size, hidden_size=hidden_size, bidirectional=bidirectional, bias=True)
         self.num_directions = 2 if bidirectional else 1
 
     def flatten_parameters(self):
         self.rnn.flatten_parameters()
 
     def forward(self, x):
-        if self.batch_norm is not None:
-            x = self.batch_norm(x)
+        x = self.batch_norm(x.to(torch.float))
+
         x, _ = self.rnn(x)
 
         if self.bidirectional:
@@ -124,17 +125,18 @@ class InferenceBatchSoftmax(nn.Module):
 
 
 class RNNClassifier(nn.Module):
-    def __init__(self, batch_size, input_size, out_time_feature, output_size, batch_norm, rnn_type=nn.LSTM, rnn_hidden_size=768,
-                 n_layers=5, bidirectional=True, is_inference_softmax=True):
+    def __init__(self, batch_size, input_size, out_time_feature, output_size, batch_norm_size, sequence_wise=False,
+                 rnn_type=nn.LSTM, rnn_hidden_size=768, n_layers=5, bidirectional=True, is_inference_softmax=True):
         super(RNNClassifier, self).__init__()
 
         rnns = []
-        rnn = BatchRNN(input_size=input_size, hidden_size=rnn_hidden_size, batch_size=batch_size,
-                       rnn_type=rnn_type, bidirectional=bidirectional, batch_norm=batch_norm)
+        rnn = BatchRNN(input_size=input_size, hidden_size=rnn_hidden_size, batch_size=batch_size, rnn_type=rnn_type,
+                       bidirectional=bidirectional, batch_norm_size=batch_norm_size, sequence_wise=sequence_wise)
         rnns.append(('0', rnn))
         for x in range(n_layers - 1):
             rnn = BatchRNN(input_size=rnn_hidden_size, hidden_size=rnn_hidden_size, batch_size=batch_size,
-                           rnn_type=rnn_type, bidirectional=bidirectional, batch_norm=rnn_hidden_size)
+                           rnn_type=rnn_type, bidirectional=bidirectional, batch_norm_size=batch_norm_size,
+                           sequence_wise=sequence_wise)
             rnns.append(('%d' % (x + 1), rnn))
         self.rnns = nn.Sequential(OrderedDict(rnns))
 
@@ -146,9 +148,6 @@ class RNNClassifier(nn.Module):
         self.is_inference_softmax = is_inference_softmax
 
     def forward(self, x):
-        if len(x.shape) == 4:
-            x = x.narrow(1, 0, 1).squeeze(dim=1)
-
         x = x.transpose(0, 2).transpose(1, 2)    # batch x feature x time -> # time x batch x feature
 
         for rnn in self.rnns:
@@ -174,7 +173,7 @@ class DeepSpeech(RNNClassifier):
         super(DeepSpeech, self).__init__(batch_size, input_size=input_size, out_time_feature=out_time_feature,
                                          rnn_type=nn.LSTM, rnn_hidden_size=768, n_layers=5, bidirectional=True,
                                          is_inference_softmax=is_inference_softmax, output_size=output_size,
-                                         batch_norm=input_size)
+                                         batch_norm_size=input_size)
 
         # model metadata needed for serialization/deserialization
         if eeg_conf is None:
