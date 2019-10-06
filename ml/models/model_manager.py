@@ -94,15 +94,15 @@ class BaseModelManager(metaclass=ABCMeta):
             assert key in dic.keys(), f'{key} must be in {str(dic)}'
 
     def _init_model(self):
-        self.cfg['input_size'] = self.dataloaders['train'].get_input_size()
+        self.cfg['input_size'] = list(self.dataloaders.values())[0].get_input_size()
 
         if self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn']:
             if self.cfg['model_type'] in ['rnn', 'cnn_rnn']:
-                self.cfg['batch_norm_size'] = self.dataloaders['train'].get_batch_norm_size()
-                self.cfg['seq_len'] = self.dataloaders['train'].get_seq_len()
+                self.cfg['batch_norm_size'] = list(self.dataloaders.values())[0].get_batch_norm_size()
+                self.cfg['seq_len'] = list(self.dataloaders.values())[0].get_seq_len()
             else:
-                self.cfg['image_size'] = self.dataloaders['train'].get_image_size()
-                self.cfg['n_channels'] = self.dataloaders['train'].get_n_channels()
+                self.cfg['image_size'] = list(self.dataloaders.values())[0].get_image_size()
+                self.cfg['n_channels'] = list(self.dataloaders.values())[0].get_n_channels()
 
             return NNModel(self.class_labels, self.cfg)
 
@@ -199,7 +199,7 @@ class BaseModelManager(metaclass=ABCMeta):
 
                 self._update_by_epoch(phase, epoch, self.cfg['learning_anneal'])
 
-        return self.model
+        return self.metrics
 
     def test(self, return_metrics=False, load_best=True):
         if load_best:
