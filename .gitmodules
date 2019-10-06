@@ -1,0 +1,3 @@
+[submodule "eeg_pkg"]
+	path = eeg_pkg
+	url = https://github.com/Tomoya-K-0504/eeglibrary.git
