@@ -1,6 +1,8 @@
 import catboost as ctb
 import numpy as np
+import pandas as pd
 import xgboost as xgb
+import lightgbm as lgb
 
 from ml.models.toolbox import BaseMLPredictor
 
@@ -9,12 +11,21 @@ def decision_trees_args(parser):
 
     decision_trees_parser = parser.add_argument_group("Decision tree-like model hyper parameters")
     decision_trees_parser.add_argument('--n-estimators', type=int, default=200)
+    decision_trees_parser.add_argument('--n-leaves', type=int, default=32)
     decision_trees_parser.add_argument('--max-depth', type=int, default=5)
     decision_trees_parser.add_argument('--reg-alpha', type=float, default=1.0, help='L1 regularization term on weights')
     decision_trees_parser.add_argument('--reg-lambda', type=float, default=1.0, help='L2 regularization term on weights')
     decision_trees_parser.add_argument('--subsample', type=float, default=0.8, help='Sample rate for bagging')
 
     return parser
+
+
+def get_feature_importance(model_cls, features):
+    feature_importances = pd.DataFrame()
+    feature_importances['feature'] = features
+    feature_importances['importance'] = model_cls.model.feature_importances_
+    feature_importances = feature_importances.sort_values(by='importance', ascending=False)
+    return feature_importances
 
 
 class XGBoost(BaseMLPredictor):
@@ -39,7 +50,7 @@ class XGBoost(BaseMLPredictor):
             params['objective'] = 'multi:softprob'
             self.model = xgb.XGBClassifier(**params)
         else:
-            params['objective'] = 'reg:squarederror'
+            params['objective'] = 'reg:linear'
             self.model = xgb.XGBRegressor(**params)
         super(XGBoost, self).__init__(class_labels, cfg)
 
@@ -55,6 +66,8 @@ class XGBoost(BaseMLPredictor):
 class CatBoost(BaseMLPredictor):
     def __init__(self, class_labels, cfg):
         # TODO visualizationも試す
+        self.classify = cfg['task_type'] == 'classify'
+
         params = dict(
             iterations=cfg['n_estimators'],
             depth=cfg['max_depth'],
@@ -67,16 +80,55 @@ class CatBoost(BaseMLPredictor):
             subsample=cfg['subsample'],
             task_type='GPU' if cfg['cuda'] else 'CPU',
         )
-        if cfg['task_type'] == 'classify':
+        if self.classify:
             params['eval_metric'] = 'Accuracy'
             self.model = ctb.CatBoostClassifier(**params)
         else:
+            del params['class_weights']
             self.model = ctb.CatBoostRegressor(**params)
         super(CatBoost, self).__init__(class_labels, cfg)
 
     def partial_fit(self, x, y):
         self.model.fit(x, y, verbose=False)
-        return self.model.best_score_['learn']['Accuracy']
+        if self.classify:
+            return self.model.best_score_['learn']['Accuracy']
+        else:
+            return self.model.best_score_['learn']['RMSE']
+
+    def predict(self, x):
+        return self.model.predict(x).reshape((-1,))
+
+
+class LightGBM(BaseMLPredictor):
+    def __init__(self, class_labels, cfg):
+        # TODO visualizationも試す
+        self.classify = cfg['task_type'] == 'classify'
+
+        params = dict(
+            num_leaves=cfg['n_leaves'],
+            learning_rate=cfg['lr'],
+            n_estimators=cfg['n_estimators'],
+            max_depth=cfg['max_depth'],
+            subsample=cfg['subsample'],
+            colsample_bytree=0.8,
+            n_jobs=cfg['n_jobs'],
+            reg_lambda=cfg['reg_lambda'],
+            reg_alpha=cfg['reg_alpha'],
+            missing=None,
+            random_state=cfg['seed'],
+        )
+        if self.classify:
+            params['eval_metric'] = 'Accuracy'
+            self.model = lgb.LGBMClassifier(**params)
+        else:
+            params['objective'] = 'regression'
+            self.model = lgb.LGBMRegressor(**params)
+        super(LightGBM, self).__init__(class_labels, cfg)
+
+    def partial_fit(self, x, y):
+        eval_metric = 'mlogloss' if self.classify else 'rmse'
+        self.model.fit(x, y, eval_set=[(x, y)], eval_metric=eval_metric, verbose=False)
+        return self.model.best_score_['training'][eval_metric]
 
     def predict(self, x):
         return self.model.predict(x).reshape((-1,))

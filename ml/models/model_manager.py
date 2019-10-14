@@ -15,6 +15,9 @@ from ml.models.ml_model import MLModel
 from ml.models.nn_model import NNModel, supported_nn_models
 
 
+supported_ml_models = ['rnn', 'cnn', 'cnn_rnn', 'xgboost', 'knn', 'catboost', 'sgdc', 'lightgbm']
+
+
 def model_manager_args(parser):
 
     model_manager_parser = parser.add_argument_group("Model manager arguments")
@@ -22,8 +25,7 @@ def model_manager_args(parser):
     model_manager_parser.add_argument('--val-path', help='data file for validation', default='input/val.csv')
     model_manager_parser.add_argument('--test-path', help='data file for testing', default='input/test.csv')
 
-    model_manager_parser.add_argument('--model-type', default='rnn',
-                                      choices=['rnn', 'cnn', 'cnn_rnn', 'xgboost', 'knn', 'catboost', 'sgdc'])
+    model_manager_parser.add_argument('--model-type', default='rnn', choices=supported_ml_models)
     model_manager_parser.add_argument('--gpu-id', default=0, type=int, help='ID of GPU to use')
 
     # optimizer params
@@ -106,8 +108,8 @@ class BaseModelManager(metaclass=ABCMeta):
 
             return NNModel(self.class_labels, self.cfg)
 
-        elif self.cfg['model_type'] in ['xgboost', 'catboost', 'sgdc', 'knn']:
-            return MLModel(self.class_labels, self.cfg)
+        elif self.cfg['model_type'] in supported_ml_models:
+            return MLModel(self.class_labels, self.cfg, self.dataloaders)
         
     def _init_seed(self):
         # Set seeds for determinism
@@ -230,12 +232,22 @@ class BaseModelManager(metaclass=ABCMeta):
         return pred_list, label_list
 
     def infer(self, load_best=True):
+        phase = 'infer'
+        batch_size = self.cfg['batch_size']
+
         if load_best:
             self.model.load_model()
 
-        # test実装
-        pred_list, _ = self._predict(phase='infer')
-        return pred_list
+        dtype_ = np.int if self.cfg['task_type'] == 'classify' else np.float
+        # ラベルが入れられなかった部分を除くため、小さな負の数を初期値として格納
+        pred_list = np.zeros((len(self.dataloaders[phase]) * batch_size, 1), dtype=dtype_) - 1000000
+        for i, inputs in tqdm(enumerate(self.dataloaders[phase]), total=len(self.dataloaders[phase])):
+            inputs = inputs.to(self.device)
+            preds = self.model.predict(inputs)
+
+            pred_list[i * batch_size:i * batch_size + preds.shape[0], 0] = preds.reshape(-1, )
+
+        return pred_list[~(pred_list == -1000000)]
 
 
 class TensorBoardLogger(object):

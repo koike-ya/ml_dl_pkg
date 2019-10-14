@@ -8,7 +8,7 @@ class AverageMeter(object):
 
     def __init__(self, direction=None):
         self.reset()
-        self.best_score = 1000000 if direction == 'minimize' else -1
+        self.best_score = 1000000000 if direction == 'minimize' else -1
         self.direction = direction
         self.value = 0
         self.average = 0

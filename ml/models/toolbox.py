@@ -38,28 +38,22 @@ class BaseMLPredictor:
 
 
 class KNN(BaseMLPredictor):
-    def __init__(self, class_labels, cfg):
+    def __init__(self, class_labels, cfg, dataloaders):
         super(KNN, self).__init__(class_labels, cfg)
         self.model = KNeighborsClassifier(n_neighbors=len(self.class_labels), n_jobs=-1)
-        self.x = np.empty(1)
-        self.y = np.empty(1)
+        self.dataloaders = dataloaders
+        self.x = self.dataloaders['train'].dataset.x.copy()
+        self.y = self.dataloaders['train'].dataset.y.copy()
+        self.model.fit(self.x, self.y)
 
     def partial_fit(self, x, y):
-        self.fitted = True
-        if self.x.shape[0] == 1:
-            self.x, self.y = x, y
-        else:
-            self.x = np.vstack((self.x, x))
-            self.y = np.hstack((self.y, y))
-
         # TODO 要修正
         return np.float(0.0)
 
     def predict(self, x):
-        if self.x.shape[0] != 1:
-            self.model.fit(self.x, self.y)
-        else:
-            raise NotFittedError(f'This MLModel instance(K-Nearest Neighbor) is not fitted yet.')
+        # if self.x.shape[0] != 1:
+        # else:
+            # raise NotFittedError(f'This MLModel instance(K-Nearest Neighbor) is not fitted yet.')
         return self.model.predict(x)
 
     def predict_proba(self, x):

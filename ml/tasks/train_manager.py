@@ -18,6 +18,7 @@ def train_manager_args(parser):
     train_parser.add_argument('--k-fold', type=int, default=0,
                               help='The number of folds. 1 means training with whole train data')
     train_parser.add_argument('--test', action='store_true', help='Do testing, You should be specify k-fold with 1.')
+    train_parser.add_argument('--infer', action='store_true', help='Do inference with test_path data,')
     parser = model_manager_args(parser)
 
     return parser
@@ -34,8 +35,8 @@ def load_func(path):
 class TrainManager:
     def __init__(self, train_conf, load_func, label_func, dataset_cls, set_dataloader_func, metrics):
         self.train_conf = train_conf
-        self.train_conf['load_func'] = load_func
-        self.train_conf['label_func'] = label_func
+        self.load_func = load_func
+        self.label_func = label_func
         self.dataset_cls = dataset_cls
         self.set_dataloader_func = set_dataloader_func
         self.metrics = metrics
@@ -43,25 +44,28 @@ class TrainManager:
         self.data_df = self._set_data_df()
 
     def _set_data_df(self):
+        data_df = pd.DataFrame()
+
         if self.is_manifest:
-            data_df = pd.DataFrame()
             for phase in ['train', 'val']:
                 data_df = pd.concat([data_df, pd.read_csv(self.train_conf[f'{phase}_path'], header=None)])
         else:
-            raise NotImplementedError
+            for phase in ['train', 'val']:
+                data_df = pd.concat([data_df, self.load_func(self.train_conf[f'{phase}_path'])])
 
         return data_df
 
-    def _train(self) -> List[Metric]:
+    def _train(self):
         # dataset, dataloaderの作成
         dataloaders = {}
         for phase in ['train', 'val']:
-            dataset = self.dataset_cls(self.train_conf[f'{phase}_path'], self.train_conf)
+            dataset = self.dataset_cls(self.train_conf[f'{phase}_path'], self.train_conf, phase,
+                                       load_func=self.load_func, label_func=self.label_func)
             dataloaders[phase] = self.set_dataloader_func(dataset, phase, self.train_conf)
 
         # modelManagerをインスタンス化、trainの実行
         model_manager = BaseModelManager(self.train_conf['class_names'], self.train_conf, dataloaders, deepcopy(self.metrics))
-        return model_manager.train()
+        return model_manager.train(), model_manager.model
 
     def _update_data_paths(self, fold_count: int):
         # fold_count...k-foldのうちでいくつ目か
@@ -88,7 +92,7 @@ class TrainManager:
 
                     self._update_data_paths(i)
 
-                    result_metrics = self._train()
+                    result_metrics, model = self._train()
                     print(f'Fold {i + 1} ended.')
                     for metric in result_metrics:
                         k_fold_metrics[metric.name][i] = metric.average_meter['val'].best_score
@@ -101,14 +105,29 @@ class TrainManager:
                     [Path(self.train_conf[f'{phase}_path']).unlink() for phase in ['train', 'val']]
 
             else:
-                result_metrics = self._train()
+                result_metrics, model = self._train()
+
+        return model
 
     def test(self) -> List[Metric]:
         # dataset, dataloaderの作成
         dataloaders = {}
-        dataset = self.dataset_cls(self.train_conf[f'test_path'], self.train_conf)
+        dataset = self.dataset_cls(self.train_conf[f'test_path'], self.train_conf, phase='test',
+                                   load_func=self.load_func, label_func=self.label_func)
         dataloaders['test'] = self.set_dataloader_func(dataset, 'test', self.train_conf)
 
         # modelManagerをインスタンス化、trainの実行
         model_manager = BaseModelManager(self.train_conf['class_names'], self.train_conf, dataloaders, self.metrics)
         return model_manager.test()
+
+    def infer(self) -> np.array:
+        phase = 'infer'
+        # dataset, dataloaderの作成
+        dataloaders = {}
+        dataset = self.dataset_cls(self.train_conf[f'test_path'], self.train_conf, phase=phase,
+                                   load_func=self.load_func, label_func=self.label_func)
+        dataloaders[phase] = self.set_dataloader_func(dataset, phase, self.train_conf)
+
+        # modelManagerをインスタンス化、inferの実行
+        model_manager = BaseModelManager(self.train_conf['class_names'], self.train_conf, dataloaders, self.metrics)
+        return model_manager.infer()

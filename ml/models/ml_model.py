@@ -2,13 +2,14 @@ import numpy as np
 import torch
 
 from ml.models.base_model import BaseModel
-from ml.models.decision_trees import CatBoost, XGBoost
+from ml.models.decision_trees import CatBoost, XGBoost, LightGBM
 from ml.models.toolbox import KNN, SGDC
 
 
 class MLModel(BaseModel):
-    def __init__(self, class_labels, cfg):
+    def __init__(self, class_labels, cfg, dataloaders):
         must_contain_keys = []
+        self.dataloaders = dataloaders
         super().__init__(class_labels, cfg, must_contain_keys)
         self.model = self._init_model()
 
@@ -18,9 +19,11 @@ class MLModel(BaseModel):
         elif self.cfg['model_type'] == 'sgdc':
             return SGDC(self.class_labels, self.cfg)
         elif self.cfg['model_type'] == 'knn':
-            return KNN(self.class_labels, self.cfg)
+            return KNN(self.class_labels, self.cfg, self.dataloaders)
         elif self.cfg['model_type'] == 'catboost':
             return CatBoost(self.class_labels, self.cfg)
+        elif self.cfg['model_type'] == 'lightgbm':
+            return LightGBM(self.class_labels, self.cfg)
         else:
             raise NotImplementedError('Model type: cnn|xgboost|knn|catboost|sgdc are supported.')
 
@@ -32,7 +35,7 @@ class MLModel(BaseModel):
         preds = self.model.predict(inputs)
 
         if phase == 'val':  # validation時はlossのみ算出
-            loss = self.criterion(torch.from_numpy(preds), labels.float()).item()
+            loss = self.criterion(torch.from_numpy(preds).float(), labels.float()).item()
 
         return loss, preds
 

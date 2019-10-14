@@ -7,7 +7,7 @@ from torch.utils.data.sampler import WeightedRandomSampler
 def set_dataloader(dataset, phase, cfg, shuffle=False):
     if phase in ['test', 'infer']:
         dataloader = WrapperDataLoader(dataset, batch_size=cfg['batch_size'], num_workers=cfg['n_jobs'],
-                                       pin_memory=True, sampler=None, shuffle=shuffle)
+                                       pin_memory=True, sampler=None, shuffle=False, drop_last=False)
     else:
         if sum(cfg['sample_balance']) != 0.0:
             if cfg['task_type'] == 'classify':
@@ -27,7 +27,9 @@ def set_dataloader(dataset, phase, cfg, shuffle=False):
 class WrapperDataLoader(DataLoader):
     def __init__(self, *args, **kwargs):
         super(WrapperDataLoader, self).__init__(*args, **kwargs)
-        self.feature_size = self.dataset.get_feature_size()
+
+    def get_input_size(self):
+        self.dataset.get_feature_size()
 
     def get_image_size(self):
         return self.dataset.get_image_size()

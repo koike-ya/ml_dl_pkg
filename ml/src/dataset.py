@@ -18,7 +18,7 @@ class BaseDataSet(Dataset, metaclass=ABCMeta):
 
 
 class CSVDataSet(BaseDataSet):
-    def __init__(self, csv_path, data_conf, load_func=None, process_func=None):
+    def __init__(self, csv_path, data_conf, phase, load_func=None, process_func=None, label_func=None):
         """
         data_conf: {
             'header': None or True,
@@ -29,20 +29,30 @@ class CSVDataSet(BaseDataSet):
 
         """
         super(CSVDataSet, self).__init__()
+        self.phase = phase
+
         if load_func:
             df = load_func(csv_path)
         else:
             df = pd.read_csv(csv_path, header=data_conf.get('header', 'infer'))
-        self.y = df.loc[:, data_conf.get('label_column', 'y')].values
-        del df[data_conf.get('label_column', 'y')]
-        self.x = df.values
+
+        # TODO yの指定を修正。Manifest側のheaderない問題とうまいこと。
+        if phase in ['train', 'val']:
+            self.y = df.iloc[:, -1]
+            self.x = df.iloc[:, :-1].values
+        else:
+            self.x = df.values
         self.process_func = process_func if process_func else None
 
     def __getitem__(self, idx):
         # TODO infer時にyとしてList[None]を返す実装
         if self.process_func:
             return self.process_func(self.x[idx]), self.y[idx]
-        return self.x[idx], self.y[idx]
+
+        if self.phase in ['train', 'val']:
+            return self.x[idx], self.y[idx]
+        else:
+            return self.x[idx]
 
     def __len__(self):
         return self.x.shape[0]
@@ -59,7 +69,7 @@ class CSVDataSet(BaseDataSet):
 
 class ManifestDataSet(BaseDataSet):
     # TODO 要テスト実装
-    def __init__(self, manifest_path, data_conf, load_func=None, label_func=None, process_func=None):
+    def __init__(self, manifest_path, data_conf, load_func=None, process_func=None, label_func=None):
         """
         data_conf: {
             'load_func': Function to load data from manifest correctly,

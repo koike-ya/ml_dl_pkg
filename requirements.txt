@@ -9,7 +9,7 @@ tqdm
 librosa
 tensorboardX
 tensorflow
-tensorboard==1.14.0
+tensorboard==1.13.0
 lightgbm
 xgboost
 pyedflib
