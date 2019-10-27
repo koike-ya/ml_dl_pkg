@@ -8,12 +8,27 @@ import torch.nn.functional as F
 
 from ml.models.cnn import construct_cnn
 
+
 supported_rnns = {
     'lstm': nn.LSTM,
     'rnn': nn.RNN,
     'gru': nn.GRU
 }
 supported_rnns_inv = dict((v, k) for k, v in supported_rnns.items())
+
+
+def initialize_weights(model):
+    if type(model) in [nn.Linear]:
+        nn.init.xavier_uniform_(model.weight)
+        if model.bias:
+            nn.init.zeros_(model.bias)
+    elif type(model) in [nn.LSTM, nn.RNN, nn.GRU]:
+        nn.init.orthogonal_(model.weight_hh_l0)
+        nn.init.xavier_uniform_(model.weight_ih_l0)
+        nn.init.zeros_(model.bias_hh_l0)
+        nn.init.zeros_(model.bias_ih_l0)
+
+    return model
 
 
 def rnn_args(parser):
@@ -23,7 +38,7 @@ def rnn_args(parser):
     rnn_parser.add_argument('--rnn-type', default='gru',
                             help='Type of the RNN. rnn|gru|lstm|deepspeech are supported')
     rnn_parser.add_argument('--rnn-hidden-size', default=100, type=int, help='Hidden size of RNNs')
-    rnn_parser.add_argument('--rnn-n-layers', default=2, type=int, help='Number of RNN layers')
+    rnn_parser.add_argument('--rnn-n-layers', default=1, type=int, help='Number of RNN layers')
     rnn_parser.add_argument('--max-norm', default=400, type=int,
                             help='Norm cutoff to prevent explosion of gradients')
     rnn_parser.add_argument('--no-bidirectional', dest='bidirectional', action='store_false', default=True,
@@ -100,7 +115,8 @@ class BatchRNN(nn.Module):
         self.hidden_size = hidden_size
         self.bidirectional = bidirectional
         self.batch_norm = SequenceWise(nn.BatchNorm1d(batch_norm_size)) if sequence_wise else nn.BatchNorm1d(batch_norm_size)
-        self.rnn = rnn_type(input_size=input_size, hidden_size=hidden_size, bidirectional=bidirectional, bias=True)
+        self.rnn = initialize_weights(
+            rnn_type(input_size=input_size, hidden_size=hidden_size, bidirectional=bidirectional, bias=True))
         self.num_directions = 2 if bidirectional else 1
 
     def flatten_parameters(self):
@@ -142,7 +158,7 @@ class RNNClassifier(nn.Module):
 
         self.fc = nn.Sequential(
             nn.BatchNorm1d(rnn_hidden_size * out_time_feature),
-            nn.Linear(rnn_hidden_size * out_time_feature, output_size, bias=False)
+            initialize_weights(nn.Linear(rnn_hidden_size * out_time_feature, output_size, bias=False))
         )
 
         self.is_inference_softmax = is_inference_softmax

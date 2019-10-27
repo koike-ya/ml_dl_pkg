@@ -35,7 +35,7 @@ def model_manager_args(parser):
     optim_param_parser.add_argument('--lr', '--learning-rate', default=1e-3, type=float, help='initial learning rate')
     optim_param_parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
     optim_param_parser.add_argument('--weight-decay', default=0.0, type=float, help='weight-decay')
-    optim_param_parser.add_argument('--learning-anneal', default=1.1, type=float,
+    optim_param_parser.add_argument('--learning-anneal', default=1.01, type=float,
                                     help='Annealing applied to learning rate every epoch')
 
     hyper_param_parser = parser.add_argument_group("Hyper parameter arguments for learning")
@@ -184,7 +184,6 @@ class BaseModelManager(metaclass=ABCMeta):
 
         for epoch in range(self.cfg['epochs']):
             for phase in ['train', 'val']:
-
                 for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
 
                     loss, predicts = self.model.fit(inputs.to(self.device), labels.to(self.device), phase)
