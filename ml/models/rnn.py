@@ -45,6 +45,8 @@ def rnn_args(parser):
                             help='Turn off bi-directional RNNs, introduces lookahead convolution')
     rnn_parser.add_argument('--no-inference-softmax', dest='is_inference_softmax', action='store_false',
                             default=True, help='Turn off inference softmax')
+    rnn_parser.add_argument('--batch-normalization', dest='batch_norm', action='store_true',
+                            default=False, help='Batch normalization or not')
     rnn_parser.add_argument('--sequence-wise', dest='sequence_wise', action='store_true',
                             default=False, help='sequence-wise batch normalization or not')
     return parser
@@ -78,7 +80,7 @@ def construct_rnn(cfg, output_size):
                          rnn_type=supported_rnns[cfg['rnn_type']], output_size=output_size,
                          rnn_hidden_size=cfg['rnn_hidden_size'], n_layers=cfg['rnn_n_layers'],
                          bidirectional=cfg['bidirectional'], is_inference_softmax=cfg['is_inference_softmax'],
-                         batch_norm_size=cfg['batch_norm_size'])
+                         batch_norm_size=cfg.get('batch_norm_size'))
 
 
 class SequenceWise(nn.Module):
@@ -119,13 +121,30 @@ class BatchRNN(nn.Module):
             rnn_type(input_size=input_size, hidden_size=hidden_size, bidirectional=bidirectional, bias=True))
         self.num_directions = 2 if bidirectional else 1
 
-    def flatten_parameters(self):
-        self.rnn.flatten_parameters()
-
     def forward(self, x):
         x = self.batch_norm(x.to(torch.float))
 
         x, _ = self.rnn(x)
+
+        if self.bidirectional:
+            x = x.view(x.size(0), x.size(1), 2, -1).sum(dim=2).view(x.size(0), x.size(1), -1)  # (TxNxH*2) -> (TxNxH) by sum
+        return x
+
+
+class RNN(nn.Module):
+    def __init__(self, input_size, hidden_size, batch_size, batch_norm_size, sequence_wise=False, rnn_type=nn.LSTM,
+                 bidirectional=False):
+        super(RNN, self).__init__()
+        self.input_size = input_size
+        self.batch_size = batch_size
+        self.hidden_size = hidden_size
+        self.bidirectional = bidirectional
+        self.rnn = initialize_weights(
+            rnn_type(input_size=input_size, hidden_size=hidden_size, bidirectional=bidirectional, bias=True))
+        self.num_directions = 2 if bidirectional else 1
+
+    def forward(self, x):
+        x, _ = self.rnn(x.to(torch.float))
 
         if self.bidirectional:
             x = x.view(x.size(0), x.size(1), 2, -1).sum(dim=2).view(x.size(0), x.size(1), -1)  # (TxNxH*2) -> (TxNxH) by sum
@@ -146,19 +165,22 @@ class RNNClassifier(nn.Module):
         super(RNNClassifier, self).__init__()
 
         rnns = []
-        rnn = BatchRNN(input_size=input_size, hidden_size=rnn_hidden_size, batch_size=batch_size, rnn_type=rnn_type,
+        rnn_cls = BatchRNN if batch_norm_size else RNN
+        rnn = rnn_cls(input_size=input_size, hidden_size=rnn_hidden_size, batch_size=batch_size, rnn_type=rnn_type,
                        bidirectional=bidirectional, batch_norm_size=batch_norm_size, sequence_wise=sequence_wise)
         rnns.append(('0', rnn))
         for x in range(n_layers - 1):
-            rnn = BatchRNN(input_size=rnn_hidden_size, hidden_size=rnn_hidden_size, batch_size=batch_size,
+            rnn = rnn_cls(input_size=rnn_hidden_size, hidden_size=rnn_hidden_size, batch_size=batch_size,
                            rnn_type=rnn_type, bidirectional=bidirectional, batch_norm_size=batch_norm_size,
                            sequence_wise=sequence_wise)
             rnns.append(('%d' % (x + 1), rnn))
         self.rnns = nn.Sequential(OrderedDict(rnns))
 
         self.fc = nn.Sequential(
-            nn.BatchNorm1d(rnn_hidden_size * out_time_feature),
-            initialize_weights(nn.Linear(rnn_hidden_size * out_time_feature, output_size, bias=False))
+            # nn.BatchNorm1d(rnn_hidden_size * out_time_feature),
+            # nn.BatchNorm1d(rnn_hidden_size),
+            # initialize_weights(nn.Linear(rnn_hidden_size * out_time_feature, output_size, bias=False))
+            initialize_weights(nn.Linear(rnn_hidden_size, output_size, bias=False))
         )
 
         self.is_inference_softmax = is_inference_softmax
@@ -170,6 +192,10 @@ class RNNClassifier(nn.Module):
             x = rnn(x)
 
         x = x.transpose(0, 1)   # time x batch x freq -> batch x time x freq
+
+        x = x.transpose(1, 2)  # batch x sequence x freq -> batch x freq x sequence
+        x = nn.AvgPool1d(kernel_size=x.size(2))(x)  # average within sequence, outputs batch x freq x 1
+
         x = x.reshape(x.size(0), -1)
 
         x = self.fc(x)

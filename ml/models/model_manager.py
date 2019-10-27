@@ -100,7 +100,8 @@ class BaseModelManager(metaclass=ABCMeta):
 
         if self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn']:
             if self.cfg['model_type'] in ['rnn', 'cnn_rnn']:
-                self.cfg['batch_norm_size'] = list(self.dataloaders.values())[0].get_batch_norm_size()
+                if self.cfg['batch_norm']:
+                    self.cfg['batch_norm_size'] = list(self.dataloaders.values())[0].get_batch_norm_size()
                 self.cfg['seq_len'] = list(self.dataloaders.values())[0].get_seq_len()
             else:
                 self.cfg['image_size'] = list(self.dataloaders.values())[0].get_image_size()

@@ -107,7 +107,7 @@ class TrainManager:
             else:
                 result_metrics, model = self._train()
 
-        return model
+            return model
 
     def test(self) -> List[Metric]:
         # dataset, dataloaderの作成
