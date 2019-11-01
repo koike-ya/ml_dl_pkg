@@ -6,6 +6,7 @@ import argparse
 from copy import deepcopy
 from ml.src.metrics import Metric
 from ml.models.model_manager import model_manager_args, BaseModelManager
+from ml.models.keras_model_manager import KerasModelManager
 from ml.src.metrics import AverageMeter
 import torch
 
@@ -19,6 +20,7 @@ def train_manager_args(parser):
                               help='The number of folds. 1 means training with whole train data')
     train_parser.add_argument('--test', action='store_true', help='Do testing, You should be specify k-fold with 1.')
     train_parser.add_argument('--infer', action='store_true', help='Do inference with test_path data,')
+    train_parser.add_argument('--model-manager', default='pytorch')
     parser = model_manager_args(parser)
 
     return parser
@@ -64,7 +66,15 @@ class TrainManager:
             dataloaders[phase] = self.set_dataloader_func(dataset, phase, self.train_conf)
 
         # modelManagerをインスタンス化、trainの実行
-        model_manager = BaseModelManager(self.train_conf['class_names'], self.train_conf, dataloaders, deepcopy(self.metrics))
+        if self.train_conf['model_manager'] == 'pytorch':
+            model_manager = BaseModelManager(self.train_conf['class_names'], self.train_conf, dataloaders,
+                                             deepcopy(self.metrics))
+        elif self.train_conf['model_manager'] == 'keras':
+            model_manager = KerasModelManager(self.train_conf['class_names'], self.train_conf, dataloaders,
+                                              deepcopy(self.metrics))
+        else:
+            raise NotImplementedError
+
         return model_manager.train(), model_manager.model
 
     def _update_data_paths(self, fold_count: int):
