@@ -67,7 +67,7 @@ def train(model_conf):
     model_manager = BaseModelManager(class_names, model_conf, dataloaders, metrics)
 
     # モデルの学習を行う場合
-    if not model_conf['only_model_test']:
+    if not model_conf['only_test']:
         model_manager.train()
 
 

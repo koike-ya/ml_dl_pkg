@@ -28,7 +28,7 @@ from ml.models.base_model import BaseModel
 class CHBMITCNN:
     def __init__(self, model_path):
         self.model_path = model_path
-        input_shape = (1, 4, 501, 65)
+        input_shape = (1, 4, 249, 236)
         model = Sequential()
         # C1
         model.add(
@@ -53,7 +53,7 @@ class CHBMITCNN:
         model.add(Dropout(0.5))
         model.add(Dense(256, activation='sigmoid'))
         model.add(Dropout(0.5))
-        model.add(Dense(3, activation='softmax'))
+        model.add(Dense(2, activation='softmax'))
 
         opt_adam = keras.optimizers.Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
         model.compile(loss='categorical_crossentropy', optimizer=opt_adam, metrics=['accuracy'])
@@ -63,6 +63,9 @@ class CHBMITCNN:
         return self.model.fit(train_inputs, train_labels, batch_size=batch_size,
                        epochs=epochs, validation_data=validation_data,
                        callbacks=callbacks)
+
+    def predict(self, inputs):
+        return self.model.predict(inputs)
 
     def save_model(self):
         self.model.save(self.model_path)

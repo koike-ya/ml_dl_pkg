@@ -40,8 +40,10 @@ class KerasModelManager(BaseModelManager):
         pred_list = np.zeros((len(self.dataloaders[phase]) * batch_size, 1), dtype=dtype_) - 1000000
         label_list = np.zeros((len(self.dataloaders[phase]) * batch_size, 1), dtype=dtype_) - 1000000
         for i, (inputs, labels) in tqdm(enumerate(self.dataloaders[phase]), total=len(self.dataloaders[phase])):
-            inputs, labels = inputs.to(self.device), labels.numpy().reshape(-1,)
-            preds = self.model.predict(inputs)
+            inputs = torch.unsqueeze(inputs, 1).cpu().numpy()
+
+            labels = labels.numpy().reshape(-1,)
+            preds = self.model.predict(inputs)[:, 1]
 
             pred_list[i * batch_size:i * batch_size + preds.shape[0], 0] = preds.reshape(-1,)
             label_list[i * batch_size:i * batch_size + labels.shape[0], 0] = labels
@@ -64,6 +66,7 @@ class KerasModelManager(BaseModelManager):
             history = self.model.fit(train_inputs.cpu().numpy(), train_labels.cpu().numpy(), batch_size=self.cfg['batch_size'],
                            epochs=self.cfg['epochs'], validation_data=(val_inputs.cpu().numpy(), val_labels.cpu().numpy()),
                            callbacks=[callback])
+            self.model.save_model()
             # print(history.history.keys())
             # exit()
         return self.metrics
@@ -76,15 +79,9 @@ class KerasModelManager(BaseModelManager):
 
         for metric in self.metrics:
             if metric.name == 'loss':
-                if self.cfg['task_type'] == 'classify':
-                    continue        # lossの計算はモデルによるため、今は未対応
-                if self.cfg['model_type'] in ['rnn', 'cnn']:
-                    loss_value = self.model.criterion(torch.from_numpy(pred_list),
-                                                      torch.from_numpy(label_list))
-            else:
-                loss_value = 10000000
+                continue        # lossの計算はモデルによるため、今は未対応
 
-            metric.update(phase='test', loss_value=loss_value, preds=pred_list, labels=label_list)
+            metric.update(phase='test', loss_value=0.0, preds=pred_list, labels=label_list)
             print(f"{metric.name}: {metric.average_meter['test'].value :.4f}")
 
         if self.cfg['task_type'] == 'classify':
