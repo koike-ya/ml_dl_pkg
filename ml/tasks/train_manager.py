@@ -11,6 +11,7 @@ from ml.src.metrics import AverageMeter
 import torch
 
 LABELS = {'none': 0, 'seiz': 1, 'arch': 2}
+PHASES = ['train', 'val', 'test']
 
 
 def train_manager_args(parser):
@@ -50,10 +51,10 @@ class TrainManager:
         data_df = pd.DataFrame()
 
         if self.is_manifest:
-            for phase in ['train', 'val']:
+            for phase in PHASES:
                 data_df = pd.concat([data_df, pd.read_csv(self.train_conf[f'{phase}_path'], header=None)])
         else:
-            for phase in ['train', 'val']:
+            for phase in PHASES:
                 data_df = pd.concat([data_df, self.load_func(self.train_conf[f'{phase}_path'])])
 
         all_labels = data_df.squeeze().apply(lambda x: self.label_func(x))
@@ -76,87 +77,92 @@ class TrainManager:
 
         return model_manager
 
-    def _train(self):
+    def _train_test(self):
         # dataset, dataloaderの作成
         dataloaders = {}
-        for phase in ['train', 'val']:
+        for phase in PHASES:
             dataset = self.dataset_cls(self.train_conf[f'{phase}_path'], self.train_conf, phase,
                                        load_func=self.load_func, label_func=self.label_func)
             dataloaders[phase] = self.set_dataloader_func(dataset, phase, self.train_conf)
 
         model_manager = self._init_model_manager(dataloaders)
 
-        return model_manager.train(), model_manager.model
+        model_manager.train()
+        _, _, test_metrics = model_manager.test(return_metrics=True)
 
-    def _update_data_paths(self, fold_count: int):
+        return test_metrics, model_manager.model
+
+    def _update_data_paths(self, fold_count: int, k: int):
         # fold_count...k-foldのうちでいくつ目か
 
-        train_path_df = pd.DataFrame()
+        test_path_df = pd.DataFrame()
         val_path_df = pd.DataFrame()
+        train_path_df = pd.DataFrame()
+        for class_, label_df in self.each_label_df.items():
+            one_phase_length = len(label_df) // self.train_conf['k_fold']
+            start_index = fold_count * one_phase_length
+            leave_out = label_df.iloc[start_index:start_index + one_phase_length, :]
+            test_path_df = pd.concat([test_path_df, leave_out])
 
-        for class_ in self.train_conf['class_names']:
-            one_val_length = len(self.each_label_df[class_]) // self.train_conf['k_fold']
-            val_start_index = fold_count * one_val_length
-            val_leave = self.each_label_df[class_].iloc[val_start_index:val_start_index + one_val_length, :]
-            val_path_df = pd.concat([val_path_df, val_leave])
+            train_val_df = label_df[~label_df.index.isin(test_path_df.index)].reset_index(drop=True)
+            val_start_index = (fold_count % (k - 1)) * one_phase_length
+            leave_out = label_df.iloc[val_start_index:val_start_index + one_phase_length, :]
+            val_path_df = pd.concat([val_path_df, leave_out])
 
-            train_leave = self.each_label_df[class_][~self.each_label_df[class_].index.isin(val_path_df.index)]
-            train_path_df = pd.concat([train_path_df, train_leave])
+            train_path_df = pd.concat([train_path_df, train_val_df[~train_val_df.index.isin(leave_out.index)]])
 
-        val_file_name = self.train_conf['val_path'][:-4].replace('_fold', '') + '_fold.csv'
-        val_path_df.to_csv(val_file_name, index=False, header=None)
-        self.train_conf['val_path'] = val_file_name
+        for phase in PHASES:
+            file_name = self.train_conf[f'{phase}_path'][:-4].replace('_fold', '') + '_fold.csv'
+            locals()[f'{phase}_path_df'].to_csv(file_name, index=False, header=None)
+            self.train_conf[f'{phase}_path'] = file_name
 
-        train_file_name = self.train_conf['train_path'][:-4].replace('_fold', '') + '_fold.csv'
-        train_path_df.to_csv(train_file_name, index=False, header=None)
-        self.train_conf['train_path'] = train_file_name
-
-    def _train_k_fold(self):
+    def _train_test_k_fold(self):
         orig_train_path = self.train_conf['train_path']
 
         k_fold_metrics = {metric.name: np.zeros(self.train_conf['k_fold']) for metric in self.metrics}
+
+        if self.train_conf['k_fold'] == 0:
+            # データ全体で学習を行う
+            raise NotImplementedError
+
         for i in range(self.train_conf['k_fold']):
             if Path(self.train_conf['model_path']).is_file():
                 Path(self.train_conf['model_path']).unlink()
 
-            self._update_data_paths(i)
+            self._update_data_paths(i, self.train_conf['k_fold'])
 
-            result_metrics, model = self._train()
+            result_metrics, model = self._train_test()
 
             print(f'Fold {i + 1} ended.')
             for metric in result_metrics:
-                k_fold_metrics[metric.name][i] = metric.average_meter['val'].best_score
+                k_fold_metrics[metric.name][i] = metric.average_meter['test'].best_score
                 # print(f"Metric {metric.name} best score: {metric.average_meter['val'].best_score}")
 
-        [print(f'{i + 1} fold {metric_name} score\t mean: {meter.mean()}\t std: {meter.std()}')
-         for metric_name, meter in k_fold_metrics.items()]
+        [print(f'{i + 1} fold {metric_name} score\t mean: {meter.mean()}\t std: {meter.std()}') for metric_name, meter
+         in k_fold_metrics.items()]
 
-        if orig_train_path != self.train_conf['train_path']:  # 新しく作成したマニフェストファイルは削除
-            [Path(self.train_conf[f'{phase}_path']).unlink() for phase in ['train', 'val']]
+        # 新しく作成したマニフェストファイルは削除
+        [Path(self.train_conf[f'{phase}_path']).unlink() for phase in PHASES]
 
         return model
 
-    def train(self):
+    def test(self, model_manager=None) -> List[Metric]:
+        if not model_manager:
+            # dataset, dataloaderの作成
+            dataloaders = {}
+            dataset = self.dataset_cls(self.train_conf[f'test_path'], self.train_conf, phase='test',
+                                       load_func=self.load_func, label_func=self.label_func)
+            dataloaders['test'] = self.set_dataloader_func(dataset, 'test', self.train_conf)
 
-        # モデルの学習を行う場合
-        if not self.train_conf['only_test']:
-            if self.train_conf['k_fold']:
-                return self._train_k_fold()
-            else:
-                result_metrics, model = self._train()
-
-            return model
-
-    def test(self) -> List[Metric]:
-        # dataset, dataloaderの作成
-        dataloaders = {}
-        dataset = self.dataset_cls(self.train_conf[f'test_path'], self.train_conf, phase='test',
-                                   load_func=self.load_func, label_func=self.label_func)
-        dataloaders['test'] = self.set_dataloader_func(dataset, 'test', self.train_conf)
-
-        model_manager = self._init_model_manager(dataloaders)
+            model_manager = self._init_model_manager(dataloaders)
 
         return model_manager.test()
+
+    def train_test(self):
+        if not self.train_conf['only_test']:
+            self._train_test_k_fold()
+        else:
+            self.test()
 
     def infer(self) -> np.array:
         phase = 'infer'

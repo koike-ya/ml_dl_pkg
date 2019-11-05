@@ -43,7 +43,7 @@ class KerasModelManager(BaseModelManager):
             inputs = torch.unsqueeze(inputs, 1).cpu().numpy()
 
             labels = labels.numpy().reshape(-1,)
-            preds = self.model.predict(inputs)[:, 1]
+            preds = self.model.predict(inputs)
 
             pred_list[i * batch_size:i * batch_size + preds.shape[0], 0] = preds.reshape(-1,)
             label_list[i * batch_size:i * batch_size + labels.shape[0], 0] = labels

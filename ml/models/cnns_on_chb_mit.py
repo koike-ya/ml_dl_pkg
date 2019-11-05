@@ -7,6 +7,7 @@ import numpy as np
 torch.cuda.manual_seed_all(seed)
 import random
 random.seed(seed)
+import tensorflow as tf
 import torch.nn as nn
 from torchvision import models
 
@@ -19,6 +20,7 @@ import keras
 import numpy as np
 from keras.models import Sequential
 from keras.layers import  Dense, Conv3D, Dropout, Flatten, BatchNormalization
+from sklearn.metrics import recall_score
 from keras.callbacks import EarlyStopping
 from random import shuffle
 
@@ -28,7 +30,7 @@ from ml.models.base_model import BaseModel
 class CHBMITCNN:
     def __init__(self, model_path):
         self.model_path = model_path
-        input_shape = (1, 4, 249, 236)
+        input_shape = (1, 4, 61, 236)
         model = Sequential()
         # C1
         model.add(
@@ -56,7 +58,8 @@ class CHBMITCNN:
         model.add(Dense(2, activation='softmax'))
 
         opt_adam = keras.optimizers.Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-        model.compile(loss='categorical_crossentropy', optimizer=opt_adam, metrics=['accuracy'])
+        model.compile(loss='categorical_crossentropy', optimizer=opt_adam,
+                      metrics=['accuracy', tf.keras.metrics.Recall()])
         self.model = model
 
     def fit(self, train_inputs, train_labels, batch_size, epochs, validation_data, callbacks):
@@ -65,7 +68,7 @@ class CHBMITCNN:
                        callbacks=callbacks)
 
     def predict(self, inputs):
-        return self.model.predict(inputs)
+        return np.argmax(self.model.predict(inputs), axis=1)
 
     def save_model(self):
         self.model.save(self.model_path)
@@ -73,3 +76,10 @@ class CHBMITCNN:
     def load_model(self):
         self.model.load_weights(self.model_path)
         return self.model
+
+
+def false_detection_rate(true, pred):
+    print(true)
+    true, pred = true[:, 1], pred[:, 1]
+    print(pred.shape)
+    return tf.tensordot(tf.dtypes.cast(true == 0, tf.int32), tf.dtypes.cast(pred == 1, tf.int32), axes=1) / pred.shape[0]
