@@ -48,7 +48,7 @@ class MLModel(BaseModel):
         preds = np.argmax(outputs, 1)
 
         if phase == 'val':  # validation時はlossのみ算出
-            y_onehot = torch.FloatTensor(labels.size(0), len(self.class_labels))
+            y_onehot = torch.zeros(labels.size(0), len(self.class_labels))
             y_onehot = y_onehot.scatter_(1, labels.view(-1, 1).type(torch.LongTensor), 1)
             loss = self.criterion(torch.from_numpy(outputs), y_onehot).item()
 

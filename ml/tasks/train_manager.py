@@ -106,7 +106,7 @@ class TrainManager:
 
             train_val_df = label_df[~label_df.index.isin(test_path_df.index)].reset_index(drop=True)
             val_start_index = (fold_count % (k - 1)) * one_phase_length
-            leave_out = label_df.iloc[val_start_index:val_start_index + one_phase_length, :]
+            leave_out = train_val_df.iloc[val_start_index:val_start_index + one_phase_length, :]
             val_path_df = pd.concat([val_path_df, leave_out])
 
             train_path_df = pd.concat([train_path_df, train_val_df[~train_val_df.index.isin(leave_out.index)]])
@@ -138,13 +138,13 @@ class TrainManager:
                 k_fold_metrics[metric.name][i] = metric.average_meter['test'].best_score
                 # print(f"Metric {metric.name} best score: {metric.average_meter['val'].best_score}")
 
-        [print(f'{i + 1} fold {metric_name} score\t mean: {meter.mean()}\t std: {meter.std()}') for metric_name, meter
-         in k_fold_metrics.items()]
+        [print(f'{i + 1} fold {metric_name} score\t mean: {meter.mean() :.4f}\t std: {meter.std() :.4f}') for
+         metric_name, meter in k_fold_metrics.items()]
 
         # 新しく作成したマニフェストファイルは削除
         [Path(self.train_conf[f'{phase}_path']).unlink() for phase in PHASES]
 
-        return model
+        return model, k_fold_metrics
 
     def test(self, model_manager=None) -> List[Metric]:
         if not model_manager:
@@ -160,7 +160,7 @@ class TrainManager:
 
     def train_test(self):
         if not self.train_conf['only_test']:
-            self._train_test_k_fold()
+            return self._train_test_k_fold()
         else:
             self.test()
 
