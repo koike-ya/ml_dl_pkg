@@ -79,7 +79,17 @@ class KerasModelManager(BaseModelManager):
 
         for metric in self.metrics:
             if metric.name == 'loss':
-                continue        # lossの計算はモデルによるため、今は未対応
+                if self.cfg['task_type'] == 'classify':
+                    y_onehot = torch.zeros(label_list.shape[0], len(self.class_labels))
+                    y_onehot = y_onehot.scatter_(1, torch.from_numpy(label_list).view(-1, 1).type(torch.LongTensor), 1)
+                    pred_onehot = torch.zeros(pred_list.shape[0], len(self.class_labels))
+                    pred_onehot = pred_onehot.scatter_(1,
+                                                       torch.from_numpy(pred_list).view(-1, 1).type(torch.LongTensor),
+                                                       1)
+                    loss_value = self.model.criterion(pred_onehot.to(self.device), y_onehot.to(self.device)).item()
+                elif self.cfg['model_type'] in ['rnn', 'cnn']:
+                    loss_value = self.model.criterion(torch.from_numpy(pred_list).to(self.device),
+                                                      torch.from_numpy(label_list).to(self.device))
 
             metric.update(phase='test', loss_value=0.0, preds=pred_list, labels=label_list)
             print(f"{metric.name}: {metric.average_meter['test'].value :.4f}")

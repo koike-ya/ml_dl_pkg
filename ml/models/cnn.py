@@ -41,7 +41,7 @@ class CNN(nn.Module):
     def forward(self, x):
         if self.n_dim == 3:
             x = torch.unsqueeze(x, dim=1)
-        x = self.features(x)
+        x = self.features(x.to(torch.float32))
         x = x.view(x.size(0), -1)
         x = self.classifier(x)
         x = self.softmax(x)
@@ -63,6 +63,7 @@ class CNNMaker:
         if self.use_as_extractor:
             return layers, feature_size
 
+        feature_size = np.prod(list(feature_size.values()))
         model = CNN(layers, feature_size, n_classes=self.n_classes)
 
         return model
