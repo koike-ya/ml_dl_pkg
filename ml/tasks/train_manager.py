@@ -60,7 +60,7 @@ class TrainManager:
         all_labels = data_df.squeeze().apply(lambda x: self.label_func(x))
 
         for class_ in self.train_conf['class_names']:
-            each_label_df[class_] = data_df[all_labels == class_]
+            each_label_df[class_] = data_df[all_labels == class_].reset_index(drop=True)
 
         return each_label_df
 
@@ -102,9 +102,9 @@ class TrainManager:
             one_phase_length = len(label_df) // self.train_conf['k_fold']
             start_index = fold_count * one_phase_length
             leave_out = label_df.iloc[start_index:start_index + one_phase_length, :]
-            test_path_df = pd.concat([test_path_df, leave_out])
+            test_path_df = pd.concat([test_path_df, leave_out]).reset_index(drop=True)
 
-            train_val_df = label_df[~label_df.index.isin(test_path_df.index)].reset_index(drop=True)
+            train_val_df = label_df[~label_df.index.isin(leave_out.index)].reset_index(drop=True)
             val_start_index = (fold_count % (k - 1)) * one_phase_length
             leave_out = train_val_df.iloc[val_start_index:val_start_index + one_phase_length, :]
             val_path_df = pd.concat([val_path_df, leave_out])
@@ -115,6 +115,7 @@ class TrainManager:
             file_name = self.train_conf[f'{phase}_path'][:-4].replace('_fold', '') + '_fold.csv'
             locals()[f'{phase}_path_df'].to_csv(file_name, index=False, header=None)
             self.train_conf[f'{phase}_path'] = file_name
+            print(f'{phase} data:\n', locals()[f'{phase}_path_df'][0].apply(self.label_func).value_counts())
 
     def _train_test_k_fold(self):
         orig_train_path = self.train_conf['train_path']
