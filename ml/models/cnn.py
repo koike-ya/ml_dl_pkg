@@ -30,15 +30,14 @@ class CNN(nn.Module):
             nn.Linear(in_features, 4096),
             nn.ReLU(inplace=True),
             nn.Dropout(),
-            nn.Linear(4096, 4096),
-            nn.ReLU(inplace=True),
-            nn.Dropout(),
             nn.Linear(4096, n_classes),
         )
         self.softmax = nn.Softmax(dim=-1)
         self.n_dim = dim
 
     def forward(self, x):
+        print(x.shape)
+        exit()
         if self.n_dim == 3:
             x = torch.unsqueeze(x, dim=1)
         x = self.features(x.to(torch.float32))
