@@ -3,7 +3,7 @@ import torch
 
 from ml.models.base_model import BaseModel
 from ml.models.decision_trees import CatBoost, XGBoost, LightGBM
-from ml.models.toolbox import KNN, SGDC
+from ml.models.toolbox import KNN, SGDC, SVM
 
 
 class MLModel(BaseModel):
@@ -18,6 +18,8 @@ class MLModel(BaseModel):
             return XGBoost(self.class_labels, self.cfg)
         elif self.cfg['model_type'] == 'sgdc':
             return SGDC(self.class_labels, self.cfg)
+        elif self.cfg['model_type'] == 'svm':
+            return SVM(self.class_labels, self.cfg)
         elif self.cfg['model_type'] == 'knn':
             return KNN(self.class_labels, self.cfg, self.dataloaders)
         elif self.cfg['model_type'] == 'catboost':
@@ -25,7 +27,7 @@ class MLModel(BaseModel):
         elif self.cfg['model_type'] == 'lightgbm':
             return LightGBM(self.class_labels, self.cfg)
         else:
-            raise NotImplementedError('Model type: cnn|xgboost|knn|catboost|sgdc are supported.')
+            raise NotImplementedError('Model type: cnn|xgboost|knn|catboost|sgdc|svm are supported.')
 
     def _fit_regress(self, inputs, labels, phase):
         if phase == 'train':  # train時はパラメータ更新&trainのlossを算出

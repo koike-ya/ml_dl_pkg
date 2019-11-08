@@ -46,10 +46,10 @@ def set_requires_grad(model, requires_grad=True):
 def adda(args, source_model, eeg_conf, label_func, class_names, target_criterion, device,
          source_manifest, target_manifest):
     target_model = deepcopy(source_model)
+
     source_model.load_state_dict(torch.load(args.model_path))
     source_model.eval()
     set_requires_grad(source_model, requires_grad=False)
-
     clf = source_model
     source_model = source_model.features
 

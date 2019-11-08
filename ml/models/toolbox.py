@@ -5,6 +5,7 @@ from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import log_loss
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
 
 
 class BaseMLPredictor:
@@ -71,3 +72,16 @@ class SGDC(BaseMLPredictor):
         self.model = SGDClassifier(loss='log', alpha=cfg['lr'], shuffle=False, n_jobs=cfg['n_jobs'],
                                    random_state=cfg['seed'], learning_rate='optimal', class_weight=class_weight)
         super(SGDC, self).__init__(class_labels, cfg)
+
+
+class SVM(BaseMLPredictor):
+    def __init__(self, class_labels, cfg):
+        class_weight = dict(zip(class_labels, cfg['loss_weight']))
+        self.model = SVC(random_state=cfg['seed'])
+        super(SVM, self).__init__(class_labels, cfg)
+
+    def partial_fit(self, x, y) -> np.float:
+        self.fitted = True
+        # lossを返却
+        self.model.fit(x, y)
+        return log_loss(y, self.model.predict_proba(x), labels=self.class_labels)

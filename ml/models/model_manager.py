@@ -15,7 +15,13 @@ from ml.models.ml_model import MLModel
 from ml.models.nn_model import NNModel, supported_nn_models
 
 
-supported_ml_models = ['rnn', 'cnn', 'cnn_rnn', 'xgboost', 'knn', 'catboost', 'sgdc', 'lightgbm']
+supported_ml_models = ['rnn', 'cnn', 'cnn_rnn', 'xgboost', 'knn', 'catboost', 'sgdc', 'lightgbm', 'svm']
+
+
+def type_float_list(args):
+    if args == 'same':
+        return args
+    return list(map(float, args.split(',')))
 
 
 def model_manager_args(parser):
@@ -42,10 +48,9 @@ def model_manager_args(parser):
     hyper_param_parser.add_argument('--batch-size', default=32, type=int, help='Batch size for training')
     hyper_param_parser.add_argument('--epoch-rate', default=1.0, type=float, help='Data rate to to use in one epoch')
     hyper_param_parser.add_argument('--n-jobs', default=4, type=int, help='Number of workers used in data-loading')
-    type_float_list = lambda x: list(map(float, x.split(',')))
-    hyper_param_parser.add_argument('--loss-weight', default='1.0,1.0,1.0', type=type_float_list,
+    hyper_param_parser.add_argument('--loss-weight', default='same', type=type_float_list,
                                     help='The weights of all class about loss')
-    hyper_param_parser.add_argument('--sample-balance', default='0.0,0.0,0.0', type=type_float_list,
+    hyper_param_parser.add_argument('--sample-balance', default='same', type=type_float_list,
                                     help='Sampling label balance from dataset.')
     hyper_param_parser.add_argument('--epochs', default=20, type=int, help='Number of training epochs')
 
@@ -99,7 +104,7 @@ class BaseModelManager(metaclass=ABCMeta):
         self.cfg['input_size'] = list(self.dataloaders.values())[0].get_input_size()
 
         if self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn']:
-            if self.cfg['model_type'] in ['rnn', 'cnn_rnn']:
+            if self.cfg['model_type'] in ['rnn']:
                 if self.cfg['batch_norm']:
                     self.cfg['batch_norm_size'] = list(self.dataloaders.values())[0].get_batch_norm_size()
                 self.cfg['seq_len'] = list(self.dataloaders.values())[0].get_seq_len()

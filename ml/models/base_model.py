@@ -38,6 +38,8 @@ class BaseModel(metaclass=ABCMeta):
         return cfg
 
     def _set_criterion(self):
+        if isinstance(self.cfg['loss_weight'], str):
+            self.cfg['loss_weight'] = [1.0] * len(self.cfg['class_names'])
         if self.cfg['task_type'] == 'regress':
             return torch.nn.MSELoss()
         else:

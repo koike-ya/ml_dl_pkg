@@ -36,8 +36,6 @@ class CNN(nn.Module):
         self.n_dim = dim
 
     def forward(self, x):
-        print(x.shape)
-        exit()
         if self.n_dim == 3:
             x = torch.unsqueeze(x, dim=1)
         x = self.features(x.to(torch.float32))

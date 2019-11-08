@@ -24,11 +24,11 @@ from sklearn.metrics import recall_score
 from keras.callbacks import EarlyStopping
 from random import shuffle
 
-from ml.models.base_model import BaseModel
+from ml.models.nn_model import NNModel
 
 
 class CHBMITCNN:
-    def __init__(self, model_path):
+    def __init__(self, model_path, cfg):
         self.model_path = model_path
         input_shape = (1, 4, 61, 236)
         model = Sequential()
