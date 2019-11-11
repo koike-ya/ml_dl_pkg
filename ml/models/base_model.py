@@ -4,6 +4,7 @@ import numpy as np
 import torch
 
 from ml.models.decision_trees import decision_trees_args
+from ml.models.toolbox import ml_model_args
 from ml.models.rnn import rnn_args
 
 
@@ -19,6 +20,7 @@ def model_args(parser):
     # parser = adda_args(parser)
 
     # ML系用のパラメータ
+    parser = ml_model_args(parser)
     parser = decision_trees_args(parser)
 
     return parser

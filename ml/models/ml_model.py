@@ -21,7 +21,7 @@ class MLModel(BaseModel):
         elif self.cfg['model_type'] == 'svm':
             return SVM(self.class_labels, self.cfg)
         elif self.cfg['model_type'] == 'knn':
-            return KNN(self.class_labels, self.cfg, self.dataloaders)
+            return KNN(self.class_labels, self.cfg)
         elif self.cfg['model_type'] == 'catboost':
             return CatBoost(self.class_labels, self.cfg)
         elif self.cfg['model_type'] == 'lightgbm':
@@ -31,7 +31,7 @@ class MLModel(BaseModel):
 
     def _fit_regress(self, inputs, labels, phase):
         if phase == 'train':  # train時はパラメータ更新&trainのlossを算出
-            loss = self.model.partial_fit(inputs, labels.numpy())
+            loss = self.model.fit(inputs, labels.numpy())
             self.fitted = self.model.fitted
 
         preds = self.model.predict(inputs)
@@ -43,7 +43,7 @@ class MLModel(BaseModel):
 
     def _fit_classify(self, inputs, labels, phase):
         if phase == 'train':  # train時はパラメータ更新&trainのlossを算出
-            loss = self.model.partial_fit(inputs, labels.numpy())
+            loss = self.model.fit(inputs, labels.numpy())
             self.fitted = self.model.fitted
 
         outputs = self.model.predict_proba(inputs)

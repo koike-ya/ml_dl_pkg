@@ -54,7 +54,7 @@ class XGBoost(BaseMLPredictor):
             self.model = xgb.XGBRegressor(**params)
         super(XGBoost, self).__init__(class_labels, cfg)
 
-    def partial_fit(self, x, y):
+    def fit(self, x, y):
         eval_metric = 'mlogloss' if self.classify else 'rmse'
         self.model.fit(x, y, eval_set=[(x, y)], eval_metric=eval_metric, verbose=False)
         return np.array(self.model.evals_result()['validation_0'][eval_metric]).mean()

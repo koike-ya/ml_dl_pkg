@@ -8,6 +8,15 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 
 
+def ml_model_args(parser):
+
+    ml_model_parser = parser.add_argument_group("ML model hyper parameters")
+    ml_model_parser.add_argument('--C', type=float, default=1.0)
+    ml_model_parser.add_argument('--svm-kernel', choices=['linear', 'rbf'], default='linear')
+
+    return parser
+
+
 class BaseMLPredictor:
     def __init__(self, class_labels, cfg):
         self.class_labels = class_labels
@@ -23,10 +32,10 @@ class BaseMLPredictor:
             self.model = pickle.load(f)
         self.fitted = True
 
-    def partial_fit(self, x, y) -> np.float:
+    def fit(self, x, y) -> np.float:
         self.fitted = True
         # lossを返却
-        self.model.partial_fit(x, y, self.class_labels)
+        self.model.fit(x, y)
         return log_loss(y, self.model.predict_proba(x), labels=self.class_labels)
 
     def predict(self, x):
@@ -39,49 +48,26 @@ class BaseMLPredictor:
 
 
 class KNN(BaseMLPredictor):
-    def __init__(self, class_labels, cfg, dataloaders):
+    def __init__(self, class_labels, cfg):
         super(KNN, self).__init__(class_labels, cfg)
         self.model = KNeighborsClassifier(n_neighbors=len(self.class_labels), n_jobs=-1)
-        self.dataloaders = dataloaders
-        self.x = self.dataloaders['train'].dataset.x.copy()
-        self.y = self.dataloaders['train'].dataset.y.copy()
-        self.model.fit(self.x, self.y)
-
-    def partial_fit(self, x, y):
-        # TODO 要修正
-        return np.float(0.0)
-
-    def predict(self, x):
-        # if self.x.shape[0] != 1:
-        # else:
-            # raise NotFittedError(f'This MLModel instance(K-Nearest Neighbor) is not fitted yet.')
-        return self.model.predict(x)
 
     def predict_proba(self, x):
-        # knnは確率にできないためonehotにして対応する
-        if self.x.shape[0] != 1:
-            self.model.fit(self.x, self.y)
-            return self.model.predict_proba(x).astype(np.float32)
-        else:
-            raise NotFittedError(f'This MLModel instance(K-Nearest Neighbor) is not fitted yet.')
+        return np.eye(len(self.class_labels))[self.model.predict(x).astype(int)].astype(np.float32)
 
 
 class SGDC(BaseMLPredictor):
     def __init__(self, class_labels, cfg):
         class_weight = dict(zip(class_labels, cfg['loss_weight']))
         self.model = SGDClassifier(loss='log', alpha=cfg['lr'], shuffle=False, n_jobs=cfg['n_jobs'],
-                                   random_state=cfg['seed'], learning_rate='optimal', class_weight=class_weight)
+                                   random_state=cfg['seed'], learning_rate='optimal', class_weight=class_weight,
+                                   verbose=not cfg['silent'])
         super(SGDC, self).__init__(class_labels, cfg)
 
 
 class SVM(BaseMLPredictor):
     def __init__(self, class_labels, cfg):
         class_weight = dict(zip(class_labels, cfg['loss_weight']))
-        self.model = SVC(random_state=cfg['seed'])
+        self.model = SVC(C=cfg['C'], kernel=cfg['svm_kernel'], class_weight=class_weight, probability=True,
+                         random_state=cfg['seed'], verbose=not cfg['silent'])
         super(SVM, self).__init__(class_labels, cfg)
-
-    def partial_fit(self, x, y) -> np.float:
-        self.fitted = True
-        # lossを返却
-        self.model.fit(x, y)
-        return log_loss(y, self.model.predict_proba(x), labels=self.class_labels)
