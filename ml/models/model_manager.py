@@ -185,7 +185,10 @@ class BaseModelManager(metaclass=ABCMeta):
 
         return pred_list[~(pred_list == -1000000)], label_list[~(label_list == -1000000)]
 
-    def train(self):
+    def train(self, model=None):
+        if model:
+            self.model = model
+
         self.check_keys_from_dict(['train', 'val'], self.dataloaders)
 
         for epoch in range(self.cfg['epochs']):

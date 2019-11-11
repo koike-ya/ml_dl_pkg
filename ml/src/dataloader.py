@@ -43,6 +43,11 @@ def set_ml_dataloader(dataset, phase, cfg, shuffle=False):
     return dataloader
 
 
+def set_adda_dataloader(dataset, cfg):
+    return WrapperDataLoader(dataset, batch_size=cfg['batch_size'], num_workers=cfg['n_jobs'],
+                             pin_memory=True, drop_last=True, shuffle=True)
+
+
 class WrapperDataLoader(DataLoader):
     def __init__(self, *args, **kwargs):
         super(WrapperDataLoader, self).__init__(*args, **kwargs)
