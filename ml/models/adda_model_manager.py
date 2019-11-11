@@ -34,8 +34,10 @@ def set_requires_grad(model, requires_grad=True):
 class AddaModelManager(BaseModelManager):
     def __init__(self, source_model, cfg, dataloaders, metrics):
         super().__init__(DOMAIN_ADAPTATION_LABELS, cfg, dataloaders, metrics)
+        self.raw_source_model = source_model
         self.src_fe, self.src_model = self._init_src_model(source_model)
         self.tgt_fe, self.tgt_clf = self._init_tgt_model()
+        self.tgt_optimizer = source_model.optimizer
         self.disc = self._init_discriminator(self.tgt_clf.in_features)
 
     def _init_src_model(self, src_model):
@@ -44,9 +46,8 @@ class AddaModelManager(BaseModelManager):
         return src_model.model.features, src_model.model
 
     def _init_tgt_model(self):
-        target_feature_extractor, target_classifier = deepcopy(self.src_model), deepcopy(self.src_model)
-        target_feature_extractor.model = target_feature_extractor.model.features
-        target_classifier.model = target_classifier.model.classifier
+        target_feature_extractor = deepcopy(self.src_model).features
+        target_classifier = deepcopy(self.src_model).classifier
         target_classifier.eval()
         return target_feature_extractor, target_classifier
 
@@ -104,9 +105,9 @@ class AddaModelManager(BaseModelManager):
                 preds = self.disc(target_features).squeeze()
                 disc_loss = disc_criterion(preds, discriminator_y)
 
-                self.tgt_clf.optimizer.zero_grad()
+                self.tgt_optimizer.zero_grad()
                 disc_loss.backward()
-                self.tgt_clf.optimizer.step()
+                self.tgt_optimizer.step()
 
-        self.src_model.model.features = self.tgt_fe.model
-        return self.src_model
+        self.raw_source_model.model.features = self.tgt_fe
+        return self.raw_source_model

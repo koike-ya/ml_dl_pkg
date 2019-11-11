@@ -58,8 +58,8 @@ class WrapperDataLoader(DataLoader):
     def get_image_size(self):
         return self.dataset.get_image_size()
 
-    def get_image_channels(self):
-        return self.dataset.get_image_channels()
+    def get_n_channels(self):
+        return self.dataset.get_n_channels()
 
 
 def make_weights_for_balanced_classes(labels, n_classes, sample_balance):
