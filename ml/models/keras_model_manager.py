@@ -50,7 +50,7 @@ class KerasModelManager(BaseModelManager):
 
         return pred_list[~(pred_list == -1000000)], label_list[~(label_list == -1000000)]
 
-    def train(self):
+    def train(self, model=None):
         self.check_keys_from_dict(['train', 'val'], self.dataloaders)
         callback = EarlyStoppingByLossVal(monitor='val_accuracy', value=0.975, verbose=1, lower=False)
 

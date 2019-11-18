@@ -30,7 +30,7 @@ from ml.models.nn_model import NNModel
 class CHBMITCNN:
     def __init__(self, model_path, cfg):
         self.model_path = model_path
-        input_shape = (1, 4, 61, 236)
+        input_shape = (1, 22, 59, 114)
         model = Sequential()
         # C1
         model.add(
@@ -63,9 +63,8 @@ class CHBMITCNN:
         self.model = model
 
     def fit(self, train_inputs, train_labels, batch_size, epochs, validation_data, callbacks):
-        return self.model.fit(train_inputs, train_labels, batch_size=batch_size,
-                       epochs=epochs, validation_data=validation_data,
-                       callbacks=callbacks)
+        return self.model.fit(train_inputs, train_labels, batch_size=batch_size, epochs=epochs,
+                              validation_data=validation_data, callbacks=callbacks)
 
     def predict(self, inputs):
         return np.argmax(self.model.predict(inputs), axis=1)
