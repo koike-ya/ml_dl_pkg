@@ -65,6 +65,7 @@ class CHBMITCNN(BaseModel):
         self.model = model
 
     def fit(self, inputs, labels, phase):
+        inputs = np.array([inputs]).swapaxes(0, 1)
         if phase == 'train':
             metric_values = self.model.train_on_batch(inputs, labels)
         elif phase == 'val':
@@ -72,6 +73,7 @@ class CHBMITCNN(BaseModel):
         return metric_values
 
     def predict(self, inputs):
+        inputs = np.array([inputs]).swapaxes(0, 1)
         return np.argmax(self.model.predict(inputs), axis=1)
 
     def save_model(self):

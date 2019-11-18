@@ -15,6 +15,7 @@ import keras
 import numpy as np
 from ml.models.model_manager import BaseModelManager
 from ml.models.cnns_on_chb_mit import CHBMITCNN
+from ml.models.bonn_rnn import BonnRNN
 
 
 class KerasModelManager(BaseModelManager):
@@ -24,7 +25,10 @@ class KerasModelManager(BaseModelManager):
         Path(self.cfg['model_path']).parent.mkdir(exist_ok=True, parents=True)
 
     def _init_model(self):
-        return CHBMITCNN(self.cfg['model_path'], self.cfg)
+        if self.cfg['reproduce'] == 'chbmit-cnn':
+            return CHBMITCNN(self.cfg['model_path'], self.cfg)
+        elif self.cfg['reproduce'] == 'bonn-rnn':
+            return BonnRNN(self.cfg['model_path'], self.cfg)
 
     def _init_device(self):
         if self.cfg['cuda']:
@@ -53,7 +57,8 @@ class KerasModelManager(BaseModelManager):
         pred_list = np.zeros((len(self.dataloaders[phase]) * batch_size, 1), dtype=dtype_) - 1000000
         label_list = np.zeros((len(self.dataloaders[phase]) * batch_size, 1), dtype=dtype_) - 1000000
         for i, (inputs, labels) in tqdm(enumerate(self.dataloaders[phase]), total=len(self.dataloaders[phase])):
-            inputs, labels = torch.unsqueeze(inputs, 1), labels.numpy().reshape(-1,)
+
+            labels = labels.numpy().reshape(-1,)
             preds = self.model.predict(inputs.numpy())
 
             pred_list[i * batch_size:i * batch_size + preds.shape[0], 0] = preds.reshape(-1,)
@@ -71,9 +76,6 @@ class KerasModelManager(BaseModelManager):
         for epoch in range(self.cfg['epochs']):
             for phase in ['train', 'val']:
                 for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
-
-                    inputs = torch.unsqueeze(inputs, 1)
-
                     y_onehot = torch.zeros(labels.size(0), len(self.class_labels))
                     labels = y_onehot.scatter_(1, labels.view(-1, 1).type(torch.LongTensor), 1)
                     metric_values = self.model.fit(inputs.numpy(), labels.numpy(), phase)
