@@ -8,6 +8,7 @@ torch.cuda.manual_seed_all(seed)
 import random
 random.seed(seed)
 import tensorflow as tf
+from ml.models.base_model import BaseModel
 import torch.nn as nn
 from torchvision import models
 
@@ -27,8 +28,9 @@ from random import shuffle
 from ml.models.nn_model import NNModel
 
 
-class CHBMITCNN:
+class CHBMITCNN(BaseModel):
     def __init__(self, model_path, cfg):
+        super(CHBMITCNN, self).__init__(cfg['class_names'], cfg, [])
         self.model_path = model_path
         input_shape = (1, 22, 59, 114)
         model = Sequential()
@@ -62,9 +64,12 @@ class CHBMITCNN:
                       metrics=['accuracy', tf.keras.metrics.Recall()])
         self.model = model
 
-    def fit(self, train_inputs, train_labels, batch_size, epochs, validation_data, callbacks):
-        return self.model.fit(train_inputs, train_labels, batch_size=batch_size, epochs=epochs,
-                              validation_data=validation_data, callbacks=callbacks)
+    def fit(self, inputs, labels, phase):
+        if phase == 'train':
+            metric_values = self.model.train_on_batch(inputs, labels)
+        elif phase == 'val':
+            metric_values = self.model.test_on_batch(inputs, labels)
+        return metric_values
 
     def predict(self, inputs):
         return np.argmax(self.model.predict(inputs), axis=1)
