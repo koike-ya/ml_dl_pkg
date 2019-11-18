@@ -62,6 +62,7 @@ def model_manager_args(parser):
                                       default='classify', choices=['classify', 'regress'])
     general_param_parser.add_argument('--seed', default=0, type=int, help='Seed to generators')
     general_param_parser.add_argument('--cuda', dest='cuda', action='store_true', help='Use cuda to train model')
+    general_param_parser.add_argument('--cache', action='store_true', help='Make cache after preprocessing or not')
 
     # Logging of criterion
     logging_parser = parser.add_argument_group("Logging parameters")

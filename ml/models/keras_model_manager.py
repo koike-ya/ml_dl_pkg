@@ -66,7 +66,6 @@ class KerasModelManager(BaseModelManager):
 
         return pred_list[~(pred_list == -1000000)], label_list[~(label_list == -1000000)]
 
-
     def train(self, model=None):
         if model:
             self.model = model
