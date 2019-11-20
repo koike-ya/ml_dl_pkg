@@ -13,5 +13,4 @@ keras
 tensorboard==1.13.0
 lightgbm
 xgboost
-pyedflib
 catboost

@@ -1,21 +1,13 @@
-import random
-import time
-from abc import ABCMeta
-from contextlib import contextmanager
+import os
 from pathlib import Path
 
 import numpy as np
-import os
+import pandas as pd
 import torch
-from sklearn.metrics import confusion_matrix
-from tensorboardX import SummaryWriter
-from tqdm import tqdm
-
-import keras
-import numpy as np
-from ml.models.model_manager import BaseModelManager
-from ml.models.cnns_on_chb_mit import CHBMITCNN
 from ml.models.bonn_rnn import BonnRNN
+from ml.models.cnns_on_chb_mit import CHBMITCNN
+from ml.models.model_manager import BaseModelManager
+from tqdm import tqdm
 
 
 class KerasModelManager(BaseModelManager):
@@ -64,7 +56,16 @@ class KerasModelManager(BaseModelManager):
             pred_list[i * batch_size:i * batch_size + preds.shape[0], 0] = preds.reshape(-1,)
             label_list[i * batch_size:i * batch_size + labels.shape[0], 0] = labels
 
-        return pred_list[~(pred_list == -1000000)], label_list[~(label_list == -1000000)]
+        # postprocessing:
+        pred_list, label_list = pred_list[~(pred_list == -1000000)], label_list[~(label_list == -1000000)]
+        n = 10
+        k = 6
+
+        label_list = label_list[n:]
+        preds = np.zeros(pred_list.shape[0])
+        preds[(pd.Series(pred_list).rolling(window=n).sum() >= k).values] = 1
+        preds = preds[n:]
+        return preds, label_list
 
     def train(self, model=None):
         if model:
