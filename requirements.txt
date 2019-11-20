@@ -8,7 +8,8 @@ glibc
 tqdm
 librosa
 tensorboardX
-tensorflow
+tensorflow-gpu
+keras
 tensorboard==1.13.0
 lightgbm
 xgboost
