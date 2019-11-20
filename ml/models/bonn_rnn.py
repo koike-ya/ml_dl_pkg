@@ -41,12 +41,20 @@ class BonnRNN(BaseModel):
         super(BonnRNN, self).__init__(cfg['class_names'], cfg, [])
         self.model_path = model_path
         # Time Steps of LSTM
-        data_length = 30 * 256
-        timesteps = 15 * 256
-        n_channel = 22
-        sr = 256
-        timesteps = 15 * sr  # 15 * 256
+        if cfg['data_type'] == 'chbmit':
+            sec_len = 30
+            sr = 256
+            data_length = sec_len * sr
+            n_channel = 22
+        elif cfg['data_type'] == 'children':
+            sec_len = 30
+            sr = 500
+            data_length = sec_len * sr
+            n_channel = 4
+        else:
+            raise NotImplementedError
 
+        timesteps = sec_len // 2 * sr  # 15 * 256
         data_dim = n_channel * data_length // timesteps
 
         # create the model
