@@ -2,16 +2,13 @@ import torch
 
 seed = 0
 torch.manual_seed(seed)
-import math
-import numpy as np
+from keras import backend
+
 torch.cuda.manual_seed_all(seed)
 import random
 random.seed(seed)
 import tensorflow as tf
 from ml.models.base_model import BaseModel
-import torch.nn as nn
-from torchvision import models
-
 
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"   # see issue #152
@@ -21,18 +18,19 @@ import keras
 import numpy as np
 from keras.models import Sequential
 from keras.layers import  Dense, Conv3D, Dropout, Flatten, BatchNormalization
-from sklearn.metrics import recall_score
-from keras.callbacks import EarlyStopping
-from random import shuffle
-
-from ml.models.nn_model import NNModel
 
 
 class CHBMITCNN(BaseModel):
     def __init__(self, model_path, cfg):
         super(CHBMITCNN, self).__init__(cfg['class_names'], cfg, [])
         self.model_path = model_path
-        input_shape = (1, 22, 59, 114)
+        if cfg['data_type'] == 'chbmit':
+            input_shape = (1, 22, 59, 114)
+        elif cfg['data_type'] == 'children':
+            input_shape = (1, 4, 116, 236)
+        else:
+            raise NotImplementedError
+
         model = Sequential()
         # C1
         model.add(
@@ -84,8 +82,14 @@ class CHBMITCNN(BaseModel):
         return self.model
 
 
-def false_detection_rate(true, pred):
-    print(true)
-    true, pred = true[:, 1], pred[:, 1]
-    print(pred.shape)
-    return tf.tensordot(tf.dtypes.cast(true == 0, tf.int32), tf.dtypes.cast(pred == 1, tf.int32), axes=1) / pred.shape[0]
+def precision(y_true, y_pred):
+    y_pred_pos = backend.round(backend.clip(y_pred, 0, 1))
+    y_pred_neg = 1 - y_pred_pos
+    y_pos = backend.round(backend.clip(y_true, 0, 1))
+    y_neg = 1 - y_pos
+    tp = backend.sum(y_pos * y_pred_pos)
+    tn = backend.sum(y_neg * y_pred_neg)
+    fp = backend.sum(y_neg * y_pred_pos)
+    fn = backend.sum(y_pos * y_pred_neg)
+    far = fp / (tp + fp)
+    return far
