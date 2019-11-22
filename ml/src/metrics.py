@@ -44,6 +44,7 @@ class AverageMeter(object):
 class Metric:
     def __init__(self, name, direction, save_model: bool = False, label_to_detect: int = 1, numpy_: bool = True):
         self.name = name
+        self.direction = direction
         self.average_meter = {'train': AverageMeter(direction),
                               'val': AverageMeter(direction),
                               'test': AverageMeter(direction)}
@@ -51,6 +52,9 @@ class Metric:
         self.label_to_detect = label_to_detect
         # numpy を変更可能に
         self.numpy_ = numpy_
+
+    def add_average_meter(self, phase_name):
+        self.average_meter[phase_name] = AverageMeter(self.direction)
 
     def update(self, phase, loss_value, preds, labels):
         if self.name == 'loss':

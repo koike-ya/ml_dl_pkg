@@ -212,11 +212,11 @@ class BaseModelManager(metaclass=ABCMeta):
 
         return self.metrics
 
-    def test(self, return_metrics=False, load_best=True):
+    def test(self, return_metrics=False, load_best=True, phase='test'):
         if load_best:
             self.model.load_model()
 
-        pred_list, label_list = self._predict(phase='test')
+        pred_list, label_list = self._predict(phase=phase)
 
         for metric in self.metrics:
             if metric.name == 'loss':
@@ -262,6 +262,36 @@ class BaseModelManager(metaclass=ABCMeta):
             pred_list[i * batch_size:i * batch_size + preds.shape[0], 0] = preds.reshape(-1, )
 
         return pred_list[~(pred_list == -1000000)]
+
+    def retrain(self):
+        phase = 'retrain'
+        self.model.load_model()
+
+        for metric in self.metrics:
+            metric.add_average_meter(phase_name=phase)
+            metric.add_average_meter(phase_name=f'{phase}_test')
+
+        for epoch in range(self.cfg['epochs']):
+            for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
+
+                loss, predicts = self.model.fit(inputs.to(self.device), labels.to(self.device), 'train')
+
+                # save loss and metrics in one batch
+                for metric in self.metrics:
+                    metric.update(phase, loss, predicts, labels.numpy())
+
+                if not self.cfg['silent']:
+                    self._verbose(epoch, phase, i)
+
+            if self.logger:
+                self._record_log(phase, epoch)
+
+            self._update_by_epoch(phase, epoch, self.cfg['learning_anneal'])
+
+        # selfのmetricsのretrain_testが更新される
+        self.test(return_metrics=True, load_best=False, phase='retrain_test')
+
+        return self.metrics
 
 
 class TensorBoardLogger(object):
