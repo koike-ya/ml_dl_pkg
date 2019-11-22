@@ -2,7 +2,7 @@ pandas
 numpy
 matplotlib
 scipy
-torch
+torch==1.0.1
 torchvision
 glibc
 tqdm

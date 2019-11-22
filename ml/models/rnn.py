@@ -224,6 +224,7 @@ class DeepSpeech(RNNClassifier):
         self.bidirectional = bidirectional
 
         self.conv = conv
+        print(f'Number of parameters\tconv: {get_param_size(self.conv)}\trnn: {get_param_size(super())}')
 
     def forward(self, x):
         x = self.conv(x)    # batch x channel x freq x time
@@ -232,3 +233,13 @@ class DeepSpeech(RNNClassifier):
         x = x.view(sizes[0], sizes[1] * sizes[2], sizes[3])  # Collapse feature dimension   batch x feature x time
         x = super().forward(x)
         return x
+
+
+def get_param_size(model):
+    params = 0
+    for p in model.parameters():
+        tmp = 1
+        for x in p.size():
+            tmp *= x
+        params += tmp
+    return params
