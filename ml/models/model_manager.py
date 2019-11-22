@@ -6,14 +6,12 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from sklearn.metrics import confusion_matrix
-from tensorboardX import SummaryWriter
-from tqdm import tqdm
-
 from ml.models.base_model import model_args
 from ml.models.ml_model import MLModel
 from ml.models.nn_model import NNModel, supported_nn_models
-
+from sklearn.metrics import confusion_matrix
+from tensorboardX import SummaryWriter
+from tqdm import tqdm
 
 supported_ml_models = ['rnn', 'cnn', 'cnn_rnn', 'xgboost', 'knn', 'catboost', 'sgdc', 'lightgbm', 'svm']
 
@@ -232,9 +230,9 @@ class BaseModelManager(metaclass=ABCMeta):
             else:
                 loss_value = 10000000
 
-            metric.update(phase='test', loss_value=loss_value, preds=pred_list, labels=label_list)
-            print(f"{metric.name}: {metric.average_meter['test'].value :.4f}")
-            metric.average_meter['test'].update_best()
+            metric.update(phase=phase, loss_value=loss_value, preds=pred_list, labels=label_list)
+            print(f"{metric.name}: {metric.average_meter[phase].value :.4f}")
+            metric.average_meter[phase].update_best()
 
         if self.cfg['task_type'] == 'classify':
             confusion_matrix_ = confusion_matrix(label_list, pred_list,
