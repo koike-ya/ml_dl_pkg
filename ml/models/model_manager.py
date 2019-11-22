@@ -231,7 +231,7 @@ class BaseModelManager(metaclass=ABCMeta):
                 loss_value = 10000000
 
             metric.update(phase=phase, loss_value=loss_value, preds=pred_list, labels=label_list)
-            print(f"{metric.name}: {metric.average_meter[phase].value :.4f}")
+            print(f"{phase} {metric.name}: {metric.average_meter[phase].value :.4f}")
             metric.average_meter[phase].update_best()
 
         if self.cfg['task_type'] == 'classify':
