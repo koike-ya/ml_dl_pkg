@@ -51,6 +51,7 @@ def model_manager_args(parser):
     hyper_param_parser.add_argument('--sample-balance', default='same', type=type_float_list,
                                     help='Sampling label balance from dataset.')
     hyper_param_parser.add_argument('--epochs', default=20, type=int, help='Number of training epochs')
+    hyper_param_parser.add_argument('--retrain-epochs', default=5, type=int, help='Number of training epochs')
 
     # General parameters for training
     general_param_parser = parser.add_argument_group("General parameters for training")
@@ -133,7 +134,7 @@ class BaseModelManager(metaclass=ABCMeta):
         return device
 
     def _init_logger(self):
-        if 'tensorboard' in self.cfg.keys():
+        if self.cfg['tensorboard']:
             return TensorBoardLogger(self.cfg['log_id'], self.cfg['log_dir'])
 
     def _verbose(self, epoch, phase, i):
@@ -269,7 +270,7 @@ class BaseModelManager(metaclass=ABCMeta):
             metric.add_average_meter(phase_name=phase)
             metric.add_average_meter(phase_name=f'{phase}_test')
 
-        for epoch in range(self.cfg['epochs']):
+        for epoch in range(self.cfg['retrain_epochs']):
             for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
 
                 loss, predicts = self.model.fit(inputs.to(self.device), labels.to(self.device), 'train')
