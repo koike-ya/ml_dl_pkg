@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from sklearn.metrics import recall_score, accuracy_score
+from sklearn.metrics import recall_score, accuracy_score, f1_score, precision_score
 
 
 class AverageMeter(object):
@@ -66,6 +66,10 @@ class Metric:
             self.average_meter[phase].update(false_detection_rate(preds, labels, self.label_to_detect, self.numpy_))
         elif self.name == 'accuracy':
             self.average_meter[phase].update(accuracy(preds, labels, self.numpy_))
+        elif self.name == 'f1':
+            self.average_meter[phase].update(f1_score(labels, preds, self.numpy_))
+        elif self.name == 'precision':
+            self.average_meter[phase].update(precision_score(labels, preds, self.numpy_))
         else:
             raise NotImplementedError
 
