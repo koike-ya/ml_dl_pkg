@@ -66,6 +66,10 @@ class NNModel(BaseModel):
                 loss.backward(retain_graph=True)
                 self.optimizer.step()
 
+        if self.cfg['regress_thresh'] != 0.0:
+            preds = torch.clamp(preds.squeeze(), min=0, max=1)
+            preds = preds.gt(self.cfg['regress_thresh']).int()
+
         return loss.item(), preds.cpu().detach().numpy()
 
     def anneal_lr(self, learning_anneal):
@@ -106,6 +110,9 @@ class NNModel(BaseModel):
             preds = self.model(inputs)
             if self.cfg['task_type'] == 'classify':
                 _, preds = torch.max(preds, 1)
+            elif self.cfg['regress_thresh'] != 0.0:
+                preds = torch.clamp(preds, min=0, max=1)
+                preds = preds.gt(self.cfg['regress_thresh']).int()
 
         return preds.cpu().numpy()
 

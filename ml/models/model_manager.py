@@ -60,6 +60,8 @@ def model_manager_args(parser):
     general_param_parser.add_argument('--task-type', help='Task type. regress or classify',
                                       default='classify', choices=['classify', 'regress'])
     general_param_parser.add_argument('--seed', default=0, type=int, help='Seed to generators')
+    general_param_parser.add_argument('--regress-thresh', default=0.0, type=float,
+                                      help='Evaluate predicts with classify metrics when training on regression')
     general_param_parser.add_argument('--cuda', dest='cuda', action='store_true', help='Use cuda to train model')
     general_param_parser.add_argument('--cache', action='store_true', help='Make cache after preprocessing or not')
 
@@ -197,6 +199,10 @@ class BaseModelManager(metaclass=ABCMeta):
 
                     loss, predicts = self.model.fit(inputs.to(self.device), labels.to(self.device), phase)
 
+                    if self.cfg['regress_thresh'] != 0.0:
+                        labels = torch.clamp(labels.squeeze(), min=0, max=1)
+                        labels = labels.gt(self.cfg['regress_thresh']).int()
+
                     # save loss and metrics in one batch
                     for metric in self.metrics:
                         metric.update(phase, loss, predicts, labels.numpy())
@@ -219,13 +225,13 @@ class BaseModelManager(metaclass=ABCMeta):
 
         for metric in self.metrics:
             if metric.name == 'loss':
-                if self.cfg['task_type'] == 'classify':
+                if self.cfg['task_type'] == 'classify' or self.cfg['regress_thresh'] != 0.0:
                     y_onehot = torch.zeros(label_list.shape[0], len(self.class_labels))
                     y_onehot = y_onehot.scatter_(1, torch.from_numpy(label_list).view(-1, 1).type(torch.LongTensor), 1)
                     pred_onehot = torch.zeros(pred_list.shape[0], len(self.class_labels))
                     pred_onehot = pred_onehot.scatter_(1, torch.from_numpy(pred_list).view(-1, 1).type(torch.LongTensor), 1)
                     loss_value = self.model.criterion(pred_onehot.to(self.device), y_onehot.to(self.device)).item()
-                elif self.cfg['model_type'] in ['rnn', 'cnn']:
+                elif self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn']:
                     loss_value = self.model.criterion(torch.from_numpy(pred_list).to(self.device),
                                                       torch.from_numpy(label_list).to(self.device))
             else:

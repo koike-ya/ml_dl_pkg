@@ -183,7 +183,7 @@ class RNNClassifier(nn.Module):
             initialize_weights(nn.Linear(rnn_hidden_size * out_time_feature, output_size, bias=False))
             # initialize_weights(nn.Linear(rnn_hidden_size, output_size, bias=False))
         )
-
+        self.classify = True if output_size != 1 else False
         self.is_inference_softmax = is_inference_softmax
 
     def forward(self, x):
@@ -199,6 +199,9 @@ class RNNClassifier(nn.Module):
         x = x.reshape(x.size(0), -1)
 
         x = self.fc(x)
+
+        if not self.classify:
+            return x
 
         # identity in training mode, softmax in eval model
         if self.is_inference_softmax:
