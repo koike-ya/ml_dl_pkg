@@ -179,6 +179,10 @@ class BaseModelManager(metaclass=ABCMeta):
         pred_list = np.zeros((len(self.dataloaders[phase]) * batch_size, 1), dtype=dtype_) - 1000000
         label_list = np.zeros((len(self.dataloaders[phase]) * batch_size, 1), dtype=dtype_) - 1000000
         for i, (inputs, labels) in tqdm(enumerate(self.dataloaders[phase]), total=len(self.dataloaders[phase])):
+
+            if self.cfg['regress_thresh'] != 0.0:
+                labels = labels.gt(self.cfg['regress_thresh']).int()
+
             inputs, labels = inputs.to(self.device), labels.numpy().reshape(-1,)
             preds = self.model.predict(inputs)
 

@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
@@ -62,9 +63,10 @@ class WrapperDataLoader(DataLoader):
         return self.dataset.get_n_channels()
 
 
-def make_weights_for_balanced_classes(labels, n_classes, sample_balance):
+def make_weights_for_balanced_classes(labels, sample_balance):
     labels = np.array(labels, dtype=int)
-    class_count = [np.sum(labels == class_index) for class_index in range(n_classes)]
+    class_count = pd.Series(labels).value_counts().values
+    label_kind = list(set(labels))
     weight_per_class = sum(class_count) / torch.Tensor(class_count)
-    weights = [weight_per_class[label] * sample_balance[label] for label in labels]
+    weights = [weight_per_class[label_kind.index(label)] * sample_balance[label_kind.index(label)] for label in labels]
     return weights
