@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import torch
 from sklearn.metrics import recall_score, accuracy_score, f1_score, precision_score
 
@@ -39,6 +40,14 @@ class AverageMeter(object):
         else:
             raise NotImplementedError('direction needs to be either maximize or minimize when update the best score.')
         return False
+
+
+def metrics2df(metrics: dict):
+    df = pd.DataFrame()
+    for metric_name, meter in metrics.items():
+        df = pd.concat([df, pd.DataFrame([metric_name, meter.mean(), meter.std()]).T])
+    df.columns = ['metric_name', 'mean', 'std']
+    return df
 
 
 class Metric:

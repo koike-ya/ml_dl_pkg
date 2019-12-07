@@ -107,7 +107,6 @@ class NNModel(BaseModel):
 
         with torch.set_grad_enabled(False):
             self.model.eval()
-            print(inputs.shape)
             preds = self.model(inputs)
             if self.cfg['task_type'] == 'classify':
                 _, preds = torch.max(preds, 1)

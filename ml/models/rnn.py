@@ -172,7 +172,7 @@ class RNNClassifier(nn.Module):
         rnns.append(('0', rnn))
         for x in range(n_layers - 1):
             rnn = rnn_cls(input_size=rnn_hidden_size, hidden_size=rnn_hidden_size, batch_size=batch_size,
-                          rnn_type=rnn_type, bidirectional=bidirectional, batch_norm_size=batch_norm_size,
+                          rnn_type=rnn_type, bidirectional=bidirectional, batch_norm_size=rnn_hidden_size,
                           sequence_wise=sequence_wise)
             rnns.append(('%d' % (x + 1), rnn))
         self.rnns = nn.Sequential(OrderedDict(rnns))
