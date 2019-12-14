@@ -12,9 +12,7 @@ def set_dataloader(dataset, phase, cfg, shuffle=False):
     else:
         if sum(cfg['sample_balance']) != 0.0:
             if cfg['task_type'] == 'classify':
-                _ = dataset.get_labels()
-                weights = make_weights_for_balanced_classes(dataset.get_labels(), len(cfg['class_names']),
-                                                            cfg['sample_balance'])
+                weights = make_weights_for_balanced_classes(dataset.get_labels(), cfg['sample_balance'])
             else:
                 weights = [torch.Tensor([1.0])] * len(dataset.get_labels())
             sampler = WeightedRandomSampler(weights, int(len(dataset) * cfg['epoch_rate']))
@@ -32,8 +30,7 @@ def set_ml_dataloader(dataset, phase, cfg, shuffle=False):
     else:
         if sum(cfg['sample_balance']) != 0.0:
             if cfg['task_type'] == 'classify':
-                weights = make_weights_for_balanced_classes(dataset.get_labels(), len(cfg['class_names']),
-                                                            cfg['sample_balance'])
+                weights = make_weights_for_balanced_classes(dataset.get_labels(), cfg['sample_balance'])
             else:
                 weights = [torch.Tensor([1.0])] * len(dataset.get_labels())
             sampler = WeightedRandomSampler(weights, int(len(dataset) * cfg['epoch_rate']))

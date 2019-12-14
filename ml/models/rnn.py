@@ -52,10 +52,10 @@ def rnn_args(parser):
     return parser
 
 
-def construct_cnn_rnn(cfg, output_size, device):
-    conv, conv_out_ftrs = construct_cnn(cfg, use_as_extractor=True)
-    input_size = conv_out_ftrs['n_channels'] * conv_out_ftrs['height']
-    return DeepSpeech(conv.to(device), input_size, out_time_feature=conv_out_ftrs['width'], batch_size=cfg['batch_size'],
+def construct_cnn_rnn(cfg, construct_cnn_func, output_size, device):
+    conv, conv_out_ftrs = construct_cnn_func(cfg, use_as_extractor=True)
+    input_size = conv_out_ftrs['n_channels'] * conv_out_ftrs['width']
+    return DeepSpeech(conv.to(device), input_size, out_time_feature=conv_out_ftrs['height'], batch_size=cfg['batch_size'],
                       rnn_type=supported_rnns[cfg['rnn_type']], labels="abc", eeg_conf=None,
                       rnn_hidden_size=cfg['rnn_hidden_size'], n_layers=cfg['rnn_n_layers'],
                       bidirectional=cfg['bidirectional'], output_size=output_size,
@@ -230,10 +230,11 @@ class DeepSpeech(RNNClassifier):
         print(f'Number of parameters\tconv: {get_param_size(self.conv)}\trnn: {get_param_size(super())}')
 
     def forward(self, x):
-        x = self.conv(x)    # batch x channel x freq x time
+        x = self.conv(x.to(torch.float))    # batch x channel x freq x time
 
         sizes = x.size()    # batch x channel x freq_feature x time_feature
-        x = x.view(sizes[0], sizes[1] * sizes[2], sizes[3])  # Collapse feature dimension   batch x feature x time
+        if len(sizes) == 4:
+            x = x.view(sizes[0], sizes[1] * sizes[2], sizes[3])  # Collapse feature dimension   batch x feature x time
         x = super().forward(x)
         return x
 

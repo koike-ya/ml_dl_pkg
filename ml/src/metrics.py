@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import torch
-from sklearn.metrics import recall_score, accuracy_score, f1_score, precision_score
+from sklearn.metrics import recall_score, accuracy_score, f1_score, precision_score, balanced_accuracy_score
 
 
 class AverageMeter(object):
@@ -42,11 +42,20 @@ class AverageMeter(object):
         return False
 
 
-def metrics2df(metrics: dict):
+def metrics2df(metrics, phase='test'):
     df = pd.DataFrame()
-    for metric_name, meter in metrics.items():
-        df = pd.concat([df, pd.DataFrame([metric_name, meter.mean(), meter.std()]).T])
-    df.columns = ['metric_name', 'mean', 'std']
+
+    if isinstance(metrics, dict):
+        for metric_name, meter in metrics.items():
+            df = pd.concat([df, pd.DataFrame([metric_name, meter.mean(), meter.std()]).T])
+        df.columns = ['metric_name', 'mean', 'std']
+
+    elif isinstance(metrics, list):
+        for metric in metrics:
+            df = pd.concat([df, pd.DataFrame(
+                [metric.name, metric.average_meter[phase].best_score]).T])
+        df.columns = ['metric_name', 'value']
+
     return df
 
 
@@ -79,6 +88,8 @@ class Metric:
             self.average_meter[phase].update(f1_score(labels, preds, self.numpy_))
         elif self.name == 'precision':
             self.average_meter[phase].update(precision_score(labels, preds, self.numpy_))
+        elif self.name == 'uar':
+            self.average_meter[phase].update(balanced_accuracy_score(labels, preds))
         else:
             raise NotImplementedError
 

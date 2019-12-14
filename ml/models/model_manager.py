@@ -13,7 +13,7 @@ from sklearn.metrics import confusion_matrix
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
-supported_ml_models = ['rnn', 'cnn', 'cnn_rnn', 'xgboost', 'knn', 'catboost', 'sgdc', 'lightgbm', 'svm']
+supported_ml_models = ['rnn', 'cnn', 'cnn_rnn', '1dcnn_rnn', 'xgboost', 'knn', 'catboost', 'sgdc', 'lightgbm', 'svm']
 
 
 def type_float_list(args):
@@ -105,12 +105,12 @@ class BaseModelManager(metaclass=ABCMeta):
     def _init_model(self):
         self.cfg['input_size'] = list(self.dataloaders.values())[0].get_input_size()
 
-        if self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn']:
+        if self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn', '1dcnn_rnn']:
             if self.cfg['model_type'] in ['rnn']:
                 if self.cfg['batch_norm']:
                     self.cfg['batch_norm_size'] = list(self.dataloaders.values())[0].get_batch_norm_size()
                 self.cfg['seq_len'] = list(self.dataloaders.values())[0].get_seq_len()
-            else:
+            elif self.cfg['model_type'] in ['cnn', 'cnn_rnn', '1dcnn_rnn']:
                 self.cfg['image_size'] = list(self.dataloaders.values())[0].get_image_size()
                 self.cfg['n_channels'] = list(self.dataloaders.values())[0].get_n_channels()
 

@@ -2,7 +2,7 @@ pandas
 numpy
 matplotlib
 scipy
-torch==1.0.1
+torch
 torchvision
 glibc
 tqdm
@@ -10,7 +10,9 @@ librosa
 tensorboardX
 tensorflow-gpu
 keras
-tensorboard==1.13.0
+tensorboard
 lightgbm
 xgboost
 catboost
+optuna
+xlrd
