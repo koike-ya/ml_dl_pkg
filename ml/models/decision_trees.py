@@ -54,7 +54,7 @@ class XGBoost(BaseMLPredictor):
             self.model = xgb.XGBRegressor(**params)
         super(XGBoost, self).__init__(class_labels, cfg)
 
-    def partial_fit(self, x, y):
+    def fit(self, x, y):
         eval_metric = 'mlogloss' if self.classify else 'rmse'
         self.model.fit(x, y, eval_set=[(x, y)], eval_metric=eval_metric, verbose=False)
         return np.array(self.model.evals_result()['validation_0'][eval_metric]).mean()
@@ -104,31 +104,38 @@ class LightGBM(BaseMLPredictor):
         # TODO visualizationも試す
         self.classify = cfg['task_type'] == 'classify'
 
-        params = dict(
+        self.params = dict(
             num_leaves=cfg['n_leaves'],
             learning_rate=cfg['lr'],
-            n_estimators=cfg['n_estimators'],
             max_depth=cfg['max_depth'],
             subsample=cfg['subsample'],
             colsample_bytree=0.8,
             n_jobs=cfg['n_jobs'],
             reg_lambda=cfg['reg_lambda'],
             reg_alpha=cfg['reg_alpha'],
+            class_weight={i: weight for i, weight in enumerate(cfg['loss_weight'])},
+            # class_weight='balanced',
             missing=None,
             random_state=cfg['seed'],
+            max_bin=255,
         )
         if self.classify:
-            params['eval_metric'] = 'Accuracy'
-            self.model = lgb.LGBMClassifier(**params)
+            if len(cfg['class_names']) == 2:
+                self.params['metric'] = 'binary_logloss'
+                self.params['objective'] = 'binary'
+            else:
+                self.params['num_class'] = len(cfg['class_names'])
+                self.params['metric'] = 'multi_logloss'
+            self.model = lgb.LGBMClassifier(**self.params)
         else:
-            params['objective'] = 'regression'
-            self.model = lgb.LGBMRegressor(**params)
+            self.params['objective'] = 'regression'
+            self.params['metric'] = 'rmse'
+            self.model = lgb.LGBMRegressor(**self.params, num_trees=cfg['n_estimators'])
         super(LightGBM, self).__init__(class_labels, cfg)
 
     def partial_fit(self, x, y):
-        eval_metric = 'mlogloss' if self.classify else 'rmse'
-        self.model.fit(x, y, eval_set=[(x, y)], eval_metric=eval_metric, verbose=False)
-        return self.model.best_score_['training'][eval_metric]
+        self.model.fit(x, y, eval_set=[(x, y)], verbose=False)
+        return self.model.best_score_['training'][self.params['metric']]
 
     def predict(self, x):
         return self.model.predict(x).reshape((-1,))

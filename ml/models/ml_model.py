@@ -3,7 +3,7 @@ import torch
 
 from ml.models.base_model import BaseModel
 from ml.models.decision_trees import CatBoost, XGBoost, LightGBM
-from ml.models.toolbox import KNN, SGDC
+from ml.models.toolbox import KNN, SGDC, SVM
 
 
 class MLModel(BaseModel):
@@ -18,18 +18,20 @@ class MLModel(BaseModel):
             return XGBoost(self.class_labels, self.cfg)
         elif self.cfg['model_type'] == 'sgdc':
             return SGDC(self.class_labels, self.cfg)
+        elif self.cfg['model_type'] == 'svm':
+            return SVM(self.class_labels, self.cfg)
         elif self.cfg['model_type'] == 'knn':
-            return KNN(self.class_labels, self.cfg, self.dataloaders)
+            return KNN(self.class_labels, self.cfg)
         elif self.cfg['model_type'] == 'catboost':
             return CatBoost(self.class_labels, self.cfg)
         elif self.cfg['model_type'] == 'lightgbm':
             return LightGBM(self.class_labels, self.cfg)
         else:
-            raise NotImplementedError('Model type: cnn|xgboost|knn|catboost|sgdc are supported.')
+            raise NotImplementedError('Model type: cnn|xgboost|knn|catboost|sgdc|svm are supported.')
 
     def _fit_regress(self, inputs, labels, phase):
         if phase == 'train':  # train時はパラメータ更新&trainのlossを算出
-            loss = self.model.partial_fit(inputs, labels.numpy())
+            loss = self.model.fit(inputs, labels.numpy())
             self.fitted = self.model.fitted
 
         preds = self.model.predict(inputs)
@@ -41,14 +43,14 @@ class MLModel(BaseModel):
 
     def _fit_classify(self, inputs, labels, phase):
         if phase == 'train':  # train時はパラメータ更新&trainのlossを算出
-            loss = self.model.partial_fit(inputs, labels.numpy())
+            loss = self.model.fit(inputs, labels.numpy())
             self.fitted = self.model.fitted
 
         outputs = self.model.predict_proba(inputs)
         preds = np.argmax(outputs, 1)
 
         if phase == 'val':  # validation時はlossのみ算出
-            y_onehot = torch.FloatTensor(labels.size(0), len(self.class_labels))
+            y_onehot = torch.zeros(labels.size(0), len(self.class_labels))
             y_onehot = y_onehot.scatter_(1, labels.view(-1, 1).type(torch.LongTensor), 1)
             loss = self.criterion(torch.from_numpy(outputs), y_onehot).item()
 

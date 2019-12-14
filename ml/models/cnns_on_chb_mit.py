@@ -2,15 +2,13 @@ import torch
 
 seed = 0
 torch.manual_seed(seed)
-import math
-import numpy as np
+from keras import backend
+
 torch.cuda.manual_seed_all(seed)
 import random
 random.seed(seed)
 import tensorflow as tf
-import torch.nn as nn
-from torchvision import models
-
+from ml.models.base_model import BaseModel
 
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"   # see issue #152
@@ -20,17 +18,19 @@ import keras
 import numpy as np
 from keras.models import Sequential
 from keras.layers import  Dense, Conv3D, Dropout, Flatten, BatchNormalization
-from sklearn.metrics import recall_score
-from keras.callbacks import EarlyStopping
-from random import shuffle
-
-from ml.models.base_model import BaseModel
 
 
-class CHBMITCNN:
-    def __init__(self, model_path):
+class CHBMITCNN(BaseModel):
+    def __init__(self, model_path, cfg):
+        super(CHBMITCNN, self).__init__(cfg['class_names'], cfg, [])
         self.model_path = model_path
-        input_shape = (1, 4, 61, 236)
+        if cfg['data_type'] == 'chbmit':
+            input_shape = (1, 22, 59, 114)
+        elif cfg['data_type'] == 'children':
+            input_shape = (1, 4, 116, 236)
+        else:
+            raise NotImplementedError
+
         model = Sequential()
         # C1
         model.add(
@@ -60,14 +60,19 @@ class CHBMITCNN:
         opt_adam = keras.optimizers.Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
         model.compile(loss='categorical_crossentropy', optimizer=opt_adam,
                       metrics=['accuracy', tf.keras.metrics.Recall()])
+        print(model.summary())
         self.model = model
 
-    def fit(self, train_inputs, train_labels, batch_size, epochs, validation_data, callbacks):
-        return self.model.fit(train_inputs, train_labels, batch_size=batch_size,
-                       epochs=epochs, validation_data=validation_data,
-                       callbacks=callbacks)
+    def fit(self, inputs, labels, phase):
+        inputs = np.array([inputs]).swapaxes(0, 1)
+        if phase == 'train':
+            metric_values = self.model.train_on_batch(inputs, labels)
+        elif phase == 'val':
+            metric_values = self.model.test_on_batch(inputs, labels)
+        return metric_values
 
     def predict(self, inputs):
+        inputs = np.array([inputs]).swapaxes(0, 1)
         return np.argmax(self.model.predict(inputs), axis=1)
 
     def save_model(self):
@@ -78,8 +83,14 @@ class CHBMITCNN:
         return self.model
 
 
-def false_detection_rate(true, pred):
-    print(true)
-    true, pred = true[:, 1], pred[:, 1]
-    print(pred.shape)
-    return tf.tensordot(tf.dtypes.cast(true == 0, tf.int32), tf.dtypes.cast(pred == 1, tf.int32), axes=1) / pred.shape[0]
+def precision(y_true, y_pred):
+    y_pred_pos = backend.round(backend.clip(y_pred, 0, 1))
+    y_pred_neg = 1 - y_pred_pos
+    y_pos = backend.round(backend.clip(y_true, 0, 1))
+    y_neg = 1 - y_pos
+    tp = backend.sum(y_pos * y_pred_pos)
+    tn = backend.sum(y_neg * y_pred_neg)
+    fp = backend.sum(y_neg * y_pred_pos)
+    fn = backend.sum(y_pos * y_pred_neg)
+    far = fp / (tp + fp)
+    return far

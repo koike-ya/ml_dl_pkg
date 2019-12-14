@@ -4,7 +4,10 @@ import numpy as np
 import torch
 
 from ml.models.decision_trees import decision_trees_args
+from ml.models.toolbox import ml_model_args
 from ml.models.rnn import rnn_args
+from ml.models.cnn import cnn_args
+from ml.models.adda import adda_args
 
 
 # from ml.models.adda import adda_args
@@ -16,9 +19,11 @@ def model_args(parser):
 
     nn_parser = parser.add_argument_group("Neural nerwork model arguments")
     parser = rnn_args(parser)
-    # parser = adda_args(parser)
+    parser = cnn_args(parser)
+    parser = adda_args(parser)
 
     # ML系用のパラメータ
+    parser = ml_model_args(parser)
     parser = decision_trees_args(parser)
 
     return parser
@@ -38,6 +43,8 @@ class BaseModel(metaclass=ABCMeta):
         return cfg
 
     def _set_criterion(self):
+        if isinstance(self.cfg['loss_weight'], str):
+            self.cfg['loss_weight'] = [1.0] * len(self.cfg['class_names'])
         if self.cfg['task_type'] == 'regress':
             return torch.nn.MSELoss()
         else:

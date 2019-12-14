@@ -6,16 +6,20 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from ml.models.base_model import model_args
+from ml.models.ml_model import MLModel
+from ml.models.nn_model import NNModel, supported_nn_models
 from sklearn.metrics import confusion_matrix
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
-from ml.models.base_model import model_args
-from ml.models.ml_model import MLModel
-from ml.models.nn_model import NNModel, supported_nn_models
+supported_ml_models = ['rnn', 'cnn', 'cnn_rnn', '1dcnn_rnn', 'xgboost', 'knn', 'catboost', 'sgdc', 'lightgbm', 'svm']
 
 
-supported_ml_models = ['rnn', 'cnn', 'cnn_rnn', 'xgboost', 'knn', 'catboost', 'sgdc', 'lightgbm']
+def type_float_list(args):
+    if args == 'same':
+        return args
+    return list(map(float, args.split(',')))
 
 
 def model_manager_args(parser):
@@ -42,12 +46,12 @@ def model_manager_args(parser):
     hyper_param_parser.add_argument('--batch-size', default=32, type=int, help='Batch size for training')
     hyper_param_parser.add_argument('--epoch-rate', default=1.0, type=float, help='Data rate to to use in one epoch')
     hyper_param_parser.add_argument('--n-jobs', default=4, type=int, help='Number of workers used in data-loading')
-    type_float_list = lambda x: list(map(float, x.split(',')))
-    hyper_param_parser.add_argument('--loss-weight', default='1.0,1.0,1.0', type=type_float_list,
+    hyper_param_parser.add_argument('--loss-weight', default='same', type=type_float_list,
                                     help='The weights of all class about loss')
-    hyper_param_parser.add_argument('--sample-balance', default='0.0,0.0,0.0', type=type_float_list,
+    hyper_param_parser.add_argument('--sample-balance', default='same', type=type_float_list,
                                     help='Sampling label balance from dataset.')
     hyper_param_parser.add_argument('--epochs', default=20, type=int, help='Number of training epochs')
+    hyper_param_parser.add_argument('--retrain-epochs', default=5, type=int, help='Number of training epochs')
 
     # General parameters for training
     general_param_parser = parser.add_argument_group("General parameters for training")
@@ -56,7 +60,10 @@ def model_manager_args(parser):
     general_param_parser.add_argument('--task-type', help='Task type. regress or classify',
                                       default='classify', choices=['classify', 'regress'])
     general_param_parser.add_argument('--seed', default=0, type=int, help='Seed to generators')
+    general_param_parser.add_argument('--regress-thresh', default=0.0, type=float,
+                                      help='Evaluate predicts with classify metrics when training on regression')
     general_param_parser.add_argument('--cuda', dest='cuda', action='store_true', help='Use cuda to train model')
+    general_param_parser.add_argument('--cache', action='store_true', help='Make cache after preprocessing or not')
 
     # Logging of criterion
     logging_parser = parser.add_argument_group("Logging parameters")
@@ -98,12 +105,12 @@ class BaseModelManager(metaclass=ABCMeta):
     def _init_model(self):
         self.cfg['input_size'] = list(self.dataloaders.values())[0].get_input_size()
 
-        if self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn']:
-            if self.cfg['model_type'] in ['rnn', 'cnn_rnn']:
+        if self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn', '1dcnn_rnn']:
+            if self.cfg['model_type'] in ['rnn']:
                 if self.cfg['batch_norm']:
                     self.cfg['batch_norm_size'] = list(self.dataloaders.values())[0].get_batch_norm_size()
                 self.cfg['seq_len'] = list(self.dataloaders.values())[0].get_seq_len()
-            else:
+            elif self.cfg['model_type'] in ['cnn', 'cnn_rnn', '1dcnn_rnn']:
                 self.cfg['image_size'] = list(self.dataloaders.values())[0].get_image_size()
                 self.cfg['n_channels'] = list(self.dataloaders.values())[0].get_n_channels()
 
@@ -129,7 +136,7 @@ class BaseModelManager(metaclass=ABCMeta):
         return device
 
     def _init_logger(self):
-        if 'tensorboard' in self.cfg.keys():
+        if self.cfg['tensorboard']:
             return TensorBoardLogger(self.cfg['log_id'], self.cfg['log_dir'])
 
     def _verbose(self, epoch, phase, i):
@@ -172,6 +179,10 @@ class BaseModelManager(metaclass=ABCMeta):
         pred_list = np.zeros((len(self.dataloaders[phase]) * batch_size, 1), dtype=dtype_) - 1000000
         label_list = np.zeros((len(self.dataloaders[phase]) * batch_size, 1), dtype=dtype_) - 1000000
         for i, (inputs, labels) in tqdm(enumerate(self.dataloaders[phase]), total=len(self.dataloaders[phase])):
+
+            if self.cfg['regress_thresh'] != 0.0:
+                labels = labels.gt(self.cfg['regress_thresh']).int()
+
             inputs, labels = inputs.to(self.device), labels.numpy().reshape(-1,)
             preds = self.model.predict(inputs)
 
@@ -180,7 +191,10 @@ class BaseModelManager(metaclass=ABCMeta):
 
         return pred_list[~(pred_list == -1000000)], label_list[~(label_list == -1000000)]
 
-    def train(self):
+    def train(self, model=None):
+        if model:
+            self.model = model
+
         self.check_keys_from_dict(['train', 'val'], self.dataloaders)
 
         for epoch in range(self.cfg['epochs']):
@@ -188,6 +202,10 @@ class BaseModelManager(metaclass=ABCMeta):
                 for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
 
                     loss, predicts = self.model.fit(inputs.to(self.device), labels.to(self.device), phase)
+
+                    if self.cfg['regress_thresh'] != 0.0:
+                        labels = torch.clamp(labels.squeeze(), min=0, max=1)
+                        labels = labels.gt(self.cfg['regress_thresh']).int()
 
                     # save loss and metrics in one batch
                     for metric in self.metrics:
@@ -203,24 +221,29 @@ class BaseModelManager(metaclass=ABCMeta):
 
         return self.metrics
 
-    def test(self, return_metrics=False, load_best=True):
+    def test(self, return_metrics=False, load_best=True, phase='test'):
         if load_best:
             self.model.load_model()
 
-        pred_list, label_list = self._predict(phase='test')
+        pred_list, label_list = self._predict(phase=phase)
 
         for metric in self.metrics:
             if metric.name == 'loss':
-                if self.cfg['task_type'] == 'classify':
-                    continue        # lossの計算はモデルによるため、今は未対応
-                if self.cfg['model_type'] in ['rnn', 'cnn']:
-                    loss_value = self.model.criterion(torch.from_numpy(pred_list),
-                                                      torch.from_numpy(label_list))
+                if self.cfg['task_type'] == 'classify' or self.cfg['regress_thresh'] != 0.0:
+                    y_onehot = torch.zeros(label_list.shape[0], len(self.class_labels))
+                    y_onehot = y_onehot.scatter_(1, torch.from_numpy(label_list).view(-1, 1).type(torch.LongTensor), 1)
+                    pred_onehot = torch.zeros(pred_list.shape[0], len(self.class_labels))
+                    pred_onehot = pred_onehot.scatter_(1, torch.from_numpy(pred_list).view(-1, 1).type(torch.LongTensor), 1)
+                    loss_value = self.model.criterion(pred_onehot.to(self.device), y_onehot.to(self.device)).item()
+                elif self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn']:
+                    loss_value = self.model.criterion(torch.from_numpy(pred_list).to(self.device),
+                                                      torch.from_numpy(label_list).to(self.device))
             else:
                 loss_value = 10000000
 
-            metric.update(phase='test', loss_value=loss_value, preds=pred_list, labels=label_list)
-            print(f"{metric.name}: {metric.average_meter['test'].value :.4f}")
+            metric.update(phase=phase, loss_value=loss_value, preds=pred_list, labels=label_list)
+            print(f"{phase} {metric.name}: {metric.average_meter[phase].value :.4f}")
+            metric.average_meter[phase].update_best()
 
         if self.cfg['task_type'] == 'classify':
             confusion_matrix_ = confusion_matrix(label_list, pred_list,
@@ -248,6 +271,36 @@ class BaseModelManager(metaclass=ABCMeta):
             pred_list[i * batch_size:i * batch_size + preds.shape[0], 0] = preds.reshape(-1, )
 
         return pred_list[~(pred_list == -1000000)]
+
+    def retrain(self):
+        phase = 'retrain'
+        self.model.load_model()
+
+        for metric in self.metrics:
+            metric.add_average_meter(phase_name=phase)
+            metric.add_average_meter(phase_name=f'{phase}_test')
+
+        for epoch in range(self.cfg['retrain_epochs']):
+            for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
+
+                loss, predicts = self.model.fit(inputs.to(self.device), labels.to(self.device), 'train')
+
+                # save loss and metrics in one batch
+                for metric in self.metrics:
+                    metric.update(phase, loss, predicts, labels.numpy())
+
+                if not self.cfg['silent']:
+                    self._verbose(epoch, phase, i)
+
+            if self.logger:
+                self._record_log(phase, epoch)
+
+            self._update_by_epoch(phase, epoch, self.cfg['learning_anneal'])
+
+        # selfのmetricsのretrain_testが更新される
+        self.test(return_metrics=True, load_best=False, phase='retrain_test')
+
+        return self.metrics
 
 
 class TensorBoardLogger(object):

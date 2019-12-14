@@ -5,10 +5,10 @@ from sklearn.exceptions import NotFittedError
 
 from ml.models.base_model import BaseModel
 from ml.models.rnn import construct_rnn, construct_cnn_rnn
-from ml.models.cnn import construct_cnn
+from ml.models.cnn import construct_cnn, construct_1dcnn
 
 
-supported_nn_models = ['cnn', 'rnn', 'cnn_rnn']
+supported_nn_models = ['cnn', 'rnn', 'cnn_rnn', '1dcnn_rnn']
 
 
 class NNModel(BaseModel):
@@ -25,9 +25,11 @@ class NNModel(BaseModel):
         if self.cfg['model_type'] == 'rnn':
             return construct_rnn(self.cfg, len(self.class_labels))
         elif self.cfg['model_type'] == 'cnn_rnn':
-            return construct_cnn_rnn(self.cfg, len(self.class_labels), self.device)
+            return construct_cnn_rnn(self.cfg, construct_cnn, len(self.class_labels), self.device)
         elif self.cfg['model_type'] == 'cnn':
             return construct_cnn(self.cfg, use_as_extractor=False)
+        elif self.cfg['model_type'] == '1dcnn_rnn':
+            return construct_cnn_rnn(self.cfg, construct_1dcnn, len(self.class_labels), self.device)
         else:
             raise NotImplementedError('model_type should be either rnn or cnn, nn would be implemented in the future.')
 
@@ -47,6 +49,7 @@ class NNModel(BaseModel):
             outputs = self.model(inputs)
             y_onehot = torch.zeros(labels.size(0), len(self.class_labels))
             y_onehot = y_onehot.scatter_(1, labels.view(-1, 1).type(torch.LongTensor), 1)
+
             loss = self.criterion(outputs, y_onehot.to(self.device))
 
             if phase == 'train':
@@ -65,6 +68,10 @@ class NNModel(BaseModel):
             if phase == 'train':
                 loss.backward(retain_graph=True)
                 self.optimizer.step()
+
+        if self.cfg['regress_thresh'] != 0.0:
+            preds = torch.clamp(preds.squeeze(), min=0, max=1)
+            preds = preds.gt(self.cfg['regress_thresh']).int()
 
         return loss.item(), preds.cpu().detach().numpy()
 
@@ -102,10 +109,13 @@ class NNModel(BaseModel):
             raise NotFittedError(f'This NNModel instance is not fitted yet.')
 
         with torch.set_grad_enabled(False):
-
+            self.model.eval()
             preds = self.model(inputs)
             if self.cfg['task_type'] == 'classify':
                 _, preds = torch.max(preds, 1)
+            elif self.cfg['regress_thresh'] != 0.0:
+                preds = torch.clamp(preds, min=0, max=1)
+                preds = preds.gt(self.cfg['regress_thresh']).int()
 
         return preds.cpu().numpy()
 

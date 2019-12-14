@@ -1,6 +1,7 @@
 import numpy as np
+import pandas as pd
 import torch
-from sklearn.metrics import recall_score, accuracy_score
+from sklearn.metrics import recall_score, accuracy_score, f1_score, precision_score, balanced_accuracy_score
 
 
 class AverageMeter(object):
@@ -41,9 +42,27 @@ class AverageMeter(object):
         return False
 
 
+def metrics2df(metrics, phase='test'):
+    df = pd.DataFrame()
+
+    if isinstance(metrics, dict):
+        for metric_name, meter in metrics.items():
+            df = pd.concat([df, pd.DataFrame([metric_name, meter.mean(), meter.std()]).T])
+        df.columns = ['metric_name', 'mean', 'std']
+
+    elif isinstance(metrics, list):
+        for metric in metrics:
+            df = pd.concat([df, pd.DataFrame(
+                [metric.name, metric.average_meter[phase].best_score]).T])
+        df.columns = ['metric_name', 'value']
+
+    return df
+
+
 class Metric:
     def __init__(self, name, direction, save_model: bool = False, label_to_detect: int = 1, numpy_: bool = True):
         self.name = name
+        self.direction = direction
         self.average_meter = {'train': AverageMeter(direction),
                               'val': AverageMeter(direction),
                               'test': AverageMeter(direction)}
@@ -51,6 +70,9 @@ class Metric:
         self.label_to_detect = label_to_detect
         # numpy を変更可能に
         self.numpy_ = numpy_
+
+    def add_average_meter(self, phase_name):
+        self.average_meter[phase_name] = AverageMeter(self.direction)
 
     def update(self, phase, loss_value, preds, labels):
         if self.name == 'loss':
@@ -62,6 +84,12 @@ class Metric:
             self.average_meter[phase].update(false_detection_rate(preds, labels, self.label_to_detect, self.numpy_))
         elif self.name == 'accuracy':
             self.average_meter[phase].update(accuracy(preds, labels, self.numpy_))
+        elif self.name == 'f1':
+            self.average_meter[phase].update(f1_score(labels, preds, self.numpy_))
+        elif self.name == 'precision':
+            self.average_meter[phase].update(precision_score(labels, preds, self.numpy_))
+        elif self.name == 'uar':
+            self.average_meter[phase].update(balanced_accuracy_score(labels, preds))
         else:
             raise NotImplementedError
 

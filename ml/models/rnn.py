@@ -52,10 +52,10 @@ def rnn_args(parser):
     return parser
 
 
-def construct_cnn_rnn(cfg, output_size, device):
-    conv, conv_out_ftrs = construct_cnn(cfg, use_as_extractor=True)
-    input_size = conv_out_ftrs['n_channels'] * conv_out_ftrs['height']
-    return DeepSpeech(conv.to(device), input_size, out_time_feature=conv_out_ftrs['width'], batch_size=cfg['batch_size'],
+def construct_cnn_rnn(cfg, construct_cnn_func, output_size, device):
+    conv, conv_out_ftrs = construct_cnn_func(cfg, use_as_extractor=True)
+    input_size = conv_out_ftrs['n_channels'] * conv_out_ftrs['width']
+    return DeepSpeech(conv.to(device), input_size, out_time_feature=conv_out_ftrs['height'], batch_size=cfg['batch_size'],
                       rnn_type=supported_rnns[cfg['rnn_type']], labels="abc", eeg_conf=None,
                       rnn_hidden_size=cfg['rnn_hidden_size'], n_layers=cfg['rnn_n_layers'],
                       bidirectional=cfg['bidirectional'], output_size=output_size,
@@ -122,8 +122,9 @@ class BatchRNN(nn.Module):
         self.num_directions = 2 if bidirectional else 1
 
     def forward(self, x):
+        x = x.transpose(0, 1).transpose(1, 2)   # l x n x c -> n x c x l
         x = self.batch_norm(x.to(torch.float))
-
+        x = x.transpose(1, 2).transpose(0, 1)  # n x c x l -> l x n x h
         x, _ = self.rnn(x)
 
         if self.bidirectional:
@@ -154,13 +155,13 @@ class RNN(nn.Module):
 class InferenceBatchSoftmax(nn.Module):
     def forward(self, input_):
         if not self.training:
-            return F.softmax(input_, dim=-1)
+            return torch.exp(nn.LogSoftmax(dim=-1)(input_))
         else:
             return input_
 
 
 class RNNClassifier(nn.Module):
-    def __init__(self, batch_size, input_size, out_time_feature, output_size, batch_norm_size, sequence_wise=False,
+    def __init__(self, batch_size, input_size, out_time_feature, output_size, batch_norm_size=None, sequence_wise=False,
                  rnn_type=nn.LSTM, rnn_hidden_size=768, n_layers=5, bidirectional=True, is_inference_softmax=True):
         super(RNNClassifier, self).__init__()
 
@@ -171,18 +172,18 @@ class RNNClassifier(nn.Module):
         rnns.append(('0', rnn))
         for x in range(n_layers - 1):
             rnn = rnn_cls(input_size=rnn_hidden_size, hidden_size=rnn_hidden_size, batch_size=batch_size,
-                           rnn_type=rnn_type, bidirectional=bidirectional, batch_norm_size=batch_norm_size,
-                           sequence_wise=sequence_wise)
+                          rnn_type=rnn_type, bidirectional=bidirectional, batch_norm_size=rnn_hidden_size,
+                          sequence_wise=sequence_wise)
             rnns.append(('%d' % (x + 1), rnn))
         self.rnns = nn.Sequential(OrderedDict(rnns))
 
         self.fc = nn.Sequential(
-            # nn.BatchNorm1d(rnn_hidden_size * out_time_feature),
+            nn.BatchNorm1d(rnn_hidden_size * out_time_feature),
             # nn.BatchNorm1d(rnn_hidden_size),
-            # initialize_weights(nn.Linear(rnn_hidden_size * out_time_feature, output_size, bias=False))
-            initialize_weights(nn.Linear(rnn_hidden_size, output_size, bias=False))
+            initialize_weights(nn.Linear(rnn_hidden_size * out_time_feature, output_size, bias=False))
+            # initialize_weights(nn.Linear(rnn_hidden_size, output_size, bias=False))
         )
-
+        self.classify = True if output_size != 1 else False
         self.is_inference_softmax = is_inference_softmax
 
     def forward(self, x):
@@ -194,17 +195,19 @@ class RNNClassifier(nn.Module):
         x = x.transpose(0, 1)   # time x batch x freq -> batch x time x freq
 
         x = x.transpose(1, 2)  # batch x sequence x freq -> batch x freq x sequence
-        x = nn.AvgPool1d(kernel_size=x.size(2))(x)  # average within sequence, outputs batch x freq x 1
-
+        # x = nn.AvgPool1d(kernel_size=x.size(2))(x)  # average within sequence, outputs batch x freq x 1
         x = x.reshape(x.size(0), -1)
 
         x = self.fc(x)
+
+        if not self.classify:
+            return x
 
         # identity in training mode, softmax in eval model
         if self.is_inference_softmax:
             x = InferenceBatchSoftmax()(x)
         else:
-            x = F.softmax(x)
+            x = torch.exp(nn.LogSoftmax(dim=-1)(x))
 
         return x
 
@@ -213,85 +216,34 @@ class DeepSpeech(RNNClassifier):
     def __init__(self, conv, input_size, out_time_feature, batch_size, rnn_type=nn.LSTM, labels="abc", eeg_conf=None,
                  rnn_hidden_size=768, n_layers=5, bidirectional=True, is_inference_softmax=True, output_size=2):
         super(DeepSpeech, self).__init__(batch_size, input_size=input_size, out_time_feature=out_time_feature,
-                                         rnn_type=nn.LSTM, rnn_hidden_size=768, n_layers=5, bidirectional=True,
-                                         is_inference_softmax=is_inference_softmax, output_size=output_size,
-                                         batch_norm_size=input_size)
+                                         rnn_type=nn.LSTM, rnn_hidden_size=rnn_hidden_size, n_layers=n_layers,
+                                         bidirectional=bidirectional, is_inference_softmax=is_inference_softmax,
+                                         output_size=output_size, batch_norm_size=input_size)
 
-        # model metadata needed for serialization/deserialization
-        if eeg_conf is None:
-            eeg_conf = {}
-        self.version = '0.0.1'
         self.hidden_size = rnn_hidden_size
         self.hidden_layers = n_layers
         self.rnn_type = rnn_type
-        self.eeg_conf = eeg_conf or {}
         self.labels = labels
         self.bidirectional = bidirectional
 
         self.conv = conv
+        print(f'Number of parameters\tconv: {get_param_size(self.conv)}\trnn: {get_param_size(super())}')
 
     def forward(self, x):
-        x = self.conv(x)    # batch x channel x freq x time
+        x = self.conv(x.to(torch.float))    # batch x channel x freq x time
 
         sizes = x.size()    # batch x channel x freq_feature x time_feature
-        x = x.view(sizes[0], sizes[1] * sizes[2], sizes[3])  # Collapse feature dimension   batch x feature x time
+        if len(sizes) == 4:
+            x = x.view(sizes[0], sizes[1] * sizes[2], sizes[3])  # Collapse feature dimension   batch x feature x time
         x = super().forward(x)
         return x
 
-    @classmethod
-    def load_model(cls, path):
-        package = torch.load(path, map_location=lambda storage, loc: storage)
-        model = cls(rnn_hidden_size=package['hidden_size'], n_layers=package['hidden_layers'],
-                    labels=package['labels'], eeg_conf=package['eeg_conf'],
-                    rnn_type=supported_rnns[package['rnn_type']], bidirectional=package.get('bidirectional', True))
-        model.load_state_dict(package['state_dict'])
-        for x in model.rnns:
-            x.flatten_parameters()
-        return model
 
-    @classmethod
-    def load_model_package(cls, package):
-        model = cls(rnn_hidden_size=package['hidden_size'], n_layers=package['hidden_layers'],
-                    labels=package['labels'], eeg_conf=package['eeg_conf'],
-                    rnn_type=supported_rnns[package['rnn_type']], bidirectional=package.get('bidirectional', True))
-        model.load_state_dict(package['state_dict'])
-        return model
-
-    @staticmethod
-    def serialize(model, optimizer=None, epoch=None, iteration=None, loss_results=None,
-                  cer_results=None, wer_results=None, avg_loss=None, meta=None):
-        package = {
-            'version': model.version,
-            'hidden_size': model.hidden_size,
-            'hidden_layers': model.hidden_layers,
-            'rnn_type': supported_rnns_inv.get(model.rnn_type, model.rnn_type.__name__.lower()),
-            'eeg_conf': model.eeg_conf,
-            'labels': model.labels,
-            'state_dict': model.state_dict(),
-            'bidirectional': model.bidirectional
-        }
-        if optimizer is not None:
-            package['optim_dict'] = optimizer.state_dict()
-        if avg_loss is not None:
-            package['avg_loss'] = avg_loss
-        if epoch is not None:
-            package['epoch'] = epoch + 1  # increment for readability
-        if iteration is not None:
-            package['iteration'] = iteration
-        if loss_results is not None:
-            package['loss_results'] = loss_results
-            package['cer_results'] = cer_results
-            package['wer_results'] = wer_results
-        if meta is not None:
-            package['meta'] = meta
-        return package
-
-    @staticmethod
-    def get_param_size(model):
-        params = 0
-        for p in model.parameters():
-            tmp = 1
-            for x in p.size():
-                tmp *= x
-            params += tmp
-        return params
+def get_param_size(model):
+    params = 0
+    for p in model.parameters():
+        tmp = 1
+        for x in p.size():
+            tmp *= x
+        params += tmp
+    return params

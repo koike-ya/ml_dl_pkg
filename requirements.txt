@@ -8,9 +8,11 @@ glibc
 tqdm
 librosa
 tensorboardX
-tensorflow
-tensorboard==1.13.0
+tensorflow-gpu
+keras
+tensorboard
 lightgbm
 xgboost
-pyedflib
 catboost
+optuna
+xlrd

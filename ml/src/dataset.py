@@ -17,6 +17,35 @@ class BaseDataSet(Dataset, metaclass=ABCMeta):
         pass
 
 
+class SimpleCSVDataset(BaseDataSet):
+    def __init__(self, df, y, phase):
+        super(SimpleCSVDataset, self).__init__()
+        self.x = df.values
+        self.y = y.values
+        self.phase = phase
+
+    def __getitem__(self, idx):
+        if self.phase in ['train', 'val', 'test']:
+            return self.x[idx].reshape(1, -1), self.y[idx]
+        else:
+            return self.x[idx]
+
+    def get_feature_size(self):
+        return self.x.shape[1]
+
+    def __len__(self):
+        return self.x.shape[0]
+
+    def get_labels(self):
+        return self.y
+
+    def get_n_channels(self):
+        return 1
+
+    def get_image_size(self):
+        return (self.x.shape[1],)
+
+
 class CSVDataSet(BaseDataSet):
     def __init__(self, csv_path, data_conf, phase, load_func=None, process_func=None, label_func=None):
         """
