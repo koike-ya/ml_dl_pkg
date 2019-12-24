@@ -98,7 +98,7 @@ class CSVDataSet(BaseDataSet):
 
 class ManifestDataSet(BaseDataSet):
     # TODO 要テスト実装
-    def __init__(self, manifest_path, data_conf, load_func=None, process_func=None, label_func=None):
+    def __init__(self, manifest_path, data_conf, load_func=None, process_func=None, label_func=None, phase='train'):
         """
         data_conf: {
             'load_func': Function to load data from manifest correctly,
@@ -108,15 +108,16 @@ class ManifestDataSet(BaseDataSet):
 
         """
         super(ManifestDataSet, self).__init__()
-        self.path_list = list(pd.read_csv(manifest_path, header=None).values.reshape(-1,))
+        self.path_df = pd.read_csv(manifest_path, header=None)
         self.load_func = load_func
         self.label_func = label_func
         self.labels = self._set_labels(data_conf['labels'] if 'labels' in data_conf.keys() else None)
         self.process_func = process_func if process_func else None
+        self.phase = phase
 
     def __getitem__(self, idx):
         # TODO phaseがinferの場合はlabelsは[None]で返す
-        x = self.load_func(self.path_list[idx])
+        x = self.load_func(self.path_df.iloc[idx, :])
         label = self.labels[idx]
 
         if self.process_func:
@@ -125,16 +126,19 @@ class ManifestDataSet(BaseDataSet):
         return x, label
 
     def __len__(self):
-        return len(self.path_list)
+        return self.path_df.shape[0]
 
     def _set_labels(self, labels=None):
         if self.label_func:
-            return [self.label_func(path) for path in self.path_list]
+            return [self.label_func(row) for i, row in self.path_df.iterrows()]
         else:
             return labels
 
     def get_feature_size(self):
-        return self.load_func(self.path_list[0]).size(0)
+        x = self.load_func(self.path_df.iloc[0, :])
+        if self.process_func:
+            x, _ = self.process_func(x, 0)
+        return x.size()
 
     def get_labels(self):
         return self.labels

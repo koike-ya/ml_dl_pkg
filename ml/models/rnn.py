@@ -43,8 +43,8 @@ def rnn_args(parser):
                             help='Norm cutoff to prevent explosion of gradients')
     rnn_parser.add_argument('--no-bidirectional', dest='bidirectional', action='store_false', default=True,
                             help='Turn off bi-directional RNNs, introduces lookahead convolution')
-    rnn_parser.add_argument('--no-inference-softmax', dest='is_inference_softmax', action='store_false',
-                            default=True, help='Turn off inference softmax')
+    rnn_parser.add_argument('--inference-softmax', dest='is_inference_softmax', action='store_true',
+                            help='Turn off inference softmax')
     rnn_parser.add_argument('--batch-normalization', dest='batch_norm', action='store_true',
                             default=False, help='Batch normalization or not')
     rnn_parser.add_argument('--sequence-wise', dest='sequence_wise', action='store_true',
@@ -52,8 +52,8 @@ def rnn_args(parser):
     return parser
 
 
-def construct_cnn_rnn(cfg, construct_cnn_func, output_size, device):
-    conv, conv_out_ftrs = construct_cnn_func(cfg, use_as_extractor=True)
+def construct_cnn_rnn(cfg, construct_cnn_func, output_size, device, n_dim):
+    conv, conv_out_ftrs = construct_cnn_func(cfg, use_as_extractor=True, n_dim=n_dim)
     input_size = conv_out_ftrs['n_channels'] * conv_out_ftrs['width']
     return DeepSpeech(conv.to(device), input_size, out_time_feature=conv_out_ftrs['height'], batch_size=cfg['batch_size'],
                       rnn_type=supported_rnns[cfg['rnn_type']], labels="abc", eeg_conf=None,
@@ -129,6 +129,7 @@ class BatchRNN(nn.Module):
 
         if self.bidirectional:
             x = x.view(x.size(0), x.size(1), 2, -1).sum(dim=2).view(x.size(0), x.size(1), -1)  # (TxNxH*2) -> (TxNxH) by sum
+
         return x
 
 
@@ -211,6 +212,11 @@ class RNNClassifier(nn.Module):
 
         return x
 
+    def change_last_layer(self, n_classes):
+        self.fc[1] = initialize_weights(nn.Linear(self.fc[1].in_features, n_classes, bias=False))
+        # print(self.fc[1].in_features)
+        # self.fc[1] = nn.Linear(self.fc[1].in_features, n_classes, bias=False)
+
 
 class DeepSpeech(RNNClassifier):
     def __init__(self, conv, input_size, out_time_feature, batch_size, rnn_type=nn.LSTM, labels="abc", eeg_conf=None,
@@ -230,11 +236,14 @@ class DeepSpeech(RNNClassifier):
         print(f'Number of parameters\tconv: {get_param_size(self.conv)}\trnn: {get_param_size(super())}')
 
     def forward(self, x):
-        x = self.conv(x.to(torch.float))    # batch x channel x freq x time
+        x = self.conv(x.to(torch.float))    # batch x channel x time x freq
 
-        sizes = x.size()    # batch x channel x freq_feature x time_feature
-        if len(sizes) == 4:
-            x = x.view(sizes[0], sizes[1] * sizes[2], sizes[3])  # Collapse feature dimension   batch x feature x time
+        if len(x.size()) == 4:      # batch x channel x time_feature x freq_feature
+            # Collapse feature dimension   batch x feature x time
+            x = x.transpose(2, 3)
+            sizes = x.size()
+            x = x.reshape(sizes[0], sizes[1] * sizes[2], sizes[3])
+
         x = super().forward(x)
         return x
 

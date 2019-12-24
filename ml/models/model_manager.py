@@ -8,12 +8,13 @@ import numpy as np
 import torch
 from ml.models.base_model import model_args
 from ml.models.ml_model import MLModel
-from ml.models.nn_model import NNModel, supported_nn_models
+from ml.models.nn_model import NNModel, supported_nn_models, supported_pretrained_models
 from sklearn.metrics import confusion_matrix
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
-supported_ml_models = ['rnn', 'cnn', 'cnn_rnn', '1dcnn_rnn', 'xgboost', 'knn', 'catboost', 'sgdc', 'lightgbm', 'svm']
+supported_ml_models = ['xgboost', 'knn', 'catboost', 'sgdc', 'lightgbm', 'svm']
+supported_models = supported_ml_models + supported_nn_models + list(supported_pretrained_models.keys())
 
 
 def type_float_list(args):
@@ -29,8 +30,9 @@ def model_manager_args(parser):
     model_manager_parser.add_argument('--val-path', help='data file for validation', default='input/val.csv')
     model_manager_parser.add_argument('--test-path', help='data file for testing', default='input/test.csv')
 
-    model_manager_parser.add_argument('--model-type', default='rnn', choices=supported_ml_models)
+    model_manager_parser.add_argument('--model-type', default='rnn', choices=supported_models)
     model_manager_parser.add_argument('--gpu-id', default=0, type=int, help='ID of GPU to use')
+    model_manager_parser.add_argument('--transfer', action='store_true', help='Transfer learning from model_path')
 
     # optimizer params
     optim_param_parser = parser.add_argument_group("Optimizer parameter arguments for learning")
@@ -56,7 +58,7 @@ def model_manager_args(parser):
     # General parameters for training
     general_param_parser = parser.add_argument_group("General parameters for training")
     general_param_parser.add_argument('--model-path', help='Model file to load model',
-                                      default='ml/outputs/models/sth.pth')
+                                      default='../output/models/sth.pth')
     general_param_parser.add_argument('--task-type', help='Task type. regress or classify',
                                       default='classify', choices=['classify', 'regress'])
     general_param_parser.add_argument('--seed', default=0, type=int, help='Seed to generators')
@@ -70,7 +72,7 @@ def model_manager_args(parser):
     logging_parser.add_argument('--silent', dest='silent', action='store_true', help='Turn off progress tracking per iteration')
     logging_parser.add_argument('--log-id', default='results', help='Identifier for tensorboard run')
     logging_parser.add_argument('--tensorboard', dest='tensorboard', action='store_true', help='Turn on tensorboard graphing')
-    logging_parser.add_argument('--log-dir', default='visualize/', help='Location of tensorboard log')
+    logging_parser.add_argument('--log-dir', default='../visualize/tensorboard', help='Location of tensorboard log')
 
     parser = model_args(parser)
 
@@ -105,12 +107,12 @@ class BaseModelManager(metaclass=ABCMeta):
     def _init_model(self):
         self.cfg['input_size'] = list(self.dataloaders.values())[0].get_input_size()
 
-        if self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn', '1dcnn_rnn']:
+        if self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn', '1dcnn_rnn'] + list(supported_pretrained_models.keys()):
             if self.cfg['model_type'] in ['rnn']:
                 if self.cfg['batch_norm']:
                     self.cfg['batch_norm_size'] = list(self.dataloaders.values())[0].get_batch_norm_size()
                 self.cfg['seq_len'] = list(self.dataloaders.values())[0].get_seq_len()
-            elif self.cfg['model_type'] in ['cnn', 'cnn_rnn', '1dcnn_rnn']:
+            elif self.cfg['model_type'] in ['cnn', 'cnn_rnn'] + list(supported_pretrained_models.keys()):
                 self.cfg['image_size'] = list(self.dataloaders.values())[0].get_image_size()
                 self.cfg['n_channels'] = list(self.dataloaders.values())[0].get_n_channels()
 
@@ -127,7 +129,7 @@ class BaseModelManager(metaclass=ABCMeta):
         random.seed(self.cfg['seed'])
 
     def _init_device(self):
-        if self.cfg['cuda'] and self.cfg['model_type'] in supported_nn_models:
+        if self.cfg['cuda'] and self.cfg['model_type'] in supported_nn_models + list(supported_pretrained_models.keys()):
             device = torch.device("cuda")
             torch.cuda.set_device(self.cfg['gpu_id'])
         else:
@@ -180,12 +182,13 @@ class BaseModelManager(metaclass=ABCMeta):
         label_list = np.zeros((len(self.dataloaders[phase]) * batch_size, 1), dtype=dtype_) - 1000000
         for i, (inputs, labels) in tqdm(enumerate(self.dataloaders[phase]), total=len(self.dataloaders[phase])):
 
-            if self.cfg['regress_thresh'] != 0.0:
-                labels = labels.gt(self.cfg['regress_thresh']).int()
+            # if self.cfg['regress_thresh'] != 0.0:
+            #     labels = labels.gt(self.cfg['regress_thresh']).int()
 
             inputs, labels = inputs.to(self.device), labels.numpy().reshape(-1,)
             preds = self.model.predict(inputs)
-
+            print(preds)
+            print(labels)
             pred_list[i * batch_size:i * batch_size + preds.shape[0], 0] = preds.reshape(-1,)
             label_list[i * batch_size:i * batch_size + labels.shape[0], 0] = labels
 
@@ -203,9 +206,9 @@ class BaseModelManager(metaclass=ABCMeta):
 
                     loss, predicts = self.model.fit(inputs.to(self.device), labels.to(self.device), phase)
 
-                    if self.cfg['regress_thresh'] != 0.0:
-                        labels = torch.clamp(labels.squeeze(), min=0, max=1)
-                        labels = labels.gt(self.cfg['regress_thresh']).int()
+                    # if self.cfg['regress_thresh'] != 0.0:
+                    #     labels = torch.clamp(labels.squeeze(), min=0, max=self.cfg['regress_thresh'] * 2)
+                        # labels = labels.gt(self.cfg['regress_thresh']).int()
 
                     # save loss and metrics in one batch
                     for metric in self.metrics:
@@ -219,6 +222,9 @@ class BaseModelManager(metaclass=ABCMeta):
 
                 self._update_by_epoch(phase, epoch, self.cfg['learning_anneal'])
 
+        if self.logger:
+            self.logger.close()
+
         return self.metrics
 
     def test(self, return_metrics=False, load_best=True, phase='test'):
@@ -229,7 +235,7 @@ class BaseModelManager(metaclass=ABCMeta):
 
         for metric in self.metrics:
             if metric.name == 'loss':
-                if self.cfg['task_type'] == 'classify' or self.cfg['regress_thresh'] != 0.0:
+                if self.cfg['task_type'] == 'classify':
                     y_onehot = torch.zeros(label_list.shape[0], len(self.class_labels))
                     y_onehot = y_onehot.scatter_(1, torch.from_numpy(label_list).view(-1, 1).type(torch.LongTensor), 1)
                     pred_onehot = torch.zeros(pred_list.shape[0], len(self.class_labels))
@@ -311,3 +317,6 @@ class TensorBoardLogger(object):
 
     def update(self, epoch, values):
         self.tensorboard_writer.add_scalars(self.id, values, epoch + 1)
+
+    def close(self):
+        self.tensorboard_writer.close()

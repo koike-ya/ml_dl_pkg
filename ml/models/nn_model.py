@@ -5,10 +5,11 @@ from sklearn.exceptions import NotFittedError
 
 from ml.models.base_model import BaseModel
 from ml.models.rnn import construct_rnn, construct_cnn_rnn
-from ml.models.cnn import construct_cnn, construct_1dcnn
+from ml.models.cnn import construct_cnn
+from ml.models.pretrained_models import construct_pretrained, supported_pretrained_models
 
 
-supported_nn_models = ['cnn', 'rnn', 'cnn_rnn', '1dcnn_rnn']
+supported_nn_models = ['cnn', 'rnn', 'cnn_rnn']
 
 
 class NNModel(BaseModel):
@@ -16,22 +17,34 @@ class NNModel(BaseModel):
         must_contain_keys = ['lr', 'weight_decay', 'momentum', 'learning_anneal']
         super().__init__(class_labels, cfg, must_contain_keys)
         self.device = torch.device('cuda' if cfg['cuda'] else 'cpu')
-        self.model = self._init_model().to(self.device)
+        self.model = self._init_model(transfer=cfg['transfer']).to(self.device)
         self.criterion = self.criterion.to(self.device)
         self.optimizer = self._set_optimizer()
         self.fitted = False
 
-    def _init_model(self):
-        if self.cfg['model_type'] == 'rnn':
-            return construct_rnn(self.cfg, len(self.class_labels))
+    def _init_model(self, transfer=False):
+        if transfer:
+            orig_classes = self.class_labels
+            self.class_labels = self.cfg['prev_classes']
+
+        if self.cfg['model_type'] in supported_pretrained_models.keys():
+            model = construct_pretrained(self.cfg, len(self.class_labels))
+        elif self.cfg['model_type'] == 'rnn':
+            model = construct_rnn(self.cfg, len(self.class_labels))
         elif self.cfg['model_type'] == 'cnn_rnn':
-            return construct_cnn_rnn(self.cfg, construct_cnn, len(self.class_labels), self.device)
+            n_dim = len(self.cfg['cnn_kernel_sizes'][0])
+            model = construct_cnn_rnn(self.cfg, construct_cnn, len(self.class_labels), self.device, n_dim=n_dim)
         elif self.cfg['model_type'] == 'cnn':
-            return construct_cnn(self.cfg, use_as_extractor=False)
-        elif self.cfg['model_type'] == '1dcnn_rnn':
-            return construct_cnn_rnn(self.cfg, construct_1dcnn, len(self.class_labels), self.device)
+            model = construct_cnn(self.cfg, use_as_extractor=False)
         else:
             raise NotImplementedError('model_type should be either rnn or cnn, nn would be implemented in the future.')
+
+        if transfer:
+            self.class_labels = orig_classes
+            self.load_model(model)
+            model.change_last_layer(len(orig_classes))
+
+        return model
 
     def _set_optimizer(self):
         supported_optimizers = {
@@ -63,6 +76,7 @@ class NNModel(BaseModel):
     def _fit_regress(self, inputs, labels, phase) -> Tuple[float, np.ndarray]:
         with torch.set_grad_enabled(phase == 'train'):
             preds = self.model(inputs)
+
             loss = self.criterion(preds, labels.float())
 
             if phase == 'train':
@@ -70,8 +84,7 @@ class NNModel(BaseModel):
                 self.optimizer.step()
 
         if self.cfg['regress_thresh'] != 0.0:
-            preds = torch.clamp(preds.squeeze(), min=0, max=1)
-            preds = preds.gt(self.cfg['regress_thresh']).int()
+            preds = torch.round(torch.clamp(preds.squeeze(), min=0, max=self.cfg['regress_thresh']))
 
         return loss.item(), preds.cpu().detach().numpy()
 
@@ -92,7 +105,10 @@ class NNModel(BaseModel):
     def save_model(self):
         torch.save(self.model.state_dict(), self.cfg['model_path'])
 
-    def load_model(self):
+    def load_model(self, model=None):
+        if model:
+            self.model = model
+
         try:
             self.model.load_state_dict(torch.load(self.cfg['model_path'], map_location=self.device))
             self.model.to(self.device)
@@ -113,9 +129,9 @@ class NNModel(BaseModel):
             preds = self.model(inputs)
             if self.cfg['task_type'] == 'classify':
                 _, preds = torch.max(preds, 1)
+
             elif self.cfg['regress_thresh'] != 0.0:
-                preds = torch.clamp(preds, min=0, max=1)
-                preds = preds.gt(self.cfg['regress_thresh']).int()
+                preds = torch.round(torch.clamp(preds.squeeze(), min=0, max=self.cfg['regress_thresh']))
 
         return preds.cpu().numpy()
 
