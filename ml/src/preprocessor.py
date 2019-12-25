@@ -10,11 +10,11 @@ def preprocess_args(parser):
 
     prep_parser.add_argument('--scaling', dest='scaling', action='store_true', help='Feature scaling or not')
     prep_parser.add_argument('--augment', dest='augment', action='store_true',
-                        help='Use random tempo and gain perturbations.')
+                             help='Use random tempo and gain perturbations.')
     prep_parser.add_argument('--window-size', default=4.0, type=float, help='Window size for spectrogram in seconds')
     prep_parser.add_argument('--window-stride', default=2.0, type=float, help='Window stride for spectrogram in seconds')
     prep_parser.add_argument('--window', default='hamming', help='Window type for spectrogram generation')
-    prep_parser.add_argument('--spect', dest='spect', action='store_true', help='Use spectrogram as input')
+    prep_parser.add_argument('--transform', choices=[None, 'spectrogram', 'scalogram', 'logmel'], default=None)
     prep_parser.add_argument('--num-eigenvalue', default=0, type=int,
                              help='Number of eigen values to use from spectrogram')
     prep_parser.add_argument('--low-cutoff', default=0.0, type=float, help='High pass filter')
@@ -38,8 +38,8 @@ class Preprocessor:
         self.sr = sr
         self.l_cutoff = cfg['low_cutoff']
         self.h_cutoff = cfg['high_cutoff']
-        self.spect = cfg['spect']
-        if self.spect:
+        self.transform = cfg['transform']
+        if self.transform == 'spectrogram':
             self.window_stride = cfg['window_stride']
             self.window_size = cfg['window_size']
             self.window = cfg['window']
@@ -81,16 +81,10 @@ class Preprocessor:
             #     wave[i] = stretch(wave[i], rate=0.3)
             #     wave[i] = shift_pitch(wave[i], rate=0.3)
 
-        if self.spect:
-            y = to_spect(wave, self.sr, self.window_size, self.window_stride, self.window)    # channel x freq x time
-
-            if self.spec_augment and self.phase in ['train']:
-                y = time_and_freq_mask(y, rate=self.spec_augment)
-        else:
-            y = torch.from_numpy(wave)  # channel x time
+        y = self.transform_(wave)    # channel x freq x time
 
         if self.normalize:
-            y = (y - y.mean()).div(y.std() + 0.001)
+            y = standardize(y)
 
         # TODO
         # if self.three_channel:
@@ -103,3 +97,18 @@ class Preprocessor:
 
     def mfcc(self):
         raise NotImplementedError
+
+    def transform_(self, wave):
+        if self.transform == 'spectrogram':
+            y = to_spect(wave, self.sr, self.window_size, self.window_stride, self.window)  # channel x freq x time
+        elif self.transform == 'scalogram':
+            y = cwt(wave, widths=np.arange(1, 101))  # channel x freq x time
+        elif self.transform == 'logmel':
+            raise NotImplementedError
+        else:
+            y = torch.from_numpy(wave)
+
+        if self.spec_augment and self.phase in ['train']:
+            y = time_and_freq_mask(y, rate=self.spec_augment)
+
+        return y

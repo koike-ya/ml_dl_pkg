@@ -187,8 +187,6 @@ class BaseModelManager(metaclass=ABCMeta):
 
             inputs, labels = inputs.to(self.device), labels.numpy().reshape(-1,)
             preds = self.model.predict(inputs)
-            print(preds)
-            print(labels)
             pred_list[i * batch_size:i * batch_size + preds.shape[0], 0] = preds.reshape(-1,)
             label_list[i * batch_size:i * batch_size + labels.shape[0], 0] = labels
 

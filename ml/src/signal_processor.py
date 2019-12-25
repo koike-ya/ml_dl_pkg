@@ -1,11 +1,11 @@
 import librosa
-import scipy.signal
+from scipy import signal
 import torch
 import numpy as np
 from scipy.signal import butter, lfilter
 
-windows = {'hamming': scipy.signal.hamming, 'hann': scipy.signal.hann, 'blackman': scipy.signal.blackman,
-           'bartlett': scipy.signal.bartlett}
+windows = {'hamming': signal.hamming, 'hann': signal.hann, 'blackman': signal.blackman,
+           'bartlett': signal.bartlett}
 
 
 def to_spect(wave, sr, window_size, window_stride, window):
@@ -20,9 +20,21 @@ def to_spect(wave, sr, window_size, window_stride, window):
         D = librosa.stft(y, n_fft=n_fft, hop_length=hop_length,
                          win_length=win_length, window=windows[window])
         spect, phase = librosa.magphase(D)
-        # spect = scipy.signal.spectrogram(y, nfft=n_fft, fs=eeg.sr, return_onesided=True, noverlap=eeg.sr // 2)[2]
+        # spect = signal.spectrogram(y, nfft=n_fft, fs=eeg.sr, return_onesided=True, noverlap=eeg.sr // 2)[2]
         spect = torch.from_numpy(spect).to(torch.float32)
         spect_tensor = torch.cat((spect_tensor, spect.view(1, spect.size(0), -1)), 0)
+
+    return spect_tensor.transpose(1, 2)
+
+
+def cwt(wave, widths=np.arange(1, 31)):
+    spect_tensor = torch.Tensor()
+
+    for i in range(wave.shape[0]):
+        y = wave[i].astype(float)
+        cwtmatr = signal.cwt(y, signal.ricker, widths)
+        cwtmatr = torch.from_numpy(cwtmatr).to(torch.float32)
+        spect_tensor = torch.cat((spect_tensor, cwtmatr.view(1, cwtmatr.size(0), -1)), 0)
 
     return spect_tensor.transpose(1, 2)
 
