@@ -20,9 +20,27 @@ def to_spect(wave, sr, window_size, window_stride, window):
         D = librosa.stft(y, n_fft=n_fft, hop_length=hop_length,
                          win_length=win_length, window=windows[window])
         spect, phase = librosa.magphase(D)
-        # spect = signal.spectrogram(y, nfft=n_fft, fs=eeg.sr, return_onesided=True, noverlap=eeg.sr // 2)[2]
+        spect = librosa.power_to_db(spect, ref=np.max)
         spect = torch.from_numpy(spect).to(torch.float32)
         spect_tensor = torch.cat((spect_tensor, spect.view(1, spect.size(0), -1)), 0)
+
+    return spect_tensor.transpose(1, 2)
+
+
+def logmel(wave, sr, window_size, window_stride, window, n_mels=128):
+    n_fft = int(sr * window_size)
+    win_length = n_fft
+    hop_length = int(sr * window_stride)
+    spect_tensor = torch.Tensor()
+
+    # STFT and mel filtering
+    for i in range(wave.shape[0]):
+        y = wave[i].astype(float)
+        logmel_spect = librosa.feature.melspectrogram(y, sr=sr, n_fft=n_fft, hop_length=hop_length, n_mels=n_mels,
+                                                      win_length=win_length, window=window)
+        logmel_spect = librosa.power_to_db(logmel_spect, ref=np.max)
+        logmel_spect = torch.from_numpy(logmel_spect).to(torch.float32)
+        spect_tensor = torch.cat((spect_tensor, logmel_spect.view(1, logmel_spect.size(0), -1)), 0)
 
     return spect_tensor.transpose(1, 2)
 
@@ -36,7 +54,7 @@ def cwt(wave, widths=np.arange(1, 31)):
         cwtmatr = torch.from_numpy(cwtmatr).to(torch.float32)
         spect_tensor = torch.cat((spect_tensor, cwtmatr.view(1, cwtmatr.size(0), -1)), 0)
 
-    return spect_tensor.transpose(1, 2)
+    return spect_tensor.transpose(1, 2).reshape(1, -1, 100, 100).mean(dim=2)
 
 
 def standardize(y):

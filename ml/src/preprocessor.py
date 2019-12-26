@@ -8,12 +8,13 @@ def preprocess_args(parser):
 
     prep_parser = parser.add_argument_group("Preprocess options")
 
-    prep_parser.add_argument('--scaling', dest='scaling', action='store_true', help='Feature scaling or not')
+    prep_parser.add_argument('--no-scaling', dest='scaling', action='store_false', help='No standardization')
     prep_parser.add_argument('--augment', dest='augment', action='store_true',
                              help='Use random tempo and gain perturbations.')
     prep_parser.add_argument('--window-size', default=4.0, type=float, help='Window size for spectrogram in seconds')
     prep_parser.add_argument('--window-stride', default=2.0, type=float, help='Window stride for spectrogram in seconds')
     prep_parser.add_argument('--window', default='hamming', help='Window type for spectrogram generation')
+    prep_parser.add_argument('--n-mels', default=200, type=int, help='Number of mel filters banks')
     prep_parser.add_argument('--transform', choices=[None, 'spectrogram', 'scalogram', 'logmel'], default=None)
     prep_parser.add_argument('--num-eigenvalue', default=0, type=int,
                              help='Number of eigen values to use from spectrogram')
@@ -39,10 +40,9 @@ class Preprocessor:
         self.l_cutoff = cfg['low_cutoff']
         self.h_cutoff = cfg['high_cutoff']
         self.transform = cfg['transform']
-        if self.transform == 'spectrogram':
-            self.window_stride = cfg['window_stride']
-            self.window_size = cfg['window_size']
-            self.window = cfg['window']
+        self.window_stride = cfg['window_stride']
+        self.window_size = cfg['window_size']
+        self.window = cfg['window']
         self.normalize = cfg['scaling']
         self.cfg = cfg
         self.spec_augment = cfg['spec_augment']
@@ -106,7 +106,7 @@ class Preprocessor:
         elif self.transform == 'scalogram':
             y = cwt(wave, widths=np.arange(1, 101))  # channel x freq x time
         elif self.transform == 'logmel':
-            raise NotImplementedError
+            y = logmel(wave, self.sr, self.window_size, self.window_stride, self.window)  # channel x freq x time
         else:
             y = torch.from_numpy(wave)
 
