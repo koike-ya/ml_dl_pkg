@@ -27,7 +27,7 @@ def to_spect(wave, sr, window_size, window_stride, window):
     return spect_tensor.transpose(1, 2)
 
 
-def logmel(wave, sr, window_size, window_stride, window, n_mels=128):
+def logmel(wave, sr, window_size, window_stride, window, n_mels=300):
     n_fft = int(sr * window_size)
     win_length = n_fft
     hop_length = int(sr * window_stride)
@@ -54,7 +54,7 @@ def cwt(wave, widths=np.arange(1, 31)):
         cwtmatr = torch.from_numpy(cwtmatr).to(torch.float32)
         spect_tensor = torch.cat((spect_tensor, cwtmatr.view(1, cwtmatr.size(0), -1)), 0)
 
-    return spect_tensor.transpose(1, 2).reshape(1, -1, 100, 100).mean(dim=2)
+    return spect_tensor.transpose(1, 2).reshape(1, -1, 4, spect_tensor.size(1)).mean(dim=2)
 
 
 def standardize(y):

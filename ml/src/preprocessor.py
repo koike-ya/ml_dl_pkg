@@ -106,7 +106,7 @@ class Preprocessor:
         elif self.transform == 'scalogram':
             y = cwt(wave, widths=np.arange(1, 101))  # channel x freq x time
         elif self.transform == 'logmel':
-            y = logmel(wave, self.sr, self.window_size, self.window_stride, self.window)  # channel x freq x time
+            y = logmel(wave, self.sr, self.window_size, self.window_stride, self.window, n_mels=self.cfg['n_mels'])  # channel x freq x time
         else:
             y = torch.from_numpy(wave)
 
