@@ -1,7 +1,7 @@
 import torch.nn as nn
 from torchvision import models
 
-supported_pretrained_models = {'resnet18': models.resnet18, 'alexnet': models.alexnet, 'densenet': models.densenet121,
+supported_pretrained_models = {'resnet18': models.resnet18, 'alexnet': models.alexnet,# 'densenet': models.densenet121,
                                'wideresnet': models.wide_resnet50_2, 'resnext': models.resnext50_32x4d,
                                'vgg19': models.vgg19, 'googlenet': models.googlenet}
 
@@ -23,14 +23,15 @@ class PretrainedNN(nn.Module):
 
     def _get_n_last_in_features(self, model):
         if isinstance(list(model.children())[-1], nn.Sequential):
-            remove_layer = list(model.children())[-1][-1]
+            for layer in list(model.children())[-1]:
+                if hasattr(layer, 'in_features'):
+                    return layer.in_features
+            raise NotImplementedError
         else:
-            remove_layer = list(model.children())[-1]
-
-        return remove_layer.in_features
+            return list(model.children())[-1].in_features
 
     def forward(self, x):
-        x = self.feature_extractor(x).reshape(-1, self.n_in_features)
+        x = self.feature_extractor(x).reshape(x.size(0), -1)
         if self.feature_extract:
             return x
         return self.predictor(x)
