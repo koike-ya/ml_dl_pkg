@@ -62,9 +62,8 @@ def model_manager_args(parser):
     general_param_parser.add_argument('--task-type', help='Task type. regress or classify',
                                       default='classify', choices=['classify', 'regress'])
     general_param_parser.add_argument('--seed', default=0, type=int, help='Seed to generators')
-    general_param_parser.add_argument('--regress-thresh', default=0.0, type=float,
-                                      help='Evaluate predicts with classify metrics when training on regression')
     general_param_parser.add_argument('--cuda', dest='cuda', action='store_true', help='Use cuda to train model')
+    general_param_parser.add_argument('--amp', dest='amp', action='store_true', help='Mixed precision training')
     general_param_parser.add_argument('--cache', action='store_true', help='Make cache after preprocessing or not')
 
     # Logging of criterion
@@ -119,7 +118,7 @@ class BaseModelManager(metaclass=ABCMeta):
             return NNModel(self.class_labels, self.cfg)
 
         elif self.cfg['model_type'] in supported_ml_models:
-            return MLModel(self.class_labels, self.cfg, self.dataloaders)
+            return MLModel(self.class_labels, self.cfg)
         
     def _init_seed(self):
         # Set seeds for determinism
@@ -182,9 +181,6 @@ class BaseModelManager(metaclass=ABCMeta):
         label_list = np.zeros((len(self.dataloaders[phase]) * batch_size, 1), dtype=dtype_) - 1000000
         for i, (inputs, labels) in tqdm(enumerate(self.dataloaders[phase]), total=len(self.dataloaders[phase])):
 
-            # if self.cfg['regress_thresh'] != 0.0:
-            #     labels = labels.gt(self.cfg['regress_thresh']).int()
-
             inputs, labels = inputs.to(self.device), labels.numpy().reshape(-1,)
             preds = self.model.predict(inputs)
             pred_list[i * batch_size:i * batch_size + preds.shape[0], 0] = preds.reshape(-1,)
@@ -203,10 +199,6 @@ class BaseModelManager(metaclass=ABCMeta):
                 for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
 
                     loss, predicts = self.model.fit(inputs.to(self.device), labels.to(self.device), phase)
-
-                    # if self.cfg['regress_thresh'] != 0.0:
-                    #     labels = torch.clamp(labels.squeeze(), min=0, max=self.cfg['regress_thresh'] * 2)
-                        # labels = labels.gt(self.cfg['regress_thresh']).int()
 
                     # save loss and metrics in one batch
                     for metric in self.metrics:

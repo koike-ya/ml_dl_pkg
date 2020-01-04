@@ -6,33 +6,35 @@ supported_pretrained_models = {'resnet18': models.resnet18, 'alexnet': models.al
                                'vgg19': models.vgg19, 'googlenet': models.googlenet}
 
 
-def softmax_fc(n_features, out_class):
-    return nn.Sequential(
-        nn.Linear(n_features, out_class),
-        nn.Softmax(dim=1)
-    )
+class PretrainedNN(nn.Module):
+    def __init__(self, cfg, n_classes):
+        super(PretrainedNN, self).__init__()
+        model = supported_pretrained_models[cfg['model_type']](pretrained=True)
+        self.feature_extractor = nn.Sequential(*list(model.children())[:-1])
+        self.feature_extract = cfg.get('feature_extract', False)
+        self.n_in_features = self._get_n_last_in_features(model)
+        self.predictor = nn.Linear(self.n_in_features, n_classes)
+        self.batch_size = cfg['batch_size']
+        if n_classes >= 2:
+            self.predictor = nn.Sequential(
+                self.predictor,
+                nn.Softmax(dim=1)
+            )
+
+    def _get_n_last_in_features(self, model):
+        if isinstance(list(model.children())[-1], nn.Sequential):
+            remove_layer = list(model.children())[-1][-1]
+        else:
+            remove_layer = list(model.children())[-1]
+
+        return remove_layer.in_features
+
+    def forward(self, x):
+        x = self.feature_extractor(x).reshape(-1, self.n_in_features)
+        if self.feature_extract:
+            return x
+        return self.predictor(x)
 
 
 def construct_pretrained(cfg, n_classes):
-    model = supported_pretrained_models[cfg['model_type']](pretrained=True)
-    if cfg['model_type'] in ['resnet18', 'resnext', 'wideresnet', 'googlenet']:
-        num_ftrs = model.fc.in_features
-        model.fc = softmax_fc(num_ftrs, n_classes)
-
-    elif cfg['model_type'] in ['alexnet', 'vgg19']:
-        num_ftrs = model.classifier[6].in_features
-        model.classifier[6] = softmax_fc(num_ftrs, n_classes)
-
-    elif cfg['model_type'] in ['densenet']:
-        num_ftrs = model.classifier.in_features
-        model.classifier = softmax_fc(num_ftrs, n_classes)
-
-    else:
-        num_ftrs = model.fc.in_features
-
-        model.fc = nn.Sequential(
-            nn.Linear(num_ftrs, n_classes),
-            nn.Softmax(dim=1),
-        )
-
-    return model
+    return PretrainedNN(cfg, n_classes)

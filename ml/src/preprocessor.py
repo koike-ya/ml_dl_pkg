@@ -1,6 +1,8 @@
 import numpy as np
 import torch
+from copy import deepcopy
 from ml.src.signal_processor import *
+from ml.models.pretrained_models import PretrainedNN, supported_pretrained_models
 from sklearn import preprocessing
 
 
@@ -29,6 +31,8 @@ def preprocess_args(parser):
     prep_parser.add_argument('--inter-channel-mean', action='store_true')
     prep_parser.add_argument('--no-power-noise', action='store_true')
     prep_parser.add_argument('--mfcc', dest='mfcc', action='store_true', help='MFCC')
+    prep_parser.add_argument('--fe-pretrained', default=None, choices=supported_pretrained_models,
+                             help='Use NN as feature extractor')
 
     return parser
 
@@ -46,6 +50,10 @@ class Preprocessor:
         self.normalize = cfg['scaling']
         self.cfg = cfg
         self.spec_augment = cfg['spec_augment']
+        if cfg['fe_pretrained']:
+            cfg_copy = cfg.copy()
+            cfg_copy['model_type'] = cfg['fe_pretrained']
+            self.feature_extractor = PretrainedNN(cfg_copy, len(cfg['class_names']))
 
     def preprocess(self, wave, label):
 
@@ -94,6 +102,9 @@ class Preprocessor:
         for i in range(3):
             tmp[i] = y[0, i * stride:i * stride + kernel, :]
         y = tmp
+
+        if hasattr(self, 'feature_extractor'):
+            y = self.feature_extractor.feature_extractor(y.unsqueeze(dim=0)).squeeze().detach()
 
         return y, label
 

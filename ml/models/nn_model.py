@@ -1,11 +1,14 @@
 import numpy as np
 import torch
+import copy
 from typing import Tuple
+from apex import amp
 from sklearn.exceptions import NotFittedError
 
 from ml.models.base_model import BaseModel
 from ml.models.rnn import construct_rnn, construct_cnn_rnn
 from ml.models.cnn import construct_cnn
+from ml.models.ml_model import MLModel
 from ml.models.pretrained_models import construct_pretrained, supported_pretrained_models
 
 
@@ -17,10 +20,14 @@ class NNModel(BaseModel):
         must_contain_keys = ['lr', 'weight_decay', 'momentum', 'learning_anneal']
         super().__init__(class_labels, cfg, must_contain_keys)
         self.device = torch.device('cuda' if cfg['cuda'] else 'cpu')
+        self.feature_extract = cfg.get('feature_extract', False)
         self.model = self._init_model(transfer=cfg['transfer']).to(self.device)
         self.criterion = self.criterion.to(self.device)
         self.optimizer = self._set_optimizer()
         self.fitted = False
+        self.amp = cfg.get('amp', False)
+        if self.amp:
+            self.model, self.optimizer = amp.initialize(self.model, self.optimizer)
 
     def _init_model(self, transfer=False):
         if transfer:
@@ -38,6 +45,9 @@ class NNModel(BaseModel):
             model = construct_cnn(self.cfg, use_as_extractor=False)
         else:
             raise NotImplementedError('model_type should be either rnn or cnn, nn would be implemented in the future.')
+
+        if self.feature_extract:
+            self.predictor = MLModel(self.class_labels, self.cfg, 'svm')
 
         if transfer:
             self.class_labels = orig_classes
@@ -60,14 +70,37 @@ class NNModel(BaseModel):
     def _fit_classify(self, inputs, labels, phase) -> Tuple[float, np.ndarray]:
         with torch.set_grad_enabled(phase == 'train'):
             outputs = self.model(inputs)
+
+            if hasattr(self, 'predictor'):
+                extracted_features = outputs
+                if not self.predictor.fitted:
+                    self.predictor.fit(copy.copy(extracted_features).detach(), labels, phase='train')
+                outputs = torch.from_numpy(self.predictor.predict(copy.copy(extracted_features).detach()))
+
+                pred_onehot = torch.zeros(outputs.size(0), len(self.class_labels))
+                pred_onehot = pred_onehot.scatter_(1, outputs.view(-1, 1).type(torch.LongTensor), 1)
+                outputs = pred_onehot.to(self.device)
+
             y_onehot = torch.zeros(labels.size(0), len(self.class_labels))
             y_onehot = y_onehot.scatter_(1, labels.view(-1, 1).type(torch.LongTensor), 1)
 
             loss = self.criterion(outputs, y_onehot.to(self.device))
 
+            if hasattr(self, 'predictor'):
+                loss = extracted_features.sum().to(self.device) - extracted_features.sum().to(self.device)
+                loss += self.criterion(outputs, y_onehot.to(self.device))
+
             if phase == 'train':
-                loss.backward(retain_graph=True)
+                self.optimizer.zero_grad()
+                if self.amp:
+                    with amp.scale_loss(loss, self.optimizer) as loss:
+                        loss.backward()
+                else:
+                    loss.backward(retain_graph=True)
                 self.optimizer.step()
+
+                if hasattr(self, 'predictor'):
+                    self.predictor.fit(copy.copy(extracted_features).detach(), labels, phase=phase)
 
             _, preds = torch.max(outputs, 1)
 
@@ -77,14 +110,23 @@ class NNModel(BaseModel):
         with torch.set_grad_enabled(phase == 'train'):
             preds = self.model(inputs)
 
+            if hasattr(self, 'predictor'):
+                extracted_features = preds
+                preds = self.predictor.predict(extracted_features)
+
             loss = self.criterion(preds, labels.float())
 
             if phase == 'train':
-                loss.backward(retain_graph=True)
+                self.optimizer.zero_grad()
+                if self.amp:
+                    with amp.scale_loss(loss, self.optimizer) as loss:
+                        loss.backward()
+                else:
+                    loss.backward(retain_graph=True)
                 self.optimizer.step()
 
-        if self.cfg['regress_thresh'] != 0.0:
-            preds = torch.round(torch.clamp(preds.squeeze(), min=0, max=self.cfg['regress_thresh']))
+                if hasattr(self, 'predictor'):
+                    self.predictor.fit(extracted_features, labels, phase=phase)
 
         return loss.item(), preds.cpu().detach().numpy()
 
@@ -127,11 +169,13 @@ class NNModel(BaseModel):
         with torch.set_grad_enabled(False):
             self.model.eval()
             preds = self.model(inputs)
-            if self.cfg['task_type'] == 'classify':
-                _, preds = torch.max(preds, 1)
 
-            elif self.cfg['regress_thresh'] != 0.0:
-                preds = torch.round(torch.clamp(preds.squeeze(), min=0, max=self.cfg['regress_thresh']))
+            if self.cfg['task_type'] == 'classify':
+                if hasattr(self, 'predictor'):
+                    # TODO classifierも別ファイルに重みを保存しておいて、model_managerで読み込み
+                    preds = torch.from_numpy(self.predictor.predict(preds.detach()))
+                else:
+                    _, preds = torch.max(preds, 1)
 
         return preds.cpu().numpy()
 
