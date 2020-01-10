@@ -57,8 +57,9 @@ def model_manager_args(parser):
 
     # General parameters for training
     general_param_parser = parser.add_argument_group("General parameters for training")
-    general_param_parser.add_argument('--model-path', help='Model file to load model',
-                                      default='../output/models/sth.pth')
+    general_param_parser.add_argument('--model-path', help='Path to save model', default='../output/models/sth.pth')
+    general_param_parser.add_argument('--checkpoint-path', help='Model weight file to load model',
+                                      default=None)
     general_param_parser.add_argument('--task-type', help='Task type. regress or classify',
                                       default='classify', choices=['classify', 'regress'])
     general_param_parser.add_argument('--seed', default=0, type=int, help='Seed to generators')

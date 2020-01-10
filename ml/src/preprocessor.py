@@ -17,7 +17,7 @@ def preprocess_args(parser):
     prep_parser.add_argument('--window-stride', default=2.0, type=float, help='Window stride for spectrogram in seconds')
     prep_parser.add_argument('--window', default='hamming', help='Window type for spectrogram generation')
     prep_parser.add_argument('--n-mels', default=200, type=int, help='Number of mel filters banks')
-    prep_parser.add_argument('--transform', choices=[None, 'spectrogram', 'scalogram', 'logmel'], default=None)
+    prep_parser.add_argument('--transform', choices=['spectrogram', 'scalogram', 'logmel'], default='')
     prep_parser.add_argument('--num-eigenvalue', default=0, type=int,
                              help='Number of eigen values to use from spectrogram')
     prep_parser.add_argument('--low-cutoff', default=0.0, type=float, help='High pass filter')
@@ -96,12 +96,13 @@ class Preprocessor:
 
         # TODO
         # if self.three_channel:
-        tmp = torch.zeros(3, y.size(1) // 2, y.size(2))
-        stride = y.size(1) // 4
-        kernel = y.size(1) // 2
-        for i in range(3):
-            tmp[i] = y[0, i * stride:i * stride + kernel, :]
-        y = tmp
+        if y.dim() >= 3:
+            tmp = torch.zeros(3, y.size(1) // 2, y.size(2))
+            stride = y.size(1) // 4
+            kernel = y.size(1) // 2
+            for i in range(3):
+                tmp[i] = y[0, i * stride:i * stride + kernel, :]
+            y = tmp
 
         if hasattr(self, 'feature_extractor'):
             y = self.feature_extractor.feature_extractor(y.unsqueeze(dim=0)).squeeze().detach()
@@ -121,7 +122,7 @@ class Preprocessor:
         else:
             y = torch.from_numpy(wave)
 
-        if self.spec_augment and self.phase in ['train']:
+        if self.transform and self.spec_augment and self.phase in ['train']:
             y = time_and_freq_mask(y, rate=self.spec_augment)
 
         # print(y.size())

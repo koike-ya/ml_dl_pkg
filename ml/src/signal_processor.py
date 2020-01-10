@@ -57,6 +57,21 @@ def cwt(wave, widths=np.arange(1, 31)):
     return spect_tensor.transpose(1, 2).reshape(1, -1, 4, spect_tensor.size(1)).mean(dim=2)
 
 
+# +def cwt(wave):
+# +    spect_tensor = torch.Tensor()
+# +    eng = matlab.engine.start_matlab()
+# +
+# +    for i in range(wave.shape[0]):
+# +        y = wave[i].astype(float)
+# +        cwtmatr = eng.cwt(matlab.double(y))
+# +        cwtmatr = torch.from_numpy(cwtmatr).to(torch.float32)
+# +        print(cwtmatr.shape)
+# +        exit()
+# +        spect_tensor = torch.cat((spect_tensor, cwtmatr.view(1, cwtmatr.size(0), -1)), 0)
+# +
+# +    return spect_tensor.transpose(1, 2).reshape(1, -1, 4, spect_tensor.size(1)).mean(dim=2)
+
+
 def standardize(y):
     return (y - y.mean()).div(y.std() + 0.001)
 
