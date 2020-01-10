@@ -1,18 +1,22 @@
+import torch
 import torch.nn as nn
 from torchvision import models
 
 supported_pretrained_models = {'resnet18': models.resnet18, 'alexnet': models.alexnet,# 'densenet': models.densenet121,
                                'wideresnet': models.wide_resnet50_2, 'resnext': models.resnext50_32x4d,
-                               'vgg19': models.vgg19, 'googlenet': models.googlenet}
+                               'vgg19': models.vgg19, 'googlenet': models.googlenet, 'mobilenet': None}
 
 
 class PretrainedNN(nn.Module):
     def __init__(self, cfg, n_classes):
         super(PretrainedNN, self).__init__()
-        model = supported_pretrained_models[cfg['model_type']](pretrained=True)
+        model = self._set_model(cfg['model_type'])
         self.feature_extractor = nn.Sequential(*list(model.children())[:-1])
         self.feature_extract = cfg.get('feature_extract', False)
         self.n_in_features = self._get_n_last_in_features(model)
+        # TODO 直す
+        if cfg['model_type'] == 'mobilenet':
+            self.n_in_features *= 7 * 7
         self.predictor = nn.Linear(self.n_in_features, n_classes)
         self.batch_size = cfg['batch_size']
         if n_classes >= 2:
@@ -20,6 +24,11 @@ class PretrainedNN(nn.Module):
                 self.predictor,
                 nn.Softmax(dim=1)
             )
+
+    def _set_model(self, model_type):
+        if model_type in ['mobilenet']:
+            return torch.hub.load('pytorch/vision:v0.4.2', 'mobilenet_v2', pretrained=True)
+        return supported_pretrained_models[model_type](pretrained=True)
 
     def _get_n_last_in_features(self, model):
         if isinstance(list(model.children())[-1], nn.Sequential):
@@ -31,7 +40,8 @@ class PretrainedNN(nn.Module):
             return list(model.children())[-1].in_features
 
     def forward(self, x):
-        x = self.feature_extractor(x).reshape(x.size(0), -1)
+        x = self.feature_extractor(x)
+        x = x.reshape(x.size(0), -1)
         if self.feature_extract:
             return x
         return self.predictor(x)

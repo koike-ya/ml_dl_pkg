@@ -148,8 +148,10 @@ def highpass_filter(y, l_cutoff, sr):
 
 
 def bandpass_filter(y, l_cutoff, h_cutoff, sr):
-    y = lowpass_filter(y, h_cutoff, sr)
-    y = highpass_filter(y, l_cutoff, sr)
+    if h_cutoff:
+        y = lowpass_filter(y, h_cutoff, sr)
+    if l_cutoff:
+        y = highpass_filter(y, l_cutoff, sr)
     return y
 
 

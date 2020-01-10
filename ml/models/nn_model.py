@@ -54,6 +54,9 @@ class NNModel(BaseModel):
             self.load_model(model)
             model.change_last_layer(len(orig_classes))
 
+        if torch.cuda.device_count() > 1:
+            model = torch.nn.DataParallel(model)
+
         return model
 
     def _set_optimizer(self):
