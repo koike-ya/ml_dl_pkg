@@ -97,11 +97,15 @@ class Preprocessor:
         # TODO
         # if self.three_channel:
         if y.dim() >= 3:
-            tmp = torch.zeros(3, y.size(1) // 2, y.size(2))
-            stride = y.size(1) // 4
-            kernel = y.size(1) // 2
+            # tmp = torch.zeros(3, y.size(1) // 2, y.size(2))
+            # stride = y.size(1) // 4
+            # kernel = y.size(1) // 2
+            # for i in range(3):
+            #     tmp[i] = y[0, i * stride:i * stride + kernel, :]
+            tmp = torch.zeros(3, y.size(1), y.size(2))
             for i in range(3):
-                tmp[i] = y[0, i * stride:i * stride + kernel, :]
+                tmp[i] = y[0]
+
             y = tmp
 
         if hasattr(self, 'feature_extractor'):
