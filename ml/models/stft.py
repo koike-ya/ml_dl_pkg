@@ -219,7 +219,7 @@ class STFT(DFTBase):
         real = real[:, None, :, :].transpose(2, 3)
         imag = imag[:, None, :, :].transpose(2, 3)
         # (batch_size, 1, time_steps, n_fft // 2 + 1)
-        print(real.size())
+        # print(real.size())
         return real, imag
 
 

@@ -155,7 +155,7 @@ class Cnn14_no_specaug(nn.Module):
         return clipwise_output
 
 
-def construct_panns(cfg):
+def construct_panns(cfg, infer=False):
     window_size = cfg['window_size']
     hop_size = cfg['window_stride']
     mel_bins = cfg['n_mels']
@@ -172,6 +172,12 @@ def construct_panns(cfg):
                              classes_num=classes_num)
 
     checkpoint = torch.load(checkpoint_path, map_location=device)
-    model.load_state_dict(checkpoint['model'])
-    model.fc_audioset = nn.Linear(2048, len(cfg['class_names']), bias=True)
+
+    if infer:
+        model.fc_audioset = nn.Linear(2048, len(cfg['class_names']), bias=True)
+        model.load_state_dict(checkpoint)
+    else:
+        model.load_state_dict(checkpoint['model'])
+        model.fc_audioset = nn.Linear(2048, len(cfg['class_names']), bias=True)
+
     return model

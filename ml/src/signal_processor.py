@@ -27,6 +27,12 @@ def to_spect(wave, sr, window_size, window_stride, window):
     return spect_tensor.transpose(1, 2)
 
 
+def istft(spect, win_length, hop_length, window):
+    ref = np.max(spect)
+    spect = librosa.db_to_power(spect, ref=ref)
+    return librosa.istft(spect, hop_length=hop_length, win_length=win_length, window=windows[window])
+
+
 def logmel(wave, sr, window_size, window_stride, window, n_mels=300):
     n_fft = int(sr * window_size)
     win_length = n_fft
