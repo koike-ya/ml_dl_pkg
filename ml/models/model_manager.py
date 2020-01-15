@@ -53,6 +53,7 @@ def model_manager_args(parser):
     hyper_param_parser.add_argument('--sample-balance', default='same', type=type_float_list,
                                     help='Sampling label balance from dataset.')
     hyper_param_parser.add_argument('--epochs', default=20, type=int, help='Number of training epochs')
+    hyper_param_parser.add_argument('--tta', default=0, type=int, help='Number of test time augmentation ensemble')
     hyper_param_parser.add_argument('--retrain-epochs', default=5, type=int, help='Number of training epochs')
 
     # General parameters for training
@@ -187,7 +188,13 @@ class BaseModelManager(metaclass=ABCMeta):
             pred_list[i * batch_size:i * batch_size + preds.shape[0], 0] = preds.reshape(-1,)
             label_list[i * batch_size:i * batch_size + labels.shape[0], 0] = labels
 
-        return pred_list[~(pred_list == -1000000)], label_list[~(label_list == -1000000)]
+        pred_list, label_list = pred_list[~(pred_list == -1000000)], label_list[~(label_list == -1000000)]
+
+        if self.cfg['tta']:
+            pred_list = pred_list.reshape(self.cfg['tta'], -1).mean(axis=0)
+            label_list = label_list[:label_list.shape[0] // self.cfg['tta']]
+
+        return pred_list, label_list
 
     def train(self, model=None):
         if model:

@@ -109,6 +109,8 @@ class ManifestDataSet(BaseDataSet):
         """
         super(ManifestDataSet, self).__init__()
         self.path_df = pd.read_csv(manifest_path, header=None)
+        if phase == 'test' and data_conf['tta']:
+            self.path_df = pd.concat([self.path_df] * data_conf['tta'])
         self.load_func = load_func
         self.label_func = label_func
         self.labels = self._set_labels(data_conf['labels'] if 'labels' in data_conf.keys() else None)
