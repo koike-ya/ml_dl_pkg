@@ -51,12 +51,17 @@ def logmel(wave, sr, window_size, window_stride, window, n_mels=300):
     return spect_tensor.transpose(1, 2)
 
 
-def cwt(wave, widths=np.arange(1, 31)):
+def cwt(wave, widths=np.arange(1, 31), sr=4000):
     spect_tensor = torch.Tensor()
 
     for i in range(wave.shape[0]):
         y = wave[i].astype(float)
+
+        y = librosa.core.resample(y, orig_sr=sr, target_sr=400)
         cwtmatr = signal.cwt(y, signal.ricker, widths)
+        # n_rows = cwtmatr.shape[0]
+        # cwtmatr = cwtmatr.reshape((-1, 200))
+        # cwtmatr = np.array([max(cwtmatr[i], key=abs) for i in range(cwtmatr.shape[0])]).reshape((n_rows, -1))
         cwtmatr = torch.from_numpy(cwtmatr).to(torch.float32)
         spect_tensor = torch.cat((spect_tensor, cwtmatr.view(1, cwtmatr.size(0), -1)), 0)
 

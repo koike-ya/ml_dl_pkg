@@ -120,7 +120,7 @@ class Preprocessor:
         if self.transform == 'spectrogram':
             y = to_spect(wave, self.sr, self.window_size, self.window_stride, self.window)  # channel x freq x time
         elif self.transform == 'scalogram':
-            y = cwt(wave, widths=np.arange(1, 101))  # channel x freq x time
+            y = cwt(wave, widths=np.arange(1, 101), sr=self.sr)  # channel x freq x time
         elif self.transform == 'logmel':
             y = logmel(wave, self.sr, self.window_size, self.window_stride, self.window, n_mels=self.cfg['n_mels'])  # channel x freq x time
         else:
