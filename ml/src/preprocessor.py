@@ -28,7 +28,7 @@ def preprocess_args(parser):
     prep_parser.add_argument('--spec-augment', default=0.0, type=float)
     prep_parser.add_argument('--channel-wise-mean', action='store_true')
     prep_parser.add_argument('--inter-channel-mean', action='store_true')
-    prep_parser.add_argument('--no-power-noise', action='store_true')
+    prep_parser.add_argument('--with-power-noise', dest='no_power_noise', action='store_false')
     prep_parser.add_argument('--mfcc', dest='mfcc', action='store_true', help='MFCC')
     prep_parser.add_argument('--fe-pretrained', default=None, choices=supported_pretrained_models,
                              help='Use NN as feature extractor')

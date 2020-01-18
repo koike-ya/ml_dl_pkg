@@ -1,11 +1,13 @@
 import random
 import time
+import sys
 from abc import ABCMeta
 from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
 import torch
+from copy import deepcopy
 from ml.models.base_model import model_args
 from ml.models.ml_model import MLModel
 from ml.models.nn_model import NNModel, supported_nn_models, supported_pretrained_models
@@ -70,7 +72,7 @@ def model_manager_args(parser):
 
     # Logging of criterion
     logging_parser = parser.add_argument_group("Logging parameters")
-    logging_parser.add_argument('--silent', dest='silent', action='store_true', help='Turn off progress tracking per iteration')
+    logging_parser.add_argument('--no-silent', dest='silent', action='store_false', help='Turn off progress tracking per iteration')
     logging_parser.add_argument('--log-id', default='results', help='Identifier for tensorboard run')
     logging_parser.add_argument('--tensorboard', dest='tensorboard', action='store_true', help='Turn on tensorboard graphing')
     logging_parser.add_argument('--log-dir', default='../visualize/tensorboard', help='Location of tensorboard log')
@@ -142,24 +144,26 @@ class BaseModelManager(metaclass=ABCMeta):
         if self.cfg['tensorboard']:
             return TensorBoardLogger(self.cfg['log_id'], self.cfg['log_dir'])
 
-    def _verbose(self, epoch, phase, i):
-        print('{0} epoch: [{1}][{2}/{3}]'.format(phase, epoch, i + 1, len(self.dataloaders[phase])), end='\t')
-        for metric in self.metrics:
-            print('{} {:.4f}'.format(metric.name, metric.average_meter[phase].value), end='\t')
-        print('')
+    def _verbose(self, epoch, phase, i, elapsed):
+        data_len = len(self.dataloaders[phase])
+        eta = int(elapsed / (i + 1) * (data_len - (i + 1)))
+        progress = f'\r{phase} epoch: [{epoch + 1}][{i + 1}/{data_len}]\t {elapsed}(s) eta:{eta}(s)\t'
+        progress += '\t'.join([f'{metric.name} {metric.average_meter[phase].value:.4f}' for metric in self.metrics])
+        print(progress, end='')
+        sys.stdout.flush()
 
     def _record_log(self, phase, epoch):
         values = {}
+
         for metric in self.metrics:
             values[phase + '_' + metric.name] = metric.average_meter[phase].average
-            print(phase + '_' + metric.name, metric.average_meter[phase].average, '\t')
         self.logger.update(epoch, values)
 
     def _update_by_epoch(self, phase, epoch, learning_anneal):
         for metric in self.metrics:
             best_flag = metric.average_meter[phase].update_best()
             if metric.save_model and best_flag and phase == 'val':
-                print("Found better validated model, saving to %s" % self.cfg['model_path'])
+                print(f"Found better validated model, saving to {self.cfg['model_path']}")
                 self.model.save_model()
 
             # reset epoch average meter
@@ -168,9 +172,6 @@ class BaseModelManager(metaclass=ABCMeta):
         # anneal lr
         if phase == 'train':
             self.model.anneal_lr(learning_anneal)
-
-        if phase == 'val':
-            print(f'epoch {epoch} ended.')
 
     def _predict(self, phase):
         batch_size = self.cfg['batch_size']
@@ -202,6 +203,9 @@ class BaseModelManager(metaclass=ABCMeta):
 
         self.check_keys_from_dict(['train', 'val'], self.dataloaders)
 
+        start = time.time()
+        epoch_metrics = {}
+
         for epoch in range(self.cfg['epochs']):
             for phase in ['train', 'val']:
                 for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
@@ -213,12 +217,23 @@ class BaseModelManager(metaclass=ABCMeta):
                         metric.update(phase, loss, predicts, labels.numpy())
 
                     if not self.cfg['silent']:
-                        self._verbose(epoch, phase, i)
+                        self._verbose(epoch, phase, i, elapsed=int(time.time() - start))
 
                 if self.logger:
                     self._record_log(phase, epoch)
 
+                epoch_metrics[phase] = deepcopy(self.metrics)
+
                 self._update_by_epoch(phase, epoch, self.cfg['learning_anneal'])
+
+            if self.cfg['silent']:
+                print(f'epoch {str(epoch + 1).ljust(2)}->', end=' ')
+                print(f'lr: {self.model.get_lr():.6f}', end='\t')
+                for phase in ['train', 'val']:
+                    print(f'{phase}: [', end='')
+                    print('\t'.join([f'{m.name}: {m.average_meter[phase].average:.4f}' for m in epoch_metrics[phase]]), end='')
+                    print(']', end='\t')
+                print('')
 
         if self.logger:
             self.logger.close()
@@ -284,6 +299,8 @@ class BaseModelManager(metaclass=ABCMeta):
             metric.add_average_meter(phase_name=phase)
             metric.add_average_meter(phase_name=f'{phase}_test')
 
+            start = time.time()
+
         for epoch in range(self.cfg['retrain_epochs']):
             for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
 
@@ -294,7 +311,7 @@ class BaseModelManager(metaclass=ABCMeta):
                     metric.update(phase, loss, predicts, labels.numpy())
 
                 if not self.cfg['silent']:
-                    self._verbose(epoch, phase, i)
+                    self._verbose(epoch, phase, i, elapsed=int(time.time() - start))
 
             if self.logger:
                 self._record_log(phase, epoch)

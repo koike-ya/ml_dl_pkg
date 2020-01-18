@@ -137,7 +137,9 @@ class NNModel(BaseModel):
         param_groups = self.optimizer.param_groups
         for g in param_groups:
             g['lr'] = g['lr'] / learning_anneal
-        print('Learning rate annealed to: {lr:.6f}'.format(lr=g['lr']))
+
+    def get_lr(self):
+        return self.optimizer.param_groups[-1]['lr']
 
     def fit(self, inputs, labels, phase) -> Tuple[float, np.ndarray]:
         self.fitted = True
