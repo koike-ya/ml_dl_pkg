@@ -57,6 +57,8 @@ class NNModel(BaseModel):
         if torch.cuda.device_count() > 1:
             model = torch.nn.DataParallel(model)
 
+        print(f'Model Parameters: {get_param_size(model)}')
+
         return model
 
     def _set_optimizer(self):
@@ -186,3 +188,13 @@ class NNModel(BaseModel):
         for g in self.optimizer.param_groups:
             g['lr'] = g['lr'] / self.cfg['learning_anneal']
         print(f"Learning rate annealed to: {g['lr']:.6f}")
+
+
+def get_param_size(model):
+    params = 0
+    for p in model.parameters():
+        tmp = 1
+        for x in p.size():
+            tmp *= x
+        params += tmp
+    return params
