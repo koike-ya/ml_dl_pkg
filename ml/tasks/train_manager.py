@@ -130,7 +130,7 @@ class TrainManager:
         # 新しく作成したマニフェストファイルは削除
         [Path(self.train_conf[f'{phase}_path']).unlink() for phase in PHASES]
 
-        return model_manager, test_cv_metrics
+        return model_manager, val_cv_metrics, test_cv_metrics
 
     def test(self, model_manager=None) -> List[Metric]:
         if not model_manager:
