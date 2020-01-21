@@ -78,9 +78,9 @@ class TrainManager:
         model_manager = self._init_model_manager(dataloaders)
 
         model_manager.train(model)
-        _, _, test_metrics = model_manager.test(return_metrics=True)
+        _, _, metrics = model_manager.test(return_metrics=True)
 
-        return test_metrics, model_manager
+        return metrics, model_manager
 
     def _update_data_paths(self, fold_count: int, k: int):
         # fold_count...k-foldのうちでいくつ目か
@@ -104,8 +104,8 @@ class TrainManager:
             # データ全体で学習を行う
             raise NotImplementedError
 
-        val_cv_metrics = {metric.name: np.zeros(self.train_conf['k_fold']) for metric in self.metrics}
-        test_cv_metrics = {metric.name: np.zeros(self.train_conf['k_fold']) for metric in self.metrics}
+        val_cv_metrics = {metric.name: np.zeros(self.train_conf['k_fold']) for metric in self.metrics['val']}
+        test_cv_metrics = {metric.name: np.zeros(self.train_conf['k_fold']) for metric in self.metrics['test']}
 
         # TODO k_foldが1のときにleave_one_outするかval_path, test_pathも読み込むようにする
         for i in range(self.train_conf['k_fold']):
@@ -114,10 +114,15 @@ class TrainManager:
             result_metrics, model_manager = self._train_test()
 
             print(f'Fold {i + 1} ended.')
-            for metric in result_metrics:
-                val_cv_metrics[metric.name][i] = metric.average_meter['val'].best_score
-                test_cv_metrics[metric.name][i] = metric.average_meter['test'].best_score
+            for phase in ['val', 'test']:
+                metrics = result_metrics[phase]
+                for metric in metrics:
+                    locals()[f'{phase}_cv_metrics'][metric.name][i] = metric.average_meter.best_score
                 # print(f"Metric {metric.name} best score: {metric.average_meter['val'].best_score}")
+
+            for metrics in result_metrics.values():
+                for metric in metrics:
+                    metric.average_meter.reset()
 
         [print(f'{i + 1} fold {metric_name} score\t mean: {meter.mean() :.4f}\t std: {meter.std() :.4f}') for
          metric_name, meter in test_cv_metrics.items()]

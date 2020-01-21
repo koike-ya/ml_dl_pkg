@@ -144,26 +144,26 @@ class BaseModelManager(metaclass=ABCMeta):
 
     def _verbose(self, epoch, phase, i):
         print('{0} epoch: [{1}][{2}/{3}]'.format(phase, epoch, i + 1, len(self.dataloaders[phase])), end='\t')
-        for metric in self.metrics:
-            print('{} {:.4f}'.format(metric.name, metric.average_meter[phase].value), end='\t')
+        for metric in self.metrics[phase]:
+            print('{} {:.4f}'.format(metric.name, metric.average_meter.value), end='\t')
         print('')
 
     def _record_log(self, phase, epoch):
         values = {}
-        for metric in self.metrics:
-            values[phase + '_' + metric.name] = metric.average_meter[phase].average
-            print(phase + '_' + metric.name, metric.average_meter[phase].average, '\t')
+        for metric in self.metrics[phase]:
+            values[phase + '_' + metric.name] = metric.average_meter.average
+            print(phase + '_' + metric.name, metric.average_meter.average, '\t')
         self.logger.update(epoch, values)
 
     def _update_by_epoch(self, phase, epoch, learning_anneal):
-        for metric in self.metrics:
-            best_flag = metric.average_meter[phase].update_best()
+        for metric in self.metrics[phase]:
+            best_flag = metric.average_meter.update_best()
             if metric.save_model and best_flag and phase == 'val':
                 print("Found better validated model, saving to %s" % self.cfg['model_path'])
                 self.model.save_model()
 
             # reset epoch average meter
-            metric.average_meter[phase].reset()
+            metric.average_meter.reset()
 
         # anneal lr
         if phase == 'train':
@@ -209,8 +209,8 @@ class BaseModelManager(metaclass=ABCMeta):
                     loss, predicts = self.model.fit(inputs.to(self.device), labels.to(self.device), phase)
 
                     # save loss and metrics in one batch
-                    for metric in self.metrics:
-                        metric.update(phase, loss, predicts, labels.numpy())
+                    for metric in self.metrics[phase]:
+                        metric.update(loss, predicts, labels.numpy())
 
                     if not self.cfg['silent']:
                         self._verbose(epoch, phase, i)
@@ -231,7 +231,7 @@ class BaseModelManager(metaclass=ABCMeta):
 
         pred_list, label_list = self._predict(phase=phase)
 
-        for metric in self.metrics:
+        for metric in self.metrics['test']:
             if metric.name == 'loss':
                 if self.cfg['task_type'] == 'classify':
                     y_onehot = torch.zeros(label_list.shape[0], len(self.class_labels))
@@ -245,9 +245,9 @@ class BaseModelManager(metaclass=ABCMeta):
             else:
                 loss_value = 10000000
 
-            metric.update(phase=phase, loss_value=loss_value, preds=pred_list, labels=label_list)
-            print(f"{phase} {metric.name}: {metric.average_meter[phase].value :.4f}")
-            metric.average_meter[phase].update_best()
+            metric.update(loss_value=loss_value, preds=pred_list, labels=label_list)
+            print(f"{phase} {metric.name}: {metric.average_meter.value :.4f}")
+            metric.average_meter.update_best()
 
         if self.cfg['task_type'] == 'classify':
             confusion_matrix_ = confusion_matrix(label_list, pred_list,
@@ -290,8 +290,8 @@ class BaseModelManager(metaclass=ABCMeta):
                 loss, predicts = self.model.fit(inputs.to(self.device), labels.to(self.device), 'train')
 
                 # save loss and metrics in one batch
-                for metric in self.metrics:
-                    metric.update(phase, loss, predicts, labels.numpy())
+                for metric in self.metrics[phase]:
+                    metric.update(loss, predicts, labels.numpy())
 
                 if not self.cfg['silent']:
                     self._verbose(epoch, phase, i)
