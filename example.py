@@ -28,7 +28,7 @@ def train_args(parser):
 
 def label_func(row):
     labels = ['F', 'N', 'O', 'S', 'Z']
-    return labels.index(row[0].split('/')[-2])
+    return labels.index(row[0].split('/')[-1][0])
 
 
 def set_load_func(sr, one_audio_sec):

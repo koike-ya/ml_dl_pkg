@@ -28,6 +28,8 @@ class NNModel(BaseModel):
         self.amp = cfg.get('amp', False)
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer)
+        if torch.cuda.device_count() > 1:
+            self.model = torch.nn.DataParallel(self.model)
 
     def _init_model(self, transfer=False):
         if transfer:
@@ -53,9 +55,6 @@ class NNModel(BaseModel):
             self.class_labels = orig_classes
             self.load_model(model)
             model.change_last_layer(len(orig_classes))
-
-        if torch.cuda.device_count() > 1:
-            model = torch.nn.DataParallel(model)
 
         print(f'Model Parameters: {get_param_size(model)}')
 
