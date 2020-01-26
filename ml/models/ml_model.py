@@ -7,24 +7,23 @@ from ml.models.toolbox import KNN, SGDC, SVM
 
 
 class MLModel(BaseModel):
-    def __init__(self, class_labels, cfg, dataloaders):
+    def __init__(self, class_labels, cfg):
         must_contain_keys = []
-        self.dataloaders = dataloaders
         super().__init__(class_labels, cfg, must_contain_keys)
-        self.model = self._init_model()
+        self.model = self._init_model(cfg['model_type'])
 
-    def _init_model(self):
-        if self.cfg['model_type'] == 'xgboost':
+    def _init_model(self, model_type):
+        if model_type == 'xgboost':
             return XGBoost(self.class_labels, self.cfg)
-        elif self.cfg['model_type'] == 'sgdc':
+        elif model_type == 'sgdc':
             return SGDC(self.class_labels, self.cfg)
-        elif self.cfg['model_type'] == 'svm':
+        elif model_type == 'svm':
             return SVM(self.class_labels, self.cfg)
-        elif self.cfg['model_type'] == 'knn':
+        elif model_type == 'knn':
             return KNN(self.class_labels, self.cfg)
-        elif self.cfg['model_type'] == 'catboost':
+        elif model_type == 'catboost':
             return CatBoost(self.class_labels, self.cfg)
-        elif self.cfg['model_type'] == 'lightgbm':
+        elif model_type == 'lightgbm':
             return LightGBM(self.class_labels, self.cfg)
         else:
             raise NotImplementedError('Model type: cnn|xgboost|knn|catboost|sgdc|svm are supported.')

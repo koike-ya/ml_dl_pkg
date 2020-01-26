@@ -11,6 +11,10 @@ import torch.nn as nn
 from torchvision import models
 
 
+def type_int_list_list(args):
+    return [list(map(int, arg.split('-'))) for arg in args.split(',')]
+
+
 def type_int_list(args):
     return list(map(int, args.split(',')))
 
@@ -19,38 +23,44 @@ def cnn_args(parser):
     cnn_parser = parser.add_argument_group("CNN model arguments")
 
     # cnn params
-    cnn_parser.add_argument('--cnn-channel-list', default='8,16', type=type_int_list)
-    cnn_parser.add_argument('--cnn-kernel-sizes', default='8,16', type=type_int_list)
-    cnn_parser.add_argument('--cnn-stride-sizes', default='4,2', type=type_int_list)
-    cnn_parser.add_argument('--cnn-padding-sizes', default='0,0', type=type_int_list)
+    cnn_parser.add_argument('--cnn-channel-list', default='8,32', type=type_int_list)
+    cnn_parser.add_argument('--cnn-kernel-sizes', default='4-2,4-2', type=type_int_list_list)
+    cnn_parser.add_argument('--cnn-stride-sizes', default='2-1,2-1', type=type_int_list_list)
+    cnn_parser.add_argument('--cnn-padding-sizes', default='1-1,0-0', type=type_int_list_list)
 
     return parser
 
 
 class CNN(nn.Module):
-    def __init__(self, features, in_features, n_classes=2, dim=2):
+    def __init__(self, features, in_features, n_classes=2, feature_extract=False, dim=2):
         super(CNN, self).__init__()
         self.features = features
-        self.classifier = nn.Sequential(
+        self.feature_extractor = nn.Sequential(
             nn.Linear(in_features, 4096),
             nn.ReLU(inplace=True),
             nn.Dropout(),
             nn.Linear(4096, 4096),
             nn.ReLU(inplace=True),
             nn.Dropout(),
-            nn.Linear(4096, n_classes),
         )
-        self.softmax = nn.Softmax(dim=-1)
-        self.n_dim = dim
+        self.feature_extract = feature_extract
+        n_features = self.feature_extractor[-1].in_features
+        self.predictor = nn.Linear(n_features, n_classes)
+        if n_classes >= 2:
+            self.predictor = nn.Sequential(
+                self.predictor,
+                nn.Softmax(dim=-1)
+            )
 
     def forward(self, x):
         if self.n_dim == 3:
             x = torch.unsqueeze(x, dim=1)
         x = self.features(x.to(torch.float))
         x = x.view(x.size(0), -1)
-        x = self.classifier(x)
-        x = self.softmax(x)
-        return x
+        x = self.feature_extractor(x)
+        if self.feature_extract:
+            return x
+        return self.predictor(x)
 
 
 class CNNMaker:
@@ -118,29 +128,7 @@ class CNNMaker:
             'width': int(feature_shape[1])}
 
 
-def construct_cnn(cfg, use_as_extractor=False):
-    layer_info = []
-    for layer in range(len(cfg['n_channels'])):
-        layer_info.append((
-            cfg['n_channels'],
-            cfg['kernel_sizes'],
-            cfg['stride_sizes'],
-            cfg['padding_sizes'],
-        ))
-    layer_info = [
-        (32, (4, 2), (3, 2), (0, 1)),
-        (64, (4, 2), (3, 2), (0, 1)),
-    ]
-    cnn_maker = CNNMaker(in_channels=cfg['n_channels'], image_size=cfg['image_size'], cfg=layer_info, n_dim=2,
-                         n_classes=len(cfg['class_names']), use_as_extractor=use_as_extractor)
-    return cnn_maker.construct_cnn()
-
-
-def construct_1dcnn(cfg, use_as_extractor=False):
-    # layer_info = [
-    #     (4, [4], [2], [0]),
-    #     (16, [4], [2], [0]),
-    # ]
+def construct_cnn(cfg, use_as_extractor=False, n_dim=2):
     layer_info = []
     for layer in range(len(cfg['cnn_channel_list'])):
         layer_info.append((
@@ -149,7 +137,7 @@ def construct_1dcnn(cfg, use_as_extractor=False):
             cfg['cnn_stride_sizes'][layer],
             cfg['cnn_padding_sizes'][layer],
         ))
-    cnn_maker = CNNMaker(in_channels=cfg['n_channels'], image_size=cfg['image_size'], cfg=layer_info, n_dim=1,
+    cnn_maker = CNNMaker(in_channels=cfg['n_channels'], image_size=cfg['image_size'], cfg=layer_info, n_dim=n_dim,
                          n_classes=len(cfg['class_names']), use_as_extractor=use_as_extractor)
     return cnn_maker.construct_cnn()
 

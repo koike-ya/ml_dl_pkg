@@ -16,3 +16,5 @@ xgboost
 catboost
 optuna
 xlrd
+seaborn
+opencv-python
