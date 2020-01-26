@@ -10,7 +10,8 @@ def preprocess_args(parser):
 
     prep_parser = parser.add_argument_group("Preprocess options")
 
-    prep_parser.add_argument('--no-scaling', dest='scaling', action='store_false', help='No standardization')
+    prep_parser.add_argument('--no-scaling', default=True, dest='scaling', action='store_false',
+                             help='No standardization')
     prep_parser.add_argument('--augment', dest='augment', action='store_true',
                              help='Use random tempo and gain perturbations.')
     prep_parser.add_argument('--window-size', default=4.0, type=float, help='Window size for spectrogram in seconds')
@@ -18,8 +19,6 @@ def preprocess_args(parser):
     prep_parser.add_argument('--window', default='hamming', help='Window type for spectrogram generation')
     prep_parser.add_argument('--n-mels', default=200, type=int, help='Number of mel filters banks')
     prep_parser.add_argument('--transform', choices=['spectrogram', 'scalogram', 'logmel'], default=None)
-    prep_parser.add_argument('--num-eigenvalue', default=0, type=int,
-                             help='Number of eigen values to use from spectrogram')
     prep_parser.add_argument('--low-cutoff', default=0.0, type=float, help='High pass filter')
     prep_parser.add_argument('--high-cutoff', default=0.0, type=float, help='Low pass filter')
     prep_parser.add_argument('--muscle-noise', default=0.0, type=float)
@@ -29,7 +28,7 @@ def preprocess_args(parser):
     prep_parser.add_argument('--spec-augment', default=0.0, type=float)
     prep_parser.add_argument('--channel-wise-mean', action='store_true')
     prep_parser.add_argument('--inter-channel-mean', action='store_true')
-    prep_parser.add_argument('--no-power-noise', action='store_true')
+    prep_parser.add_argument('--with-power-noise', dest='no_power_noise', action='store_false')
     prep_parser.add_argument('--mfcc', dest='mfcc', action='store_true', help='MFCC')
     prep_parser.add_argument('--fe-pretrained', default=None, choices=supported_pretrained_models,
                              help='Use NN as feature extractor')
@@ -93,20 +92,6 @@ class Preprocessor:
 
         if self.normalize:
             y = standardize(y)
-
-        # TODO
-        # if self.three_channel:
-        if y.dim() >= 3:
-            # tmp = torch.zeros(3, y.size(1) // 2, y.size(2))
-            # stride = y.size(1) // 4
-            # kernel = y.size(1) // 2
-            # for i in range(3):
-            #     tmp[i] = y[0, i * stride:i * stride + kernel, :]
-            tmp = torch.zeros(3, y.size(1), y.size(2))
-            for i in range(3):
-                tmp[i] = y[0]
-
-            y = tmp
 
         if hasattr(self, 'feature_extractor'):
             y = self.feature_extractor.feature_extractor(y.unsqueeze(dim=0)).squeeze().detach()
