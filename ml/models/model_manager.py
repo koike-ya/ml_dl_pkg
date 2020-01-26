@@ -32,7 +32,7 @@ def model_manager_args(parser):
     model_manager_parser.add_argument('--val-path', help='data file for validation', default='input/val.csv')
     model_manager_parser.add_argument('--test-path', help='data file for testing', default='input/test.csv')
 
-    model_manager_parser.add_argument('--model-type', default='rnn', choices=supported_models)
+    model_manager_parser.add_argument('--model-type', default='cnn', choices=supported_models)
     model_manager_parser.add_argument('--gpu-id', default=0, type=int, help='ID of GPU to use')
     model_manager_parser.add_argument('--transfer', action='store_true', help='Transfer learning from model_path')
 
@@ -52,7 +52,7 @@ def model_manager_args(parser):
     hyper_param_parser.add_argument('--n-jobs', default=4, type=int, help='Number of workers used in data-loading')
     hyper_param_parser.add_argument('--loss-weight', default='same', type=type_float_list,
                                     help='The weights of all class about loss')
-    hyper_param_parser.add_argument('--sample-balance', default='same', type=type_float_list,
+    hyper_param_parser.add_argument('--sample-balance', default='0.0,0.0', type=type_float_list,
                                     help='Sampling label balance from dataset.')
     hyper_param_parser.add_argument('--epochs', default=20, type=int, help='Number of training epochs')
     hyper_param_parser.add_argument('--tta', default=0, type=int, help='Number of test time augmentation ensemble')
@@ -222,7 +222,7 @@ class BaseModelManager(metaclass=ABCMeta):
                 if self.logger:
                     self._record_log(phase, epoch)
 
-                epoch_metrics[phase] = deepcopy(self.metrics)
+                epoch_metrics[phase] = deepcopy(self.metrics[phase])
 
                 self._update_by_epoch(phase, epoch, self.cfg['learning_anneal'])
 
@@ -231,7 +231,7 @@ class BaseModelManager(metaclass=ABCMeta):
                 print(f'lr: {self.model.get_lr():.6f}', end='\t')
                 for phase in ['train', 'val']:
                     print(f'{phase}: [', end='')
-                    print('\t'.join([f'{m.name}: {m.average_meter[phase].average:.4f}' for m in epoch_metrics[phase]]), end='')
+                    print('\t'.join([f'{m.name}: {m.average_meter.average:.4f}' for m in epoch_metrics[phase]]), end='')
                     print(']', end='\t')
                 print('')
 
