@@ -52,8 +52,8 @@ def rnn_args(parser):
     return parser
 
 
-def construct_cnn_rnn(cfg, construct_cnn_func, output_size, device, n_dim):
-    conv, conv_out_ftrs = construct_cnn_func(cfg, use_as_extractor=True, n_dim=n_dim, logmel_cnn=True)
+def construct_cnn_rnn(cfg, construct_cnn_func, output_size, device, n_dim, logmel_cnn=False):
+    conv, conv_out_ftrs = construct_cnn_func(cfg, use_as_extractor=True, n_dim=n_dim, logmel_cnn=logmel_cnn)
     input_size = conv_out_ftrs['n_channels'] * conv_out_ftrs['width']
     return DeepSpeech(conv.to(device), input_size, out_time_feature=conv_out_ftrs['height'], batch_size=cfg['batch_size'],
                       rnn_type=supported_rnns[cfg['rnn_type']], labels="abc", eeg_conf=None,

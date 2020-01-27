@@ -49,7 +49,7 @@ class NNModel(BaseModel):
             self.cfg['n_channels'] = 23
             self.cfg['image_size'] = (61, 129)
             n_dim = len(self.cfg['cnn_kernel_sizes'][0])
-            model = construct_cnn_rnn(self.cfg, construct_cnn, len(self.class_labels), self.device, n_dim=n_dim)
+            model = construct_cnn_rnn(self.cfg, construct_cnn, len(self.class_labels), self.device, n_dim=n_dim, logmel_cnn=True)
         else:
             raise NotImplementedError(f"model_type should be in {supported_nn_models}, but {self.cfg['model_type']} selected.")
 
