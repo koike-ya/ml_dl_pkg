@@ -49,7 +49,7 @@ def model_manager_args(parser):
     hyper_param_parser = parser.add_argument_group("Hyper parameter arguments for learning")
     hyper_param_parser.add_argument('--batch-size', default=32, type=int, help='Batch size for training')
     hyper_param_parser.add_argument('--epoch-rate', default=1.0, type=float, help='Data rate to to use in one epoch')
-    hyper_param_parser.add_argument('--n-jobs', default=4, type=int, help='Number of workers used in data-loading')
+    hyper_param_parser.add_argument('--n-jobs', default=8, type=int, help='Number of workers used in data-loading')
     hyper_param_parser.add_argument('--loss-weight', default='same', type=type_float_list,
                                     help='The weights of all class about loss')
     hyper_param_parser.add_argument('--sample-balance', default='same', type=type_float_list,
@@ -229,6 +229,8 @@ class BaseModelManager(metaclass=ABCMeta):
             if self.cfg['silent']:
                 print(f'epoch {str(epoch + 1).ljust(2)}->', end=' ')
                 print(f'lr: {self.model.get_lr():.6f}', end='\t')
+                eta = int((time.time() - start) / (epoch + 1) * (self.cfg['epochs'] - (epoch + 1)))
+                print(f'eta: {eta}(s)', end='\t')
                 for phase in ['train', 'val']:
                     print(f'{phase}: [', end='')
                     print('\t'.join([f'{m.name}: {m.average_meter[phase].average:.4f}' for m in epoch_metrics[phase]]), end='')
