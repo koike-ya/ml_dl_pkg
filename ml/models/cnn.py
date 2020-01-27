@@ -48,20 +48,22 @@ def logmel_cnn_args(parser):
 
 
 class CNN(nn.Module):
-    def __init__(self, features, in_features, n_classes=2, feature_extract=False, dim=2):
+    def __init__(self, feature_extractor, in_features_dict, n_classes=2, feature_extract=False, dim=2):
         super(CNN, self).__init__()
-        self.features = features
-        self.feature_extractor = nn.Sequential(
+        self.feature_extractor = feature_extractor
+        in_features = in_features_dict['n_channels'] * in_features_dict['height'] * in_features_dict['width']
+        out_features = 2048
+        self.fc = nn.Sequential(
             nn.Linear(in_features, 4096),
             nn.ReLU(inplace=True),
             nn.Dropout(),
-            nn.Linear(4096, 4096),
+            nn.Linear(4096, out_features),
             nn.ReLU(inplace=True),
             nn.Dropout(),
         )
+        self.n_dim = dim
         self.feature_extract = feature_extract
-        n_features = self.feature_extractor[-1].in_features
-        self.predictor = nn.Linear(n_features, n_classes)
+        self.predictor = nn.Linear(out_features, n_classes)
         if n_classes >= 2:
             self.predictor = nn.Sequential(
                 self.predictor,
@@ -71,11 +73,13 @@ class CNN(nn.Module):
     def forward(self, x):
         if self.n_dim == 3:
             x = torch.unsqueeze(x, dim=1)
-        x = self.features(x.to(torch.float))
+        x = self.feature_extractor(x.to(torch.float))
         x = x.view(x.size(0), -1)
-        x = self.feature_extractor(x)
+
         if self.feature_extract:
             return x
+
+        x = self.fc(x)
         return self.predictor(x)
 
 

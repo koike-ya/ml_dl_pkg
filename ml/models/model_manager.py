@@ -32,7 +32,7 @@ def model_manager_args(parser):
     model_manager_parser.add_argument('--val-path', help='data file for validation', default='input/val.csv')
     model_manager_parser.add_argument('--test-path', help='data file for testing', default='input/test.csv')
 
-    model_manager_parser.add_argument('--model-type', default='rnn', choices=supported_models)
+    model_manager_parser.add_argument('--model-type', default='cnn', choices=supported_models)
     model_manager_parser.add_argument('--gpu-id', default=0, type=int, help='ID of GPU to use')
     model_manager_parser.add_argument('--transfer', action='store_true', help='Transfer learning from model_path')
 
@@ -52,7 +52,7 @@ def model_manager_args(parser):
     hyper_param_parser.add_argument('--n-jobs', default=8, type=int, help='Number of workers used in data-loading')
     hyper_param_parser.add_argument('--loss-weight', default='same', type=type_float_list,
                                     help='The weights of all class about loss')
-    hyper_param_parser.add_argument('--sample-balance', default='same', type=type_float_list,
+    hyper_param_parser.add_argument('--sample-balance', default='0.0,0.0', type=type_float_list,
                                     help='Sampling label balance from dataset.')
     hyper_param_parser.add_argument('--epochs', default=20, type=int, help='Number of training epochs')
     hyper_param_parser.add_argument('--tta', default=0, type=int, help='Number of test time augmentation ensemble')
@@ -148,26 +148,26 @@ class BaseModelManager(metaclass=ABCMeta):
         data_len = len(self.dataloaders[phase])
         eta = int(elapsed / (i + 1) * (data_len - (i + 1)))
         progress = f'\r{phase} epoch: [{epoch + 1}][{i + 1}/{data_len}]\t {elapsed}(s) eta:{eta}(s)\t'
-        progress += '\t'.join([f'{metric.name} {metric.average_meter[phase].value:.4f}' for metric in self.metrics])
+        progress += '\t'.join([f'{metric.name} {metric.average_meter.value:.4f}' for metric in self.metrics[phase]])
         print(progress, end='')
         sys.stdout.flush()
 
     def _record_log(self, phase, epoch):
         values = {}
 
-        for metric in self.metrics:
+        for metric in self.metrics[phase]:
             values[phase + '_' + metric.name] = metric.average_meter[phase].average
         self.logger.update(epoch, values)
 
     def _update_by_epoch(self, phase, epoch, learning_anneal):
-        for metric in self.metrics:
-            best_flag = metric.average_meter[phase].update_best()
+        for metric in self.metrics[phase]:
+            best_flag = metric.average_meter.update_best()
             if metric.save_model and best_flag and phase == 'val':
                 print(f"Found better validated model, saving to {self.cfg['model_path']}")
                 self.model.save_model()
 
             # reset epoch average meter
-            metric.average_meter[phase].reset()
+            metric.average_meter.reset()
 
         # anneal lr
         if phase == 'train':
@@ -213,8 +213,8 @@ class BaseModelManager(metaclass=ABCMeta):
                     loss, predicts = self.model.fit(inputs.to(self.device), labels.to(self.device), phase)
 
                     # save loss and metrics in one batch
-                    for metric in self.metrics:
-                        metric.update(phase, loss, predicts, labels.numpy())
+                    for metric in self.metrics[phase]:
+                        metric.update(loss, predicts, labels.numpy())
 
                     if not self.cfg['silent']:
                         self._verbose(epoch, phase, i, elapsed=int(time.time() - start))
@@ -222,7 +222,7 @@ class BaseModelManager(metaclass=ABCMeta):
                 if self.logger:
                     self._record_log(phase, epoch)
 
-                epoch_metrics[phase] = deepcopy(self.metrics)
+                epoch_metrics[phase] = deepcopy(self.metrics[phase])
 
                 self._update_by_epoch(phase, epoch, self.cfg['learning_anneal'])
 
@@ -233,7 +233,7 @@ class BaseModelManager(metaclass=ABCMeta):
                 print(f'eta: {eta}(s)', end='\t')
                 for phase in ['train', 'val']:
                     print(f'{phase}: [', end='')
-                    print('\t'.join([f'{m.name}: {m.average_meter[phase].average:.4f}' for m in epoch_metrics[phase]]), end='')
+                    print('\t'.join([f'{m.name}: {m.average_meter.average:.4f}' for m in epoch_metrics[phase]]), end='')
                     print(']', end='\t')
                 print('')
 
@@ -248,7 +248,7 @@ class BaseModelManager(metaclass=ABCMeta):
 
         pred_list, label_list = self._predict(phase=phase)
 
-        for metric in self.metrics:
+        for metric in self.metrics['test']:
             if metric.name == 'loss':
                 if self.cfg['task_type'] == 'classify':
                     y_onehot = torch.zeros(label_list.shape[0], len(self.class_labels))
@@ -262,9 +262,9 @@ class BaseModelManager(metaclass=ABCMeta):
             else:
                 loss_value = 10000000
 
-            metric.update(phase=phase, loss_value=loss_value, preds=pred_list, labels=label_list)
-            print(f"{phase} {metric.name}: {metric.average_meter[phase].value :.4f}")
-            metric.average_meter[phase].update_best()
+            metric.update(loss_value=loss_value, preds=pred_list, labels=label_list)
+            print(f"{phase} {metric.name}: {metric.average_meter.value :.4f}")
+            metric.average_meter.update_best()
 
         if self.cfg['task_type'] == 'classify':
             confusion_matrix_ = confusion_matrix(label_list, pred_list,
@@ -309,8 +309,8 @@ class BaseModelManager(metaclass=ABCMeta):
                 loss, predicts = self.model.fit(inputs.to(self.device), labels.to(self.device), 'train')
 
                 # save loss and metrics in one batch
-                for metric in self.metrics:
-                    metric.update(phase, loss, predicts, labels.numpy())
+                for metric in self.metrics[phase]:
+                    metric.update(loss, predicts, labels.numpy())
 
                 if not self.cfg['silent']:
                     self._verbose(epoch, phase, i, elapsed=int(time.time() - start))

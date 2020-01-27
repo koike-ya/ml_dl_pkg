@@ -4,10 +4,10 @@ from torchvision import models
 from ml.models.panns_cnn14 import construct_panns
 
 
-supported_pretrained_models = {'resnet': models.resnet18, 'alexnet': models.alexnet,# 'densenet': models.densenet121,
+supported_pretrained_models = {'resnet': models.resnet18, 'resnet152': models.resnet152, 'alexnet': models.alexnet,# 'densenet': models.densenet121,
                                'wideresnet': models.wide_resnet50_2, 'resnext': models.resnext50_32x4d,
-                               'vgg': models.vgg19, 'googlenet': models.googlenet, 'mobilenet': None,
-                               'panns': None}
+                               'resnext101': models.resnext101_32x8d, 'vgg19': models.vgg19, 'vgg16': models.vgg16,
+                               'googlenet': models.googlenet, 'mobilenet': None, 'panns': None, 'resnext_wsl': None}
 
 
 class PretrainedNN(nn.Module):
@@ -19,7 +19,7 @@ class PretrainedNN(nn.Module):
         self.n_in_features = self._get_n_last_in_features(model)
         # TODO 直す
         if cfg['model_type'] == 'mobilenet':
-            self.n_in_features *= 7 * 7
+            self.n_in_features *= 20
         self.predictor = nn.Linear(self.n_in_features, n_classes)
         self.batch_size = cfg['batch_size']
         if n_classes >= 2:
@@ -29,8 +29,10 @@ class PretrainedNN(nn.Module):
             )
 
     def _set_model(self, cfg):
-        if cfg['model_type'] in ['mobilenet']:
+        if cfg['model_type'] == 'mobilenet':
             return torch.hub.load('pytorch/vision:v0.4.2', 'mobilenet_v2', pretrained=True)
+        elif cfg['model_type'] == 'resnext_wsl':
+            return torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x8d_wsl')
         return supported_pretrained_models[cfg['model_type']](pretrained=True)
 
     def _get_n_last_in_features(self, model):
