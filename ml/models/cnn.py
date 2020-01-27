@@ -84,8 +84,7 @@ class CNN(nn.Module):
 
 
 class LogMelCNN(nn.Module):
-    def __init__(self, in_features, sample_rate, window_size, hop_size, mel_bins, fmin, fmax,
-                 n_classes=2, feature_extract=False):
+    def __init__(self, cnn, sample_rate, window_size, hop_size, mel_bins, fmin=0.0, fmax=None, n_classes=2, feature_extract=False):
         super(LogMelCNN, self).__init__()
 
         window = 'hann'
@@ -106,40 +105,27 @@ class LogMelCNN(nn.Module):
                                                  n_mels=mel_bins, fmin=fmin, fmax=fmax, ref=ref, amin=amin,
                                                  top_db=top_db,
                                                  freeze_parameters=True)
+        self.bn0 = nn.BatchNorm2d(129)
+        self.cnn = cnn
 
-    def forward(x):
-        x = self.spectrogram_extractor(input)  # (batch_size, 1, time_steps, freq_bins)
-        x = self.logmel_extractor(x)  # (batch_size, 1, time_steps, mel_bins)
+    def forward(self, wave):
+        wave = wave.transpose(0, 1)     # channel x batch x wave
+        spect_tensor = torch.Tensor().to(wave.device)
 
-        # Mixup on spectrogram
-        if self.training and mixup_lambda is not None:
-            x = do_mixup(x, mixup_lambda)
+        # STFT and mel filtering
+        for i in range(wave.size(0)):
+            x = wave[i]
+            x = self.spectrogram_extractor(x)  # (batch_size, 1, time_steps, freq_bins)
+            # x = self.logmel_extractor(x)  # (batch_size, 1, time_steps, mel_bins)
+            x = x.transpose(1, 3)
+            x = self.bn0(x)
+            x = x.transpose(1, 3)
+            x = x.transpose(0, 1)   # (1, batch, time_steps, mel_bins)
+            spect_tensor = torch.cat((spect_tensor, x), 0)  # channel x batch x time x mel_bins
 
-        x = self.conv_block1(x, pool_size=(2, 2), pool_type='avg')
-        x = F.dropout(x, p=0.2, training=self.training)
-        x = self.conv_block2(x, pool_size=(2, 2), pool_type='avg')
-        x = F.dropout(x, p=0.2, training=self.training)
-        x = self.conv_block3(x, pool_size=(2, 2), pool_type='avg')
-        x = F.dropout(x, p=0.2, training=self.training)
-        x = self.conv_block4(x, pool_size=(2, 2), pool_type='avg')
-        x = F.dropout(x, p=0.2, training=self.training)
-        x = self.conv_block5(x, pool_size=(2, 2), pool_type='avg')
-        x = F.dropout(x, p=0.2, training=self.training)
-        x = self.conv_block6(x, pool_size=(1, 1), pool_type='avg')
-        x = F.dropout(x, p=0.2, training=self.training)
-        x = torch.mean(x, dim=3)
+        x = spect_tensor.transpose(0, 1)    # batch x channel x time x mel_bins
 
-        (x1, _) = torch.max(x, dim=2)
-        x2 = torch.mean(x, dim=2)
-        x = x1 + x2
-        x = F.dropout(x, p=0.5, training=self.training)
-        x = F.relu_(self.fc1(x))
-        embedding = F.dropout(x, p=0.5, training=self.training)
-        clipwise_output = torch.sigmoid(self.fc_audioset(x))
-
-        output_dict = {'clipwise_output': clipwise_output, 'embedding': embedding}
-
-        return output_dict
+        return self.cnn(x)
 
 
 class CNNMaker:
@@ -207,7 +193,7 @@ class CNNMaker:
             'width': int(feature_shape[1])}
 
 
-def construct_cnn(cfg, use_as_extractor=False, n_dim=2):
+def construct_cnn(cfg, use_as_extractor=False, n_dim=2, logmel_cnn=False):
     layer_info = []
     for layer in range(len(cfg['cnn_channel_list'])):
         layer_info.append((
@@ -218,11 +204,16 @@ def construct_cnn(cfg, use_as_extractor=False, n_dim=2):
         ))
     cnn_maker = CNNMaker(in_channels=cfg['n_channels'], image_size=cfg['image_size'], cfg=layer_info, n_dim=n_dim,
                          n_classes=len(cfg['class_names']), use_as_extractor=use_as_extractor)
+    if logmel_cnn:
+        cnn, out_features = cnn_maker.construct_cnn()
+        return construct_logmel_cnn(cfg, cnn), out_features
     return cnn_maker.construct_cnn()
 
 
-def construct_logmel_cnn(cfg):
-    return LogMelCNN()
+def construct_logmel_cnn(cfg, cnn):
+    window_size = int(cfg['window_size'] * cfg['sr'])
+    hop_size = int(cfg['window_stride'] * cfg['sr'])
+    return LogMelCNN(cnn=cnn, sample_rate=cfg['sr'], window_size=window_size, hop_size=hop_size, mel_bins=cfg['n_mels'])
 
 
 def cnn_ftrs_16_751_751(eeg_conf):

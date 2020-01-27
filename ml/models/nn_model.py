@@ -7,12 +7,12 @@ from sklearn.exceptions import NotFittedError
 
 from ml.models.base_model import BaseModel
 from ml.models.rnn import construct_rnn, construct_cnn_rnn
-from ml.models.cnn import construct_cnn
+from ml.models.cnn import construct_cnn, construct_logmel_cnn
 from ml.models.ml_model import MLModel
 from ml.models.pretrained_models import construct_pretrained, supported_pretrained_models
 
 
-supported_nn_models = ['cnn', 'rnn', 'cnn_rnn']
+supported_nn_models = ['cnn', 'rnn', 'cnn_rnn', 'logmel_cnnrnn']
 
 
 class NNModel(BaseModel):
@@ -45,8 +45,13 @@ class NNModel(BaseModel):
             model = construct_cnn_rnn(self.cfg, construct_cnn, len(self.class_labels), self.device, n_dim=n_dim)
         elif self.cfg['model_type'] == 'cnn':
             model = construct_cnn(self.cfg, use_as_extractor=False)
+        elif self.cfg['model_type'] == 'logmel_cnnrnn':
+            self.cfg['n_channels'] = 23
+            self.cfg['image_size'] = (61, 129)
+            n_dim = len(self.cfg['cnn_kernel_sizes'][0])
+            model = construct_cnn_rnn(self.cfg, construct_cnn, len(self.class_labels), self.device, n_dim=n_dim)
         else:
-            raise NotImplementedError('model_type should be either rnn or cnn, nn would be implemented in the future.')
+            raise NotImplementedError(f"model_type should be in {supported_nn_models}, but {self.cfg['model_type']} selected.")
 
         if self.feature_extract:
             self.predictor = MLModel(self.class_labels, self.cfg, 'svm')

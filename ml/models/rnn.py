@@ -53,7 +53,7 @@ def rnn_args(parser):
 
 
 def construct_cnn_rnn(cfg, construct_cnn_func, output_size, device, n_dim):
-    conv, conv_out_ftrs = construct_cnn_func(cfg, use_as_extractor=True, n_dim=n_dim)
+    conv, conv_out_ftrs = construct_cnn_func(cfg, use_as_extractor=True, n_dim=n_dim, logmel_cnn=True)
     input_size = conv_out_ftrs['n_channels'] * conv_out_ftrs['width']
     return DeepSpeech(conv.to(device), input_size, out_time_feature=conv_out_ftrs['height'], batch_size=cfg['batch_size'],
                       rnn_type=supported_rnns[cfg['rnn_type']], labels="abc", eeg_conf=None,
@@ -233,7 +233,6 @@ class DeepSpeech(RNNClassifier):
         self.bidirectional = bidirectional
 
         self.conv = conv
-        print(f'Number of parameters\tconv: {get_param_size(self.conv)}\trnn: {get_param_size(super())}')
 
     def forward(self, x):
         x = self.conv(x.to(torch.float))    # batch x channel x time x freq

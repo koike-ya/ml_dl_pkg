@@ -4,7 +4,7 @@ import torch
 from sklearn.metrics import recall_score, accuracy_score, f1_score, precision_score, balanced_accuracy_score, confusion_matrix
 
 
-ALLOWED_METRICS = ['loss', 'far', 'accuracy', 'f1', 'precision', 'uar', 'specificity']
+ALLOWED_METRICS = ['loss', 'far', 'accuracy', 'f1', 'precision', 'uar', 'specificity', 'recall_1']
 
 
 class AverageMeter(object):
@@ -64,7 +64,7 @@ def metrics2df(metrics, phase='test'):
 
 class Metric:
     def __init__(self, name, direction, save_model: bool = False, label_to_detect: int = 1, numpy_: bool = True):
-        assert name in ALLOWED_METRICS, f'You need to select metrics from {ALLOWED_METRICS}'
+        assert name in ALLOWED_METRICS, f'You need to select metrics from {ALLOWED_METRICS}, but {name} was selected'
         self.name = name
         self.direction = direction
         self.average_meter = AverageMeter(direction)
