@@ -71,7 +71,8 @@ class BonnRNN(BaseModel):
         model.add(GlobalAveragePooling1D())
         # model.add(Flatten())
         model.add(Dense(2, activation='softmax'))
-        model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy', tf.keras.metrics.Recall()])
+        model.compile(loss='categorical_crossentropy', optimizer='adam',
+                      metrics=[tf.keras.metrics.Precision(), tf.keras.metrics.Recall(), 'accuracy'])
 
         self.model = model
 
