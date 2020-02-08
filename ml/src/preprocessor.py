@@ -87,7 +87,6 @@ class Preprocessor:
             #     wave[i] = shift(wave[i], self.sr * 5)
             #     wave[i] = stretch(wave[i], rate=0.3)
             #     wave[i] = shift_pitch(wave[i], rate=0.3)
-
         y = self.transform_(wave)    # channel x freq x time
 
         if self.normalize:

@@ -113,12 +113,14 @@ class ManifestDataSet(BaseDataSet):
             self.path_df = pd.concat([self.path_df] * data_conf['tta'])
         self.load_func = load_func
         self.label_func = label_func
-        self.labels = self._set_labels(data_conf['labels'] if 'labels' in data_conf.keys() else None)
+        if phase == 'infer':
+            self.labels = [-100] * len(self.path_df)
+        else:
+            self.labels = self._set_labels(data_conf['labels'] if 'labels' in data_conf.keys() else None)
         self.process_func = process_func if process_func else None
         self.phase = phase
 
     def __getitem__(self, idx):
-        # TODO phaseがinferの場合はlabelsは[None]で返す
         x = self.load_func(self.path_df.iloc[idx, :])
         label = self.labels[idx]
 

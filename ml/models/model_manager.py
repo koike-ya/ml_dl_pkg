@@ -197,17 +197,19 @@ class BaseModelManager(metaclass=ABCMeta):
 
         return pred_list, label_list
 
-    def train(self, model=None):
+    def train(self, model=None, with_validation=True):
         if model:
             self.model = model
 
-        self.check_keys_from_dict(['train', 'val'], self.dataloaders)
-
         start = time.time()
         epoch_metrics = {}
+        
+        phases = ['train', 'val'] if with_validation else ['train']
+
+        self.check_keys_from_dict(phases, self.dataloaders)
 
         for epoch in range(self.cfg['epochs']):
-            for phase in ['train', 'val']:
+            for phase in phases:
                 for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
 
                     loss, predicts = self.model.fit(inputs.to(self.device), labels.to(self.device), phase)
@@ -229,7 +231,7 @@ class BaseModelManager(metaclass=ABCMeta):
             if self.cfg['silent']:
                 print(f'epoch {str(epoch + 1).ljust(2)}->', end=' ')
                 print(f'lr: {self.model.get_lr():.6f}', end='\t')
-                for phase in ['train', 'val']:
+                for phase in phases:
                     print(f'{phase}: [', end='')
                     print('\t'.join([f'{m.name}: {m.average_meter.average:.4f}' for m in epoch_metrics[phase]]), end='')
                     print(']', end='\t')
@@ -273,23 +275,13 @@ class BaseModelManager(metaclass=ABCMeta):
             return pred_list, label_list, self.metrics
         return pred_list, label_list
 
-    def infer(self, load_best=True):
-        phase = 'infer'
-        batch_size = self.cfg['batch_size']
-
+    def infer(self, load_best=True, phase='infer'):
         if load_best:
             self.model.load_model()
 
-        dtype_ = np.int if self.cfg['task_type'] == 'classify' else np.float
-        # ラベルが入れられなかった部分を除くため、小さな負の数を初期値として格納
-        pred_list = np.zeros((len(self.dataloaders[phase]) * batch_size, 1), dtype=dtype_) - 1000000
-        for i, inputs in tqdm(enumerate(self.dataloaders[phase]), total=len(self.dataloaders[phase])):
-            inputs = inputs.to(self.device)
-            preds = self.model.predict(inputs)
+        pred_list, _ = self._predict(phase=phase)
 
-            pred_list[i * batch_size:i * batch_size + preds.shape[0], 0] = preds.reshape(-1, )
-
-        return pred_list[~(pred_list == -1000000)]
+        return pred_list
 
     def retrain(self):
         phase = 'retrain'
