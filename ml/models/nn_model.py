@@ -8,11 +8,12 @@ from sklearn.exceptions import NotFittedError
 from ml.models.base_model import BaseModel
 from ml.models.rnn import construct_rnn, construct_cnn_rnn
 from ml.models.cnn import construct_cnn
+from ml.models.logmel_cnn import construct_logmel_cnn
 from ml.models.ml_model import MLModel
 from ml.models.pretrained_models import construct_pretrained, supported_pretrained_models
 
 
-supported_nn_models = ['cnn', 'rnn', 'cnn_rnn']
+supported_nn_models = ['cnn', 'rnn', 'cnn_rnn', 'logmel_cnn']
 
 
 class NNModel(BaseModel):
@@ -35,7 +36,6 @@ class NNModel(BaseModel):
         if transfer:
             orig_classes = self.class_labels
             self.class_labels = self.cfg['prev_classes']
-
         if self.cfg['model_type'] in supported_pretrained_models.keys():
             model = construct_pretrained(self.cfg, len(self.class_labels))
         elif self.cfg['model_type'] == 'rnn':
@@ -45,6 +45,8 @@ class NNModel(BaseModel):
             model = construct_cnn_rnn(self.cfg, construct_cnn, len(self.class_labels), self.device, n_dim=n_dim)
         elif self.cfg['model_type'] == 'cnn':
             model = construct_cnn(self.cfg, use_as_extractor=False)
+        elif self.cfg['model_type'] == 'logmel_cnn':
+            model = construct_logmel_cnn(self.cfg)
         else:
             raise NotImplementedError('model_type should be either rnn or cnn, nn would be implemented in the future.')
 

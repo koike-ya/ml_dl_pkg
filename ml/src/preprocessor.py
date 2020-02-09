@@ -20,7 +20,7 @@ def preprocess_args(parser):
     prep_parser.add_argument('--n-mels', default=200, type=int, help='Number of mel filters banks')
     prep_parser.add_argument('--transform', choices=['spectrogram', 'scalogram', 'logmel'], default=None)
     prep_parser.add_argument('--low-cutoff', default=0.0, type=float, help='High pass filter')
-    prep_parser.add_argument('--high-cutoff', default=0.0, type=float, help='Low pass filter')
+    prep_parser.add_argument('--high-cutoff', default=None, type=float, help='Low pass filter')
     prep_parser.add_argument('--muscle-noise', default=0.0, type=float)
     prep_parser.add_argument('--eye-noise', default=0.0, type=float)
     prep_parser.add_argument('--white-noise', default=0.0, type=float)

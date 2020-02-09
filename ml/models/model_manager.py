@@ -113,7 +113,7 @@ class BaseModelManager(metaclass=ABCMeta):
     def _init_model(self) -> Union[NNModel, MLModel]:
         self.cfg['input_size'] = list(self.dataloaders.values())[0].get_input_size()
 
-        if self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn', '1dcnn_rnn'] + list(supported_pretrained_models.keys()):
+        if self.cfg['model_type'] in supported_nn_models + list(supported_pretrained_models.keys()):
             if self.cfg['model_type'] in ['rnn']:
                 if self.cfg['batch_norm']:
                     self.cfg['batch_norm_size'] = list(self.dataloaders.values())[0].get_batch_norm_size()
