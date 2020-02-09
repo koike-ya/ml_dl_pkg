@@ -1,6 +1,7 @@
 import random
 import time
 import sys
+import argparse
 from abc import ABCMeta
 from contextlib import contextmanager
 from pathlib import Path
@@ -12,20 +13,22 @@ from ml.models.base_model import model_args
 from ml.models.ml_model import MLModel
 from ml.models.nn_model import NNModel, supported_nn_models, supported_pretrained_models
 from sklearn.metrics import confusion_matrix
-from tensorboardX import SummaryWriter
+from ml.utils.logger import TensorBoardLogger
 from tqdm import tqdm
+from typing import Sequence, Tuple, Dict, List, Union
+from ml.utils.utils import Metrics
 
 supported_ml_models = ['xgboost', 'knn', 'catboost', 'sgdc', 'lightgbm', 'svm']
 supported_models = supported_ml_models + supported_nn_models + list(supported_pretrained_models.keys())
 
 
-def type_float_list(args):
+def type_float_list(args) -> Union[List[float], str]:
     if args == 'same':
         return args
     return list(map(float, args.split(',')))
 
 
-def model_manager_args(parser):
+def model_manager_args(parser) -> argparse.ArgumentParser:
 
     model_manager_parser = parser.add_argument_group("Model manager arguments")
     model_manager_parser.add_argument('--train-path', help='data file for training', default='input/train.csv')
@@ -83,7 +86,7 @@ def model_manager_args(parser):
 
 
 @contextmanager
-def simple_timer(label):
+def simple_timer(label) -> None:
     start = time.time()
     yield
     end = time.time()
@@ -103,11 +106,11 @@ class BaseModelManager(metaclass=ABCMeta):
         Path(self.cfg['model_path']).parent.mkdir(exist_ok=True, parents=True)
 
     @staticmethod
-    def check_keys_from_dict(must_contain_keys, dic):
+    def check_keys_from_dict(must_contain_keys, dic) -> None:
         for key in must_contain_keys:
             assert key in dic.keys(), f'{key} must be in {str(dic)}'
 
-    def _init_model(self):
+    def _init_model(self) -> Union[NNModel, MLModel]:
         self.cfg['input_size'] = list(self.dataloaders.values())[0].get_input_size()
 
         if self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn', '1dcnn_rnn'] + list(supported_pretrained_models.keys()):
@@ -124,14 +127,14 @@ class BaseModelManager(metaclass=ABCMeta):
         elif self.cfg['model_type'] in supported_ml_models:
             return MLModel(self.class_labels, self.cfg)
         
-    def _init_seed(self):
+    def _init_seed(self) -> None:
         # Set seeds for determinism
         torch.manual_seed(self.cfg['seed'])
         torch.cuda.manual_seed_all(self.cfg['seed'])
         np.random.seed(self.cfg['seed'])
         random.seed(self.cfg['seed'])
 
-    def _init_device(self):
+    def _init_device(self) -> torch.device:
         if self.cfg['cuda'] and self.cfg['model_type'] in supported_nn_models + list(supported_pretrained_models.keys()):
             device = torch.device("cuda")
             torch.cuda.set_device(self.cfg['gpu_id'])
@@ -140,11 +143,11 @@ class BaseModelManager(metaclass=ABCMeta):
 
         return device
 
-    def _init_logger(self):
+    def _init_logger(self) -> TensorBoardLogger:
         if self.cfg['tensorboard']:
             return TensorBoardLogger(self.cfg['log_id'], self.cfg['log_dir'])
 
-    def _verbose(self, epoch, phase, i, elapsed):
+    def _verbose(self, epoch, phase, i, elapsed) -> None:
         data_len = len(self.dataloaders[phase])
         eta = int(elapsed / (i + 1) * (data_len - (i + 1)))
         progress = f'\r{phase} epoch: [{epoch + 1}][{i + 1}/{data_len}]\t {elapsed}(s) eta:{eta}(s)\t'
@@ -152,14 +155,14 @@ class BaseModelManager(metaclass=ABCMeta):
         print(progress, end='')
         sys.stdout.flush()
 
-    def _record_log(self, phase, epoch):
+    def _record_log(self, phase, epoch) -> None:
         values = {}
 
         for metric in self.metrics[phase]:
             values[phase + '_' + metric.name] = metric.average_meter[phase].average
         self.logger.update(epoch, values)
 
-    def _update_by_epoch(self, phase, epoch, learning_anneal):
+    def _update_by_epoch(self, phase, epoch, learning_anneal) -> None:
         for metric in self.metrics[phase]:
             best_flag = metric.average_meter.update_best()
             if metric.save_model and best_flag and phase == 'val':
@@ -173,7 +176,7 @@ class BaseModelManager(metaclass=ABCMeta):
         if phase == 'train':
             self.model.anneal_lr(learning_anneal)
 
-    def _predict(self, phase):
+    def _predict(self, phase) -> Tuple[np.array, np.array]:
         batch_size = self.cfg['batch_size']
 
         self.check_keys_from_dict([phase], self.dataloaders)
@@ -197,14 +200,17 @@ class BaseModelManager(metaclass=ABCMeta):
 
         return pred_list, label_list
 
-    def train(self, model=None, with_validation=True):
+    def train(self, model=None, with_validate=True) -> Metrics:
         if model:
             self.model = model
 
         start = time.time()
         epoch_metrics = {}
-        
-        phases = ['train', 'val'] if with_validation else ['train']
+
+        if with_validate:
+            phases = ['train', 'val']
+        else:
+            phases = ['train']
 
         self.check_keys_from_dict(phases, self.dataloaders)
 
@@ -242,7 +248,8 @@ class BaseModelManager(metaclass=ABCMeta):
 
         return self.metrics
 
-    def test(self, return_metrics=False, load_best=True, phase='test'):
+    def test(self, return_metrics=False, load_best=True, phase='test') -> Union[Tuple[np.array, np.array, Metrics],
+                                                                                Tuple[np.array, np.array]]:
         if load_best:
             self.model.load_model()
 
@@ -275,7 +282,7 @@ class BaseModelManager(metaclass=ABCMeta):
             return pred_list, label_list, self.metrics
         return pred_list, label_list
 
-    def infer(self, load_best=True, phase='infer'):
+    def infer(self, load_best=True, phase='infer') -> np.array:
         if load_best:
             self.model.load_model()
 
@@ -314,16 +321,3 @@ class BaseModelManager(metaclass=ABCMeta):
         self.test(return_metrics=True, load_best=False, phase='retrain_test')
 
         return self.metrics
-
-
-class TensorBoardLogger(object):
-    def __init__(self, id, log_dir):
-        Path(log_dir).mkdir(exist_ok=True, parents=True)
-        self.id = id
-        self.tensorboard_writer = SummaryWriter(log_dir)
-
-    def update(self, epoch, values):
-        self.tensorboard_writer.add_scalars(self.id, values, epoch + 1)
-
-    def close(self):
-        self.tensorboard_writer.close()

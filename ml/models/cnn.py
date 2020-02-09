@@ -3,12 +3,11 @@ import torch
 seed = 0
 torch.manual_seed(seed)
 import math
-import numpy as np
+
 torch.cuda.manual_seed_all(seed)
 import random
 random.seed(seed)
 import torch.nn as nn
-from torchvision import models
 
 
 def type_int_list_list(args):
