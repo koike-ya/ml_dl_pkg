@@ -1,23 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.utils.checkpoint as cp
-from ml.models.stft import Spectrogram, LogmelFilterBank
-
-
-def init_layer(layer):
-    """Initialize a Linear or Convolutional layer. """
-    nn.init.xavier_uniform_(layer.weight)
-
-    if hasattr(layer, 'bias'):
-        if layer.bias is not None:
-            layer.bias.data.fill_(0.)
-
-
-def init_bn(bn):
-    """Initialize a Batchnorm layer. """
-    bn.bias.data.fill_(0.)
-    bn.weight.data.fill_(1.)
+from ml.models.misc import LogMel
 
 
 class ConvBlock(nn.Module):
@@ -69,15 +53,7 @@ class Cnn14(nn.Module):
     def __init__(self, sample_rate, window_size, hop_size, mel_bins, fmin,
                  fmax, classes_num):
         super(Cnn14, self).__init__()
-
-        window = 'hann'
-        center = True
-        pad_mode = 'reflect'
-        ref = 1.0
-        amin = 1e-10
-        top_db = None
-
-        self.bn0 = nn.BatchNorm2d(mel_bins)
+        self.logmel_extractor = LogMel(sample_rate, window_size, hop_size, mel_bins, fmin, fmax)
 
         self.conv_block1 = ConvBlock(in_channels=1, out_channels=64)
         self.conv_block2 = ConvBlock(in_channels=64, out_channels=128)
@@ -89,16 +65,6 @@ class Cnn14(nn.Module):
         self.fc1 = nn.Linear(2048, 2048, bias=True)
         self.fc_audioset = nn.Linear(2048, classes_num, bias=True)
 
-        # Spectrogram extractor
-        self.spectrogram_extractor = Spectrogram(n_fft=window_size, hop_length=hop_size,
-            win_length=window_size, window=window, center=center, pad_mode=pad_mode,
-            freeze_parameters=True)
-
-        # Logmel feature extractor
-        self.logmel_extractor = LogmelFilterBank(sr=sample_rate, n_fft=window_size,
-            n_mels=mel_bins, fmin=fmin, fmax=fmax, ref=ref, amin=amin, top_db=top_db,
-            freeze_parameters=True)
-
         self.init_weight()
 
     def init_weight(self):
@@ -106,14 +72,10 @@ class Cnn14(nn.Module):
         init_layer(self.fc1)
         init_layer(self.fc_audioset)
 
-    def forward(self, input, mixup_lambda=None):
+    def forward(self, input, extract=False):
         """
         Input: (batch_size, data_length)"""
-        x = self.spectrogram_extractor(input)  # (batch_size, 1, time_steps, freq_bins)
-        x = self.logmel_extractor(x)  # (batch_size, 1, time_steps, mel_bins)
-        x = x.transpose(1, 3)
-        x = self.bn0(x)
-        x = x.transpose(1, 3)
+        x = self.logmel_extractor(input)
 
         x = self.conv_block1(x, pool_size=(2, 2), pool_type='avg')
         x = F.dropout(x, p=0.2, training=self.training)
@@ -127,13 +89,17 @@ class Cnn14(nn.Module):
         x = F.dropout(x, p=0.2, training=self.training)
         x = self.conv_block6(x, pool_size=(1, 1), pool_type='avg')
         x = F.dropout(x, p=0.2, training=self.training)
+
         x = torch.mean(x, dim=3)
         (x1, _) = torch.max(x, dim=2)
         x2 = torch.mean(x, dim=2)
         x = x1 + x2
         x = F.dropout(x, p=0.5, training=self.training)
+
         x = F.relu_(self.fc1(x))
-        # embedding = F.dropout(x, p=0.5, training=self.training)
+        if extract:
+            embedding = F.dropout(x, p=0.5, training=self.training)
+            return embedding
         x = torch.sigmoid(self.fc_audioset(x))
         return x
 

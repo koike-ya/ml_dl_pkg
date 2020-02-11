@@ -35,18 +35,6 @@ def base_expt_args(parser):
     return parser
 
 
-def label_func(row):
-    return LABEL2INT[row[1]]
-
-
-def set_load_func(data_dir, sr):
-    def load_func(path):
-        wave = load(f'{data_dir}/{path[0]}', sr=sr)[0]
-        return wave.reshape((1, -1))
-
-    return load_func
-
-
 class BaseExperimentor(metaclass=ABCMeta):
     def __init__(self, cfg, load_func, label_func):
         self.cfg = cfg

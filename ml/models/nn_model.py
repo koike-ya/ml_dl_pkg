@@ -6,14 +6,17 @@ from apex import amp
 from sklearn.exceptions import NotFittedError
 
 from ml.models.base_model import BaseModel
-from ml.models.rnn import construct_rnn, construct_cnn_rnn
+from ml.models.rnn import construct_rnn
+from ml.models.cnn_rnn import construct_cnn_rnn
 from ml.models.cnn import construct_cnn
 from ml.models.logmel_cnn import construct_logmel_cnn
+from ml.models.attention import construct_attention_cnn
 from ml.models.ml_model import MLModel
+from ml.models.nn_utils import get_param_size
 from ml.models.pretrained_models import construct_pretrained, supported_pretrained_models
 
 
-supported_nn_models = ['cnn', 'rnn', 'cnn_rnn', 'logmel_cnn']
+supported_nn_models = ['cnn', 'rnn', 'cnn_rnn', 'logmel_cnn', 'attention_cnn']
 
 
 class NNModel(BaseModel):
@@ -47,6 +50,8 @@ class NNModel(BaseModel):
             model = construct_cnn(self.cfg, use_as_extractor=False)
         elif self.cfg['model_type'] == 'logmel_cnn':
             model = construct_logmel_cnn(self.cfg)
+        elif self.cfg['model_type'] == 'attention_cnn':
+            model = construct_attention_cnn(self.cfg)
         else:
             raise NotImplementedError('model_type should be either rnn or cnn, nn would be implemented in the future.')
 
@@ -191,13 +196,3 @@ class NNModel(BaseModel):
         for g in self.optimizer.param_groups:
             g['lr'] = g['lr'] / self.cfg['learning_anneal']
         print(f"Learning rate annealed to: {g['lr']:.6f}")
-
-
-def get_param_size(model):
-    params = 0
-    for p in model.parameters():
-        tmp = 1
-        for x in p.size():
-            tmp *= x
-        params += tmp
-    return params
