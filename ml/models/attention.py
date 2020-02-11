@@ -78,19 +78,20 @@ class CnnPooling(nn.Module):
         
     def forward(self, input):
         """(samples_num, feature_maps, time_steps, freq_num)"""
-        x = self.emb(input)
+        x = self.logmel_extractor(input)
+        x = x.squeeze(dim=1)
+        x = self.emb(x)
 
         if self.pooling == 'attention':
-            output = self.attention(x)
+            x = self.attention(x)
         elif self.pooling == 'average':
             x = F.avg_pool2d(x, kernel_size=x.shape[2:])
-            x = x.view(x.shape[0:2])
-            output = F.log_softmax(self.fc_final(x), dim=-1)
+            x = self.fc_final(x.view(x.shape[0:2]))
         else:
             x = F.max_pool2d(x, kernel_size=x.shape[2:])
-            x = x.view(x.shape[0:2])
+            x = self.fc_final(x.view(x.shape[0:2]))
 
-            output = F.log_softmax(self.fc_final(x), dim=-1)
+        output = torch.sigmoid(x)
 
         return output
 
