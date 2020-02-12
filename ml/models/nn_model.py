@@ -17,7 +17,7 @@ from ml.models.nn_utils import get_param_size
 from ml.models.pretrained_models import construct_pretrained, supported_pretrained_models
 
 
-supported_nn_models = ['cnn', 'rnn', 'cnn_rnn', 'logmel_cnn', 'attention_cnn']
+supported_nn_models = ['cnn', 'rnn', 'cnn_rnn', 'logmel_cnn', 'attention_cnn', 'panns']
 
 
 class NNModel(BaseModel):
