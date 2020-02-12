@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from ml.models.nn_utils import initialize_weights
+from ml.models.nn_utils import initialize_weights, init_bn
 from ml.models.stft import Spectrogram, LogmelFilterBank
 
 
@@ -26,6 +26,8 @@ class LogMel(nn.Module):
         self.logmel_extractor = LogmelFilterBank(sr=sample_rate, n_fft=window_size,
             n_mels=mel_bins, fmin=fmin, fmax=fmax, ref=ref, amin=amin, top_db=top_db,
             freeze_parameters=True)
+
+        init_bn(self.bn0)
 
     def forward(self, input):
         """Input: (batch_size, data_length)"""

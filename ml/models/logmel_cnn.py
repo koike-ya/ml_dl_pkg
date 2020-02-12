@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from ml.models.misc import LogMel
+from ml.models.nn_utils import initialize_weights, init_bn
 
 
 class ConvBlock(nn.Module):
@@ -25,8 +26,8 @@ class ConvBlock(nn.Module):
         self.init_weight()
 
     def init_weight(self):
-        init_layer(self.conv1)
-        init_layer(self.conv2)
+        initialize_weights(self.conv1)
+        initialize_weights(self.conv2)
         init_bn(self.bn1)
         init_bn(self.bn2)
 
@@ -68,9 +69,8 @@ class Cnn14(nn.Module):
         self.init_weight()
 
     def init_weight(self):
-        init_bn(self.bn0)
-        init_layer(self.fc1)
-        init_layer(self.fc_audioset)
+        initialize_weights(self.fc1)
+        initialize_weights(self.fc_audioset)
 
     def forward(self, input, extract=False):
         """
@@ -119,9 +119,10 @@ def construct_logmel_cnn(cfg):
     model = Cnn14(sample_rate=sample_rate, window_size=window_size, hop_size=hop_size, mel_bins=mel_bins,
                   fmin=fmin, fmax=fmax, classes_num=classes_num).to(device)
 
-    # checkpoint = torch.load(checkpoint_path, map_location=device)
-
-    # model.load_state_dict(checkpoint['model'])
+    if checkpoint_path:
+        model.fc_audioset = nn.Linear(2048, 527, bias=True)
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+        model.load_state_dict(checkpoint['model'])
     model.fc_audioset = nn.Linear(2048, len(cfg['class_names']), bias=True)
 
     return model

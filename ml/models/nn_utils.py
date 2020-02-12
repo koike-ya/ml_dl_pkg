@@ -14,8 +14,7 @@ def get_param_size(model):
 def initialize_weights(model):
     if type(model) in [nn.Linear]:
         nn.init.xavier_uniform_(model.weight)
-        if model.bias:
-            nn.init.zeros_(model.bias)
+
     elif type(model) in [nn.LSTM, nn.RNN, nn.GRU]:
         nn.init.orthogonal_(model.weight_hh_l0)
         nn.init.xavier_uniform_(model.weight_ih_l0)

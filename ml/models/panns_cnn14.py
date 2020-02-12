@@ -67,7 +67,7 @@ class ConvBlock(nn.Module):
 
 class Cnn14_no_specaug(nn.Module):
     def __init__(self, sample_rate, window_size, hop_size, mel_bins, fmin,
-                 fmax, classes_num):
+                 fmax, classes_num, checkpoint_path):
         super(Cnn14_no_specaug, self).__init__()
 
         window = 'hann'
@@ -87,19 +87,38 @@ class Cnn14_no_specaug(nn.Module):
         self.conv_block6 = ConvBlock(in_channels=1024, out_channels=2048)
 
         self.fc1 = nn.Linear(2048, 2048, bias=True)
-        self.fc_audioset = nn.Linear(2048, classes_num, bias=True)
+        self.fc_audioset = nn.Linear(2048, 527, bias=True)
 
         # Spectrogram extractor
-        self.spectrogram_extractor = Spectrogram(n_fft=window_size, hop_length=hop_size,
-            win_length=window_size, window=window, center=center, pad_mode=pad_mode,
+        self.spectrogram_extractor = Spectrogram(n_fft=1024, hop_length=320,
+            win_length=1024, window=window, center=center, pad_mode=pad_mode,
             freeze_parameters=True)
 
         # Logmel feature extractor
-        self.logmel_extractor = LogmelFilterBank(sr=sample_rate, n_fft=window_size,
-            n_mels=mel_bins, fmin=fmin, fmax=fmax, ref=ref, amin=amin, top_db=top_db,
+        self.logmel_extractor = LogmelFilterBank(sr=2000, n_fft=1024,
+            n_mels=64, fmin=fmin, fmax=fmax, ref=ref, amin=amin, top_db=top_db,
             freeze_parameters=True)
 
         self.init_weight()
+
+        if checkpoint_path:
+            checkpoint = torch.load(checkpoint_path, map_location='cpu')
+            self.load_state_dict(checkpoint['model'])
+
+        # Spectrogram extractor
+        self.spectrogram_extractor = Spectrogram(n_fft=window_size, hop_length=hop_size,
+                                                 win_length=window_size, window=window, center=center,
+                                                 pad_mode=pad_mode,
+                                                 freeze_parameters=True)
+
+        # Logmel feature extractor
+        self.logmel_extractor = LogmelFilterBank(sr=sample_rate, n_fft=window_size,
+                                                 n_mels=mel_bins, fmin=fmin, fmax=fmax, ref=ref, amin=amin,
+                                                 top_db=top_db,
+                                                 freeze_parameters=True)
+        self.bn0 = nn.BatchNorm2d(mel_bins)
+
+        self.fc_audioset = nn.Linear(2048, classes_num, bias=True)
 
     def init_weight(self):
         init_bn(self.bn0)
@@ -155,29 +174,18 @@ class Cnn14_no_specaug(nn.Module):
         return clipwise_output
 
 
-def construct_panns(cfg, infer=False):
-    window_size = cfg['window_size']
-    hop_size = cfg['window_stride']
+def construct_panns(cfg):
+    sample_rate = cfg['sample_rate']
+    window_size = cfg['window_size'] * sample_rate
+    hop_size = cfg['window_stride'] * sample_rate
     mel_bins = cfg['n_mels']
     fmin = cfg['low_cutoff']
     fmax = cfg['high_cutoff']
+
     checkpoint_path = cfg['checkpoint_path']
     device = torch.device('cuda') if cfg['cuda'] and torch.cuda.is_available() else torch.device('cpu')
 
-    sample_rate = 2000
-    classes_num = 527
-
-    model = Cnn14_no_specaug(sample_rate=sample_rate, window_size=window_size,
-                             hop_size=hop_size, mel_bins=mel_bins, fmin=fmin, fmax=fmax,
-                             classes_num=classes_num)
-
-    checkpoint = torch.load(checkpoint_path, map_location=device)
-
-    if infer:
-        model.fc_audioset = nn.Linear(2048, len(cfg['class_names']), bias=True)
-        model.load_state_dict(checkpoint)
-    else:
-        model.load_state_dict(checkpoint['model'])
-        model.fc_audioset = nn.Linear(2048, len(cfg['class_names']), bias=True)
+    model = Cnn14_no_specaug(sample_rate=sample_rate, window_size=window_size, hop_size=hop_size, mel_bins=mel_bins,
+                             fmin=fmin, fmax=fmax, classes_num=len(cfg['class_names']), checkpoint_path=checkpoint_path).to(device)
 
     return model
