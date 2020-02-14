@@ -12,6 +12,7 @@ from ml.models.cnn import construct_cnn
 from ml.models.logmel_cnn import construct_logmel_cnn
 from ml.models.attention import construct_attention_cnn
 from ml.models.panns_cnn14 import construct_panns
+from ml.models.multitask_panns_model import construct_multitask_panns
 from ml.models.ml_model import MLModel
 from ml.models.nn_utils import get_param_size
 from ml.models.pretrained_models import construct_pretrained, supported_pretrained_models
@@ -55,6 +56,8 @@ class NNModel(BaseModel):
             model = construct_panns(self.cfg)
         elif self.cfg['model_type'] == 'attention_cnn':
             model = construct_attention_cnn(self.cfg)
+        elif self.cfg['model_type'] == 'multitask_panns':
+            model = construct_multitask_panns(self.cfg)
         else:
             raise NotImplementedError('model_type should be either rnn or cnn, nn would be implemented in the future.')
 

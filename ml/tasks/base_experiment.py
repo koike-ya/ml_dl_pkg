@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from librosa.core import load
 from ml.models.model_manager import BaseModelManager
+from ml.models.multitask_model_manager import MultitaskModelManager
 from ml.src.cv_manager import KFoldManager, SUPPORTED_CV
 from ml.src.dataloader import set_dataloader, set_ml_dataloader
 from ml.src.dataset import ManifestWaveDataSet
@@ -19,6 +20,7 @@ from ml.tasks.train_manager import train_manager_args
 from ml.utils.utils import Metrics
 
 DATALOADERS = {'normal': set_dataloader, 'ml': set_ml_dataloader}
+MODELMANAGERS = {'normal': BaseModelManager, 'multitask': MultitaskModelManager}
 
 
 def base_expt_args(parser):
@@ -31,6 +33,8 @@ def base_expt_args(parser):
     expt_parser.add_argument('--n-splits', type=int, help='Number of split on cv', default=0)
     expt_parser.add_argument('--train-with-all', action='store_true',
                              help='Whether train with train+devel dataset after hyperparameter tuning')
+    expt_parser.add_argument('--model-manager', choices=MODELMANAGERS.keys(), default='normal')
+    expt_parser.add_argument('--data-loader', choices=DATALOADERS.keys(), default='normal')
 
     return parser
 
@@ -40,6 +44,8 @@ class BaseExperimentor(metaclass=ABCMeta):
         self.cfg = cfg
         self.load_func = load_func
         self.label_func = label_func
+        self.data_loader_cls = DATALOADERS[cfg['data_loader']]
+        self.model_manager_cls = MODELMANAGERS[cfg['model_manager']]
 
     def _experiment(self, val_metrics, phases) -> Tuple[Metrics, np.array]:
         dataloaders = {}
@@ -47,7 +53,7 @@ class BaseExperimentor(metaclass=ABCMeta):
             process_func = Preprocessor(self.cfg, phase, self.cfg['sample_rate']).preprocess
             dataset = ManifestWaveDataSet(self.cfg[f'{phase}_path'], self.cfg, self.load_func, process_func,
                                           self.label_func, phase)
-            dataloaders[phase] = DATALOADERS['normal'](dataset, phase, self.cfg)
+            dataloaders[phase] = self.data_loader_cls(dataset, phase, self.cfg)
 
         train_metrics = get_metrics(['loss', 'uar'])
         if val_metrics:
@@ -56,7 +62,7 @@ class BaseExperimentor(metaclass=ABCMeta):
         else:
             metrics = {'train': train_metrics}
 
-        model_manager = BaseModelManager(self.cfg['class_names'], self.cfg, dataloaders, metrics)
+        model_manager = self.model_manager_cls(self.cfg['class_names'], self.cfg, dataloaders, metrics)
 
         if phases == ['train', 'infer']:
             metrics = model_manager.train(with_validate=False)

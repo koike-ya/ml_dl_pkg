@@ -102,10 +102,8 @@ def get_metrics(metric_names, target_metric=None):
         assert name in ALLOWED_METRICS, f'You need to select metrics from {ALLOWED_METRICS}'
 
     metrics = []
-    for one_metric in ALLOWED_METRICS:
-        if one_metric in metric_names:
-
-            metrics.append(Metric(one_metric, save_model=one_metric == target_metric))
+    for one_metric in metric_names:
+        metrics.append(Metric(one_metric, save_model=one_metric == target_metric))
 
     return metrics
 
