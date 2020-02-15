@@ -1,9 +1,14 @@
+import copy
+import logging
+from typing import Tuple
+
 import numpy as np
 import torch
-import copy
-from typing import Tuple
-from apex import amp
 from sklearn.exceptions import NotFittedError
+
+from apex import amp
+
+logger = logging.getLogger(__name__)
 
 from ml.models.base_model import BaseModel
 from ml.models.rnn import construct_rnn
@@ -69,7 +74,7 @@ class NNModel(BaseModel):
             self.load_model(model)
             model.change_last_layer(len(orig_classes))
 
-        print(f'Model Parameters: {get_param_size(model)}')
+        logger.info(f'Model Parameters: {get_param_size(model)}')
 
         return model
 
@@ -173,10 +178,10 @@ class NNModel(BaseModel):
         try:
             self.model.load_state_dict(torch.load(self.cfg['model_path'], map_location=self.device))
             self.model.to(self.device)
-            print('Saved model loaded.')
+            logger.info('Saved model loaded.')
         except FileNotFoundError as e:
-            print(e)
-            print(f"trained model file doesn't exist at {self.cfg['model_path']}")
+            logger.info(e)
+            logger.info(f"trained model file doesn't exist at {self.cfg['model_path']}")
             exit(1)
 
         self.fitted = True
@@ -201,4 +206,4 @@ class NNModel(BaseModel):
     def update_by_epoch(self, phase):
         for g in self.optimizer.param_groups:
             g['lr'] = g['lr'] / self.cfg['learning_anneal']
-        print(f"Learning rate annealed to: {g['lr']:.6f}")
+        logger.info(f"Learning rate annealed to: {g['lr']:.6f}")

@@ -1,5 +1,5 @@
-import copy
-from typing import Tuple, List
+import logging
+from typing import Tuple
 
 import numpy as np
 import torch
@@ -9,6 +9,7 @@ from ml.models.nn_model import NNModel
 from ml.models.nn_utils import get_param_size
 from sklearn.exceptions import NotFittedError
 
+logger = logging.getLogger(__name__)
 from apex import amp
 
 
@@ -35,7 +36,7 @@ class MultitaskNNModel(NNModel):
         else:
             raise NotImplementedError('model_type should be either rnn or cnn, nn would be implemented in the future.')
 
-        print(f'Model Parameters: {get_param_size(model)}')
+        logger.info(f'Model Parameters: {get_param_size(model)}')
 
         return model
 

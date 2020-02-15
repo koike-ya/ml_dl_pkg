@@ -1,7 +1,11 @@
-from ml.models.panns_cnn14 import Cnn14_no_specaug
+import logging
+
 import torch
-from torch import nn
 import torch.nn.functional as F
+from ml.models.panns_cnn14 import Cnn14_no_specaug
+from torch import nn
+
+logger = logging.getLogger(__name__)
 
 
 class MultitaskPanns(Cnn14_no_specaug):
@@ -47,6 +51,7 @@ class MultitaskPanns(Cnn14_no_specaug):
         x_a = F.relu_(self.fc_arousal(x))
         pred_v = torch.sigmoid(self.classifier_valence(x_v))
         pred_a = torch.sigmoid(self.classifier_valence(x_a))
+        # logger.debug(pred_a, pred_v)
 
         return pred_v, pred_a
 

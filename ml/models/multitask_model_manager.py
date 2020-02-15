@@ -1,21 +1,17 @@
-import random
-import time
-import sys
 import argparse
-from abc import ABCMeta
-from contextlib import contextmanager
-from pathlib import Path
+import logging
+import sys
+import time
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 import torch
 from copy import deepcopy
 from ml.models.multitask_nn_model import MultitaskNNModel
-from ml.models.nn_model import supported_nn_models, supported_pretrained_models
-from ml.models.model_manager import supported_nn_models, supported_ml_models, model_manager_args, BaseModelManager
-from sklearn.metrics import confusion_matrix
-from ml.utils.logger import TensorBoardLogger
+from ml.models.model_manager import model_manager_args, BaseModelManager
 from tqdm import tqdm
-from typing import Sequence, Tuple, Dict, List, Union
+from typing import List
 from ml.utils.utils import Metrics
 
 
@@ -46,35 +42,6 @@ class MultitaskModelManager(BaseModelManager):
 
         return device
 
-    def _verbose(self, epoch, phase, i, elapsed) -> None:
-        data_len = len(self.dataloaders[phase])
-        eta = int(elapsed / (i + 1) * (data_len - (i + 1)))
-        progress = f'\r{phase} epoch: [{epoch + 1}][{i + 1}/{data_len}]\t {elapsed}(s) eta:{eta}(s)\t'
-        progress += '\t'.join([f'{metric.name} {metric.average_meter.value:.4f}' for metric in self.metrics[phase]])
-        print(progress, end='')
-        sys.stdout.flush()
-
-    def _record_log(self, phase, epoch) -> None:
-        values = {}
-
-        for metric in self.metrics[phase]:
-            values[phase + '_' + metric.name] = metric.average_meter[phase].average
-        self.logger.update(epoch, values)
-
-    def _update_by_epoch(self, phase, epoch, learning_anneal) -> None:
-        for metric in self.metrics[phase]:
-            best_flag = metric.average_meter.update_best()
-            if metric.save_model and best_flag and phase == 'val':
-                print(f"Found better validated model, saving to {self.cfg['model_path']}")
-                self.model.save_model()
-
-            # reset epoch average meter
-            metric.average_meter.reset()
-
-        # anneal lr
-        if phase == 'train':
-            self.model.anneal_lr(learning_anneal)
-
     def train(self, model=None, with_validate=True) -> Metrics:
         if model:
             self.model = model
@@ -100,8 +67,7 @@ class MultitaskModelManager(BaseModelManager):
                     for j, metric in enumerate(self.metrics[phase]):
                         metric.update(loss, predicts[:, j // 2], labels[j // 2].numpy())
 
-                    if not self.cfg['silent']:
-                        self._verbose(epoch, phase, i, elapsed=int(time.time() - start))
+                    self._verbose(epoch, phase, i, elapsed=int(time.time() - start))
 
                 if self.logger:
                     self._record_log(phase, epoch)
@@ -110,14 +76,7 @@ class MultitaskModelManager(BaseModelManager):
 
                 self._update_by_epoch(phase, epoch, self.cfg['learning_anneal'])
 
-            if self.cfg['silent']:
-                print(f'epoch {str(epoch + 1).ljust(2)}->', end=' ')
-                print(f'lr: {self.model.get_lr():.6f}', end='\t')
-                for phase in phases:
-                    print(f'{phase}: [', end='')
-                    print('\t'.join([f'{m.name}: {m.average_meter.average:.4f}' for m in epoch_metrics[phase]]), end='')
-                    print(']', end='\t')
-                print('')
+            self._epoch_verbose(epoch, epoch_metrics, phases)
 
         if self.logger:
             self.logger.close()
