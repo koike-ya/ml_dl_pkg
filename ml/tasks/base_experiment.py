@@ -78,11 +78,21 @@ class BaseExperimentor(metaclass=ABCMeta):
         metrics, pred = self._experiment(val_metrics, phases)
         return np.array([m.average_meter.best_score for m in metrics['val']]), pred
 
-    def experiment_without_validation(self) -> np.array:
+    def experiment_without_validation(self, seed_average=0) -> np.array:
         phases = ['train', 'infer']
-        _, pred = self._experiment(val_metrics=None, phases=phases)
 
-        return pred
+        if not seed_average:
+            _, pred = self._experiment(val_metrics=None, phases=phases)
+            return pred
+
+        else:
+            pred_list = []
+            for seed in range(self.cfg['seed']):
+                _, pred = self._experiment(val_metrics=None, phases=phases)
+                pred_list.append(pred)
+
+            assert np.array(pred_list).T.shape[1] == seed_average
+            return np.array(pred_list).T.mean(axis=1)
 
 
 class CrossValidator(BaseExperimentor):
