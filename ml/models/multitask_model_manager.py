@@ -11,7 +11,7 @@ from copy import deepcopy
 from ml.models.multitask_nn_model import MultitaskNNModel
 from ml.models.model_manager import model_manager_args, BaseModelManager
 from tqdm import tqdm
-from typing import List
+from typing import List, Tuple
 from ml.utils.utils import Metrics
 
 
@@ -42,7 +42,7 @@ class MultitaskModelManager(BaseModelManager):
 
         return device
 
-    def train(self, model=None, with_validate=True) -> Metrics:
+    def train(self, model=None, with_validate=True) -> Tuple[Metrics, np.array]:
         if model:
             self.model = model
 
@@ -62,7 +62,6 @@ class MultitaskModelManager(BaseModelManager):
                     # labels = [label.to(self.device) for label in labels]
                     loss, predicts = self.model.fit(inputs.to(self.device), labels, phase)
 
-                    # for i_task in range(self.n_tasks):
                     # save loss and metrics in one batch
                     for j, metric in enumerate(self.metrics[phase]):
                         metric.update(loss, predicts[:, j // 2], labels[j // 2].numpy())
@@ -74,14 +73,16 @@ class MultitaskModelManager(BaseModelManager):
 
                 epoch_metrics[phase] = deepcopy(self.metrics[phase])
 
-                self._update_by_epoch(phase, epoch, self.cfg['learning_anneal'])
+                best_val_flag = self._update_by_epoch(phase, epoch, self.cfg['learning_anneal'])
+                if best_val_flag:
+                    best_val_pred = predicts
 
             self._epoch_verbose(epoch, epoch_metrics, phases)
 
         if self.logger:
             self.logger.close()
 
-        return self.metrics
+        return self.metrics, best_val_pred
 
     def infer(self, load_best=True, phase='infer') -> List[np.array]:
         if load_best:

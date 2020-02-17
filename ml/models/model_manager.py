@@ -26,7 +26,7 @@ supported_models = supported_ml_models + supported_nn_models + list(supported_pr
 
 
 def type_float_list(args) -> Union[List[float], str]:
-    if args == 'same':
+    if args in ['same', None]:
         return args
     return list(map(float, args.split(',')))
 
@@ -58,7 +58,7 @@ def model_manager_args(parser) -> argparse.ArgumentParser:
     hyper_param_parser.add_argument('--n-jobs', default=4, type=int, help='Number of workers used in data-loading')
     hyper_param_parser.add_argument('--loss-weight', default='same', type=type_float_list,
                                     help='The weights of all class about loss')
-    hyper_param_parser.add_argument('--sample-balance', default='0.0,0.0', type=type_float_list,
+    hyper_param_parser.add_argument('--sample-balance', default=None, type=type_float_list,
                                     help='Sampling label balance from dataset.')
     hyper_param_parser.add_argument('--epochs', default=20, type=int, help='Number of training epochs')
     hyper_param_parser.add_argument('--tta', default=0, type=int, help='Number of test time augmentation ensemble')
@@ -160,15 +160,18 @@ class BaseModelManager(metaclass=ABCMeta):
         values = {}
 
         for metric in self.metrics[phase]:
-            values[phase + '_' + metric.name] = metric.average_meter[phase].average
+            values[f'{phase}_{metric.name}_mean'] = metric.average_meter.average
         self.logger.update(epoch, values)
 
-    def _update_by_epoch(self, phase, epoch, learning_anneal) -> None:
+    def _update_by_epoch(self, phase, epoch, learning_anneal) -> bool:
+        best_val_flag = False
+
         for metric in self.metrics[phase]:
             best_flag = metric.average_meter.update_best()
             if metric.save_model and best_flag and phase == 'val':
                 logger.info(f"Found better validated model, saving to {self.cfg['model_path']}")
                 self.model.save_model()
+                best_val_flag = True
 
             # reset epoch average meter
             metric.average_meter.reset()
@@ -176,6 +179,8 @@ class BaseModelManager(metaclass=ABCMeta):
         # anneal lr
         if phase == 'train':
             self.model.anneal_lr(learning_anneal)
+
+        return best_val_flag
 
     def _epoch_verbose(self, epoch, epoch_metrics, phases):
         message = f'epoch {str(epoch + 1).ljust(2)}-> lr: {self.model.get_lr():.6f}\t'
@@ -209,12 +214,13 @@ class BaseModelManager(metaclass=ABCMeta):
 
         return pred_list, label_list
 
-    def train(self, model=None, with_validate=True) -> Metrics:
+    def train(self, model=None, with_validate=True) -> Tuple[Metrics, np.array]:
         if model:
             self.model = model
 
         start = time.time()
         epoch_metrics = {}
+        best_val_pred = np.array([])
 
         if with_validate:
             phases = ['train', 'val']
@@ -240,14 +246,16 @@ class BaseModelManager(metaclass=ABCMeta):
 
                 epoch_metrics[phase] = deepcopy(self.metrics[phase])
 
-                self._update_by_epoch(phase, epoch, self.cfg['learning_anneal'])
+                best_val_flag = self._update_by_epoch(phase, epoch, self.cfg['learning_anneal'])
+                if best_val_flag:
+                    best_val_pred = predicts
 
             self._epoch_verbose(epoch, epoch_metrics, phases)
 
         if self.logger:
             self.logger.close()
 
-        return self.metrics
+        return self.metrics, best_val_pred
 
     def test(self, return_metrics=False, load_best=True, phase='test') -> Union[Tuple[np.array, np.array, Metrics],
                                                                                 Tuple[np.array, np.array]]:

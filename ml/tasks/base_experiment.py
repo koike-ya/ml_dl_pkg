@@ -2,7 +2,7 @@ import logging
 import tempfile
 from abc import ABCMeta
 from copy import deepcopy
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict, List, Union
 
 import mlflow
 import numpy as np
@@ -46,8 +46,12 @@ class BaseExperimentor(metaclass=ABCMeta):
         self.dataset_cls = dataset_cls
         self.data_loader_cls = DATALOADERS[cfg['data_loader']]
         self.model_manager_cls = MODELMANAGERS[cfg['model_manager']]
+        if cfg['task_type'] == 'classify':
+            self.train_metrics = get_metrics(['loss', 'uar'])
+        else:
+            self.train_metrics = get_metrics(['loss'])
 
-    def _experiment(self, val_metrics, phases) -> Tuple[Metrics, np.array]:
+    def _experiment(self, val_metrics, phases) -> Union[Tuple[Metrics, np.array], Tuple[Metrics, np.array, np.array]]:
         dataloaders = {}
         for phase in phases:
             process_func = Preprocessor(self.cfg, phase, self.cfg['sample_rate']).preprocess
@@ -55,28 +59,36 @@ class BaseExperimentor(metaclass=ABCMeta):
                                           self.label_func, phase)
             dataloaders[phase] = self.data_loader_cls(dataset, phase, self.cfg)
 
-        train_metrics = get_metrics(['loss', 'uar'])
         if val_metrics:
             val_metrics = get_metrics(val_metrics, target_metric='loss')
-            metrics = {'train': train_metrics, 'val': val_metrics}
+            metrics = {'train': self.train_metrics, 'val': val_metrics}
         else:
-            metrics = {'train': train_metrics}
+            metrics = {'train': self.train_metrics}
 
         model_manager = self.model_manager_cls(self.cfg['class_names'], self.cfg, dataloaders, metrics)
 
-        if phases == ['train', 'infer']:
-            metrics = model_manager.train(with_validate=False)
-        else:
-            metrics = model_manager.train()
+        if 'val' in phases:
+            metrics, val_pred = model_manager.train()
+        else:       # This is only phases == ['train', 'infer']
+            metrics, _ = model_manager.train(with_validate=False)
+            pred = model_manager.infer()
+            return metrics, pred
 
-        pred = model_manager.infer()
+        if 'infer' in phases:   # phases == ['train', 'val', 'infer']
+            pred = model_manager.infer()
+            return metrics, val_pred, pred
+        else:       # phases == ['train', 'val']
+            return metrics, val_pred
 
-        return metrics, pred
+    def train_with_validation(self, val_metrics: List[str]) -> Tuple[np.array, np.array]:
+        phases = ['train', 'val']
+        metrics, val_pred = self._experiment(val_metrics, phases)
+        return np.array([m.average_meter.best_score for m in metrics['val']]), val_pred
 
-    def experiment_with_validation(self, val_metrics: List[str]) -> Tuple[np.array, np.array]:
+    def experiment_with_validation(self, val_metrics: List[str]) -> Tuple[np.array, np.array, np.array]:
         phases = ['train', 'val', 'infer']
-        metrics, pred = self._experiment(val_metrics, phases)
-        return np.array([m.average_meter.best_score for m in metrics['val']]), pred
+        metrics, val_pred, pred = self._experiment(val_metrics, phases)
+        return np.array([m.average_meter.best_score for m in metrics['val']]), val_pred, pred
 
     def experiment_without_validation(self, seed_average=0) -> np.array:
         phases = ['train', 'infer']
@@ -104,12 +116,19 @@ class CrossValidator(BaseExperimentor):
         self.groups = groups
         self.metrics_df = pd.DataFrame()
         self.pred_list = []
+        self.val_pred_list = []
+
+    def _save_path(self, df_x, train_idx, val_idx, temp_dir):
+        df_x.iloc[train_idx, :].to_csv(f'{temp_dir}/train_manifest.csv', header=None, index=False)
+        df_x.iloc[val_idx, :].to_csv(f'{temp_dir}/val_manifest.csv', header=None, index=False)
+        self.cfg[f'train_path'] = f'{temp_dir}/train_manifest.csv'
+        self.cfg[f'val_path'] = f'{temp_dir}/val_manifest.csv'
 
     def set_metrics_df(self, result_list: List[float]):
         self.metrics_df = pd.concat([self.metrics_df.T, pd.Series(result_list)], axis=1).T
         assert self.metrics_df.shape[1] == len(result_list), self.metrics_df
 
-    def experiment_with_validation(self, val_metrics: List[str]) -> Tuple[np.array, np.array]:
+    def train_with_validation(self, val_metrics: List[str]) -> Tuple[np.array, List[np.array]]:
         df_x = pd.concat([pd.read_csv(self.orig_cfg[f'train_path'], header=None),
                           pd.read_csv(self.orig_cfg[f'val_path'], header=None)])
         y = df_x.apply(lambda x: self.label_func(x), axis=1)
@@ -120,23 +139,57 @@ class CrossValidator(BaseExperimentor):
         for i, (train_idx, val_idx) in enumerate(k_fold.split(X=df_x.values, y=y.values, groups=self.groups)):
             logger.info(f'Fold {i + 1} started.')
             with tempfile.TemporaryDirectory() as temp_dir:
-                df_x.iloc[train_idx, :].to_csv(f'{temp_dir}/train_manifest.csv', header=None, index=False)
-                df_x.iloc[val_idx, :].to_csv(f'{temp_dir}/val_manifest.csv', header=None, index=False)
-                self.cfg[f'train_path'] = f'{temp_dir}/train_manifest.csv'
-                self.cfg[f'val_path'] = f'{temp_dir}/val_manifest.csv'
+                self._save_path(df_x, train_idx, val_idx, temp_dir)
 
-                result_series, pred = super().experiment_with_validation(val_metrics)
-                self.pred_list.append(pred)
+                result_series, val_pred = super().train_with_validation(val_metrics)
+                self.val_pred_list.append(val_pred)
                 self.set_metrics_df(result_series)
 
         self.metrics_df.columns = val_metrics
         self.cfg['train_path'] = self.orig_cfg['train_path']
         self.cfg['val_path'] = self.orig_cfg['val_path']
 
-        return self.metrics_df.mean(axis=0).values, np.array(self.pred_list).mean(axis=1)
+        return self.metrics_df.mean(axis=0).values, self.val_pred_list
+
+    def experiment_with_validation(self, val_metrics: List[str]) -> Tuple[np.array, List[np.array], np.array]:
+        df_x = pd.concat([pd.read_csv(self.orig_cfg[f'train_path'], header=None),
+                          pd.read_csv(self.orig_cfg[f'val_path'], header=None)])
+        y = df_x.apply(lambda x: self.label_func(x), axis=1)
+        logger.info(y.value_counts())
+
+        k_fold = KFoldManager(self.cv_name, self.n_splits)
+
+        for i, (train_idx, val_idx) in enumerate(k_fold.split(X=df_x.values, y=y.values, groups=self.groups)):
+            logger.info(f'Fold {i + 1} started.')
+            with tempfile.TemporaryDirectory() as temp_dir:
+                self._save_path(df_x, train_idx, val_idx, temp_dir)
+
+                result_series, val_pred, pred = super().experiment_with_validation(val_metrics)
+                self.pred_list.append(pred)
+                self.val_pred_list.append(val_pred)
+                self.set_metrics_df(result_series)
+
+        self.metrics_df.columns = val_metrics
+        self.cfg['train_path'] = self.orig_cfg['train_path']
+        self.cfg['val_path'] = self.orig_cfg['val_path']
+
+        return self.metrics_df.mean(axis=0).values, self.val_pred_list, np.array(self.pred_list).mean(axis=1)
 
     def experiment_without_validation(self, seed_average=0) -> np.array:
         raise NotImplementedError
+
+
+def typical_train(expt_conf, load_func, label_func, dataset_cls, groups, val_metrics):
+    if expt_conf['cv_name']:
+        experimentor = CrossValidator(expt_conf, load_func, label_func, dataset_cls, expt_conf['cv_name'], expt_conf['n_splits'],
+                                      groups)
+    else:
+        experimentor = BaseExperimentor(expt_conf, load_func, label_func, dataset_cls)
+
+    result_series, val_pred = experimentor.train_with_validation(val_metrics)
+    mlflow.log_metrics({metric_name: value for metric_name, value in zip(val_metrics, result_series)})
+
+    return result_series, val_pred
 
 
 def typical_experiment(expt_conf, load_func, label_func, dataset_cls, groups, val_metrics):
