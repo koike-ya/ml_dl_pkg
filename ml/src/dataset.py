@@ -134,7 +134,7 @@ class ManifestDataSet(BaseDataSet):
 
     def _set_labels(self, labels=None):
         if self.label_func:
-            return [self.label_func(row) for i, row in self.path_df.iterrows()]
+            return self.path_df.apply(self.label_func, axis=1)
         else:
             return labels
 

@@ -62,6 +62,7 @@ def model_manager_args(parser) -> argparse.ArgumentParser:
                                     help='Sampling label balance from dataset.')
     hyper_param_parser.add_argument('--epochs', default=20, type=int, help='Number of training epochs')
     hyper_param_parser.add_argument('--tta', default=0, type=int, help='Number of test time augmentation ensemble')
+    hyper_param_parser.add_argument('--mixup-alpha', default=0.0, type=float, help='Beta distirbution alpha for mixup.')
     hyper_param_parser.add_argument('--retrain-epochs', default=5, type=int, help='Number of training epochs')
 
     # General parameters for training

@@ -31,9 +31,13 @@ class NNModel(BaseModel):
         must_contain_keys = ['lr', 'weight_decay', 'momentum', 'learning_anneal']
         super().__init__(class_labels, cfg, must_contain_keys)
         self.device = torch.device('cuda' if cfg['cuda'] else 'cpu')
-        self.feature_extract = cfg.get('feature_extract', False)
         self.model = self._init_model(transfer=cfg['transfer']).to(self.device)
-        self.criterion = self.criterion.to(self.device)
+        self.mixup_alpha = cfg['mixup_alpha']
+        if self.mixup_alpha:
+            self._orig_criterion = self.criterion.to(self.device)
+            self.criterion = self._mixup_criterion(lamb=1.0)
+        else:
+            self.criterion = self.criterion.to(self.device)
         self.optimizer = self._set_optimizer()
         self.fitted = False
         self.amp = cfg.get('amp', False)
@@ -66,9 +70,6 @@ class NNModel(BaseModel):
         else:
             raise NotImplementedError('model_type should be either rnn or cnn, nn would be implemented in the future.')
 
-        if self.feature_extract:
-            self.predictor = MLModel(self.class_labels, self.cfg, 'svm')
-
         if transfer:
             self.class_labels = orig_classes
             self.load_model(model)
@@ -77,6 +78,17 @@ class NNModel(BaseModel):
         logger.info(f'Model Parameters: {get_param_size(model)}')
 
         return model
+
+    def _mixup_criterion(self, lamb):
+        def mixup_criterion_func(pred, lables):
+            batch_size = pred.size(0)
+            y_orig, y_shuffled = lables[:batch_size], lables[batch_size:]
+            return lamb * self._orig_criterion(pred, y_orig) + (1 - lamb) * self._orig_criterion(pred, y_shuffled)
+
+        if lamb < 1:
+            return mixup_criterion_func
+        else:
+            return self._orig_criterion
 
     def _set_optimizer(self):
         supported_optimizers = {
@@ -89,28 +101,31 @@ class NNModel(BaseModel):
         }
         return supported_optimizers[self.cfg['optimizer']]
 
+    def _mixup_data(self, inputs, labels, phase):
+        if phase == 'train':
+            lamb = np.random.beta(self.mixup_alpha, self.mixup_alpha)
+            index = torch.randperm(inputs.size(0)).to(self.device)
+            inputs = lamb * inputs + (1 - lamb) * inputs[index, :]
+
+            labels_orig, labels_shuffled = labels, labels[index]
+            labels = torch.cat((labels_orig, labels_shuffled), dim=0)
+        else:
+            lamb = 1
+
+        return inputs, labels, lamb
+
     def _fit_classify(self, inputs, labels, phase) -> Tuple[float, np.ndarray]:
+        if self.mixup_alpha:
+            inputs, labels, lamb = self._mixup_data(inputs, labels, phase)
+            self.criterion = self._mixup_criterion(lamb)
+
         with torch.set_grad_enabled(phase == 'train'):
             outputs = self.model(inputs)
 
-            if hasattr(self, 'predictor'):
-                extracted_features = outputs
-                if not self.predictor.fitted:
-                    self.predictor.fit(copy.copy(extracted_features).detach(), labels, phase='train')
-                outputs = torch.from_numpy(self.predictor.predict(copy.copy(extracted_features).detach()))
-
-                pred_onehot = torch.zeros(outputs.size(0), len(self.class_labels))
-                pred_onehot = pred_onehot.scatter_(1, outputs.view(-1, 1).type(torch.LongTensor), 1)
-                outputs = pred_onehot.to(self.device)
-
             y_onehot = torch.zeros(labels.size(0), len(self.class_labels))
-            y_onehot = y_onehot.scatter_(1, labels.view(-1, 1).type(torch.LongTensor), 1)
+            y_onehot = y_onehot.scatter_(1, labels.view(-1, 1).type(torch.LongTensor), 1).to(self.device)
 
-            loss = self.criterion(outputs, y_onehot.to(self.device))
-
-            if hasattr(self, 'predictor'):
-                loss = extracted_features.sum().to(self.device) - extracted_features.sum().to(self.device)
-                loss += self.criterion(outputs, y_onehot.to(self.device))
+            loss = self.criterion(outputs, y_onehot)
 
             if phase == 'train':
                 self.optimizer.zero_grad()
@@ -121,14 +136,15 @@ class NNModel(BaseModel):
                     loss.backward(retain_graph=True)
                 self.optimizer.step()
 
-                if hasattr(self, 'predictor'):
-                    self.predictor.fit(copy.copy(extracted_features).detach(), labels, phase=phase)
-
             _, preds = torch.max(outputs, 1)
 
         return loss.item(), preds.cpu().numpy()
 
     def _fit_regress(self, inputs, labels, phase) -> Tuple[float, np.ndarray]:
+        if self.mixup_alpha:
+            inputs, labels, lamb = self._mixup_data(inputs, labels, phase)
+            self.criterion = self._mixup_criterion(lamb)
+
         with torch.set_grad_enabled(phase == 'train'):
             preds = self.model(inputs)
 
