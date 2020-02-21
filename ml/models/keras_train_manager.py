@@ -6,13 +6,13 @@ import pandas as pd
 import torch
 from ml.models.bonn_rnn import BonnRNN
 from ml.models.cnns_on_chb_mit import CHBMITCNN
-from ml.models.model_manager import BaseModelManager
+from ml.models.train_manager import BaseTrainManager
 from tqdm import tqdm
 
 
-class KerasModelManager(BaseModelManager):
+class KerasTrainManager(BaseTrainManager):
     def __init__(self, class_labels, cfg, dataloaders, metrics):
-        super(KerasModelManager, self).__init__(class_labels, cfg, dataloaders, metrics)
+        super(KerasTrainManager, self).__init__(class_labels, cfg, dataloaders, metrics)
         os.environ["CUDA_VISIBLE_DEVICES"] = "0"
         Path(self.cfg['model_path']).parent.mkdir(exist_ok=True, parents=True)
 

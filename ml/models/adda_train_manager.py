@@ -31,16 +31,16 @@ def type_float_list(args) -> Union[List[float], str]:
     return list(map(float, args.split(',')))
 
 
-def model_manager_args(parser) -> argparse.ArgumentParser:
+def train_manager_args(parser) -> argparse.ArgumentParser:
 
-    model_manager_parser = parser.add_argument_group("Model manager arguments")
-    model_manager_parser.add_argument('--train-path', help='data file for training', default='input/train.csv')
-    model_manager_parser.add_argument('--val-path', help='data file for validation', default='input/val.csv')
-    model_manager_parser.add_argument('--test-path', help='data file for testing', default='input/test.csv')
+    train_manager_parser = parser.add_argument_group("Model manager arguments")
+    train_manager_parser.add_argument('--train-path', help='data file for training', default='input/train.csv')
+    train_manager_parser.add_argument('--val-path', help='data file for validation', default='input/val.csv')
+    train_manager_parser.add_argument('--test-path', help='data file for testing', default='input/test.csv')
 
-    model_manager_parser.add_argument('--model-type', default='cnn', choices=supported_models)
-    model_manager_parser.add_argument('--gpu-id', default=0, type=int, help='ID of GPU to use')
-    model_manager_parser.add_argument('--transfer', action='store_true', help='Transfer learning from model_path')
+    train_manager_parser.add_argument('--model-type', default='cnn', choices=supported_models)
+    train_manager_parser.add_argument('--gpu-id', default=0, type=int, help='ID of GPU to use')
+    train_manager_parser.add_argument('--transfer', action='store_true', help='Transfer learning from model_path')
 
     # optimizer params
     optim_param_parser = parser.add_argument_group("Optimizer parameter arguments for learning")
@@ -96,7 +96,7 @@ def simple_timer(label) -> None:
     logger.info('{}: {:.3f}'.format(label, end - start))
 
 
-class BaseModelManager(metaclass=ABCMeta):
+class BaseTrainManager(metaclass=ABCMeta):
     def __init__(self, class_labels, cfg, dataloaders, metrics):
         self.class_labels = class_labels
         self.cfg = cfg

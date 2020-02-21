@@ -102,6 +102,8 @@ class NNModel(BaseModel):
         return supported_optimizers[self.cfg['optimizer']]
 
     def _mixup_data(self, inputs, labels, phase):
+        # To be sure lamb is under 1.0 if phase == 'train' and equals 1.0 if phase != 'train'
+        suffix = 0.00001
         if phase == 'train':
             lamb = np.random.beta(self.mixup_alpha, self.mixup_alpha)
             index = torch.randperm(inputs.size(0)).to(self.device)
@@ -110,9 +112,9 @@ class NNModel(BaseModel):
             labels_orig, labels_shuffled = labels, labels[index]
             labels = torch.cat((labels_orig, labels_shuffled), dim=0)
         else:
-            lamb = 1
+            lamb = 1.0 + suffix
 
-        return inputs, labels, lamb
+        return inputs, labels, lamb - suffix
 
     def _fit_classify(self, inputs, labels, phase) -> Tuple[float, np.ndarray]:
         if self.mixup_alpha:
@@ -212,7 +214,7 @@ class NNModel(BaseModel):
 
             if self.cfg['task_type'] == 'classify':
                 if hasattr(self, 'predictor'):
-                    # TODO classifierも別ファイルに重みを保存しておいて、model_managerで読み込み
+                    # TODO classifierも別ファイルに重みを保存しておいて、train_managerで読み込み
                     preds = torch.from_numpy(self.predictor.predict(preds.detach()))
                 else:
                     _, preds = torch.max(preds, 1)

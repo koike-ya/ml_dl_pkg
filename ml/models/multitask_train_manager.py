@@ -9,23 +9,23 @@ import numpy as np
 import torch
 from copy import deepcopy
 from ml.models.multitask_nn_model import MultitaskNNModel
-from ml.models.model_manager import model_manager_args, BaseModelManager
+from ml.models.train_manager import train_manager_args, BaseTrainManager
 from tqdm import tqdm
 from typing import List, Tuple
 from ml.utils.utils import Metrics
 
 
-def multitask_model_manager_args(parser) -> argparse.ArgumentParser:
+def multitask_train_manager_args(parser) -> argparse.ArgumentParser:
 
-    multitask_model_manager_parser = parser.add_argument_group("Model manager arguments")
-    parser = model_manager_args(parser)
+    multitask_train_manager_parser = parser.add_argument_group("Model manager arguments")
+    parser = train_manager_args(parser)
 
     return parser
 
 
-class MultitaskModelManager(BaseModelManager):
+class MultitaskTrainManager(BaseTrainManager):
     def __init__(self, class_labels, cfg, dataloaders, metrics):
-        super(MultitaskModelManager, self).__init__(class_labels, cfg, dataloaders, metrics)
+        super(MultitaskTrainManager, self).__init__(class_labels, cfg, dataloaders, metrics)
         self.n_tasks = cfg['n_tasks']
 
     def _init_model(self) -> MultitaskNNModel:

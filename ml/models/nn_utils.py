@@ -29,3 +29,8 @@ def init_bn(bn):
 
     bn.bias.data.fill_(0.)
     bn.weight.data.fill_(1.)
+
+
+def set_requires_grad(model, requires_grad=True):
+    for param in model.parameters():
+        param.requires_grad = requires_grad
