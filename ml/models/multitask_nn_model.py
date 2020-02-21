@@ -13,13 +13,16 @@ logger = logging.getLogger(__name__)
 from apex import amp
 
 
-class MultitaskCriterion(torch.nn.BCELoss):
-    def __init__(self):
+class MultitaskCriterion(torch.nn.BCELoss, torch.nn.MSELoss):
+    def __init__(self, classify_flag):
         super().__init__()
+        self.classify_flag = classify_flag
 
     def forward(self, input, target):
-        return F.binary_cross_entropy(input[:, 0], target[:, 0], weight=self.weight) + \
-               F.binary_cross_entropy(input[:, 1], target[:, 1], weight=self.weight)
+        if self.classify_flag:
+            return F.binary_cross_entropy(input, target, weight=self.weight)
+        else:
+            return F.mse_loss(input, target)
 
 
 class MultitaskNNModel(NNModel):
@@ -28,7 +31,7 @@ class MultitaskNNModel(NNModel):
         self.n_tasks = cfg['n_tasks']
 
     def _set_criterion(self):
-        return MultitaskCriterion()
+        return MultitaskCriterion(len(self.class_labels) > 1)
 
     def _init_model(self, transfer=False):
         if self.cfg['model_type'] == 'multitask_panns':
@@ -66,6 +69,29 @@ class MultitaskNNModel(NNModel):
 
         return loss.item(), np.array(preds).T
 
+    def _fit_regress(self, inputs, labels, phase) -> Tuple[float, np.ndarray]:
+        with torch.set_grad_enabled(phase == 'train'):
+            preds = self.model(inputs)
+
+            loss = 0
+            for i in range(self.n_tasks):
+                loss += self.criterion(preds[i], labels[i].to(self.device).float())
+
+            if phase == 'train':
+                self.optimizer.zero_grad()
+                if self.amp:
+                    with amp.scale_loss(loss, self.optimizer) as loss:
+                        loss.backward()
+                else:
+                    loss.backward(retain_graph=True)
+                self.optimizer.step()
+
+            pred_list = []
+            for i in range(self.n_tasks):
+                pred_list.append(preds[i].detach().cpu().numpy())
+
+        return loss.item(), np.array(pred_list).reshape(-1, 2).T
+
     def predict(self, inputs) -> np.array:  # NNModelは自身がfittedを管理している
         if not self.fitted:
             raise NotFittedError(f'This NNModel instance is not fitted yet.')
@@ -74,10 +100,11 @@ class MultitaskNNModel(NNModel):
             self.model.eval()
             preds = self.model(inputs)
 
-            assert self.cfg['task_type'] == 'classify'
-
             pred_list = []
             for i in range(self.n_tasks):
-                pred_list.append(torch.max(preds[i], 1)[1].cpu().numpy())
+                if self.cfg['task_type'] == 'classify':
+                    pred_list.append(torch.max(preds[i], 1)[1].cpu().numpy())
+                else:
+                    pred_list.append(preds[i].detach().cpu().numpy())
 
         return np.array(pred_list).T

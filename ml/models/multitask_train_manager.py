@@ -48,6 +48,7 @@ class MultitaskTrainManager(BaseTrainManager):
 
         start = time.time()
         epoch_metrics = {}
+        best_val_pred = np.array([])
 
         if with_validate:
             phases = ['train', 'val']

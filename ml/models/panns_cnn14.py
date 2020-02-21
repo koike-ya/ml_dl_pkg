@@ -119,6 +119,7 @@ class Cnn14_no_specaug(nn.Module):
         self.bn0 = nn.BatchNorm2d(mel_bins)
 
         self.fc_audioset = nn.Linear(2048, classes_num, bias=True)
+        self.classify = classes_num > 1
 
     def init_weight(self):
         init_bn(self.bn0)
@@ -165,14 +166,13 @@ class Cnn14_no_specaug(nn.Module):
         x = F.dropout(x, p=0.5, training=self.training)
 
         x = F.relu_(self.fc1(x))
-        # embedding = F.dropout(x, p=0.5, training=self.training)
-        clipwise_output = torch.sigmoid(self.fc_audioset(x))
 
-        # output_dict = {'clipwise_output': clipwise_output, 'embedding': embedding}
-        # print(clipwise_output)
-        # exit()
+        if self.classify:
+            x = torch.sigmoid(self.fc_audioset(x))
+        else:
+            x = self.fc_audioset(x)
 
-        return clipwise_output
+        return x
 
 
 def construct_panns(cfg):

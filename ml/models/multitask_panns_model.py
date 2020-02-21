@@ -49,9 +49,13 @@ class MultitaskPanns(Cnn14_no_specaug):
         x = F.dropout(x, p=0.5, training=self.training)
         x_v = F.relu_(self.fc_valence(x))
         x_a = F.relu_(self.fc_arousal(x))
-        pred_v = torch.sigmoid(self.classifier_valence(x_v))
-        pred_a = torch.sigmoid(self.classifier_valence(x_a))
-        # logger.debug(pred_a, pred_v)
+
+        if self.classify:
+            pred_v = torch.sigmoid(self.classifier_valence(x_v))
+            pred_a = torch.sigmoid(self.classifier_valence(x_a))
+        else:
+            pred_v = self.classifier_valence(x_v)
+            pred_a = self.classifier_valence(x_a)
 
         return pred_v, pred_a
 
