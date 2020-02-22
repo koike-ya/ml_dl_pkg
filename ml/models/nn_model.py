@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from sklearn.exceptions import NotFittedError
 
-from apex import amp
+# from apex import amp
 
 logger = logging.getLogger(__name__)
 

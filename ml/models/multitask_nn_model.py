@@ -10,7 +10,7 @@ from ml.models.nn_utils import get_param_size
 from sklearn.exceptions import NotFittedError
 
 logger = logging.getLogger(__name__)
-from apex import amp
+# from apex import amp
 
 
 class MultitaskCriterion(torch.nn.BCELoss, torch.nn.MSELoss):
@@ -63,11 +63,11 @@ class MultitaskNNModel(NNModel):
                     loss.backward(retain_graph=True)
                 self.optimizer.step()
 
-            preds = []
+            preds = np.zeros((outputs[0].size(0), self.n_tasks))
             for i in range(self.n_tasks):
-                preds.append(torch.max(outputs[i], 1)[1].cpu().numpy())
+                preds[:, i] = torch.max(outputs[i], 1)[1].cpu().numpy()
 
-        return loss.item(), np.array(preds).T
+        return loss.item(), preds
 
     def _fit_regress(self, inputs, labels, phase) -> Tuple[float, np.ndarray]:
         with torch.set_grad_enabled(phase == 'train'):
@@ -86,11 +86,11 @@ class MultitaskNNModel(NNModel):
                     loss.backward(retain_graph=True)
                 self.optimizer.step()
 
-            pred_list = []
+            pred_list = np.zeros((preds[0].size(0), self.n_tasks))
             for i in range(self.n_tasks):
-                pred_list.append(preds[i].detach().cpu().numpy())
+                pred_list[:, i] = preds[i].detach().cpu().numpy().reshape(-1,)
 
-        return loss.item(), np.array(pred_list).reshape(-1, 2).T
+        return loss.item(), pred_list
 
     def predict(self, inputs) -> np.array:  # NNModelは自身がfittedを管理している
         if not self.fitted:
@@ -100,11 +100,11 @@ class MultitaskNNModel(NNModel):
             self.model.eval()
             preds = self.model(inputs)
 
-            pred_list = []
+            pred_list = np.zeros((preds[0].size(0), self.n_tasks))
             for i in range(self.n_tasks):
                 if self.cfg['task_type'] == 'classify':
-                    pred_list.append(torch.max(preds[i], 1)[1].cpu().numpy())
+                    pred_list[:, i] = torch.max(preds[i], 1)[1].cpu().numpy()
                 else:
-                    pred_list.append(preds[i].detach().cpu().numpy())
+                    pred_list[:, i] = preds[i].detach().cpu().numpy().reshape(-1,)
 
-        return np.array(pred_list).T
+        return pred_list

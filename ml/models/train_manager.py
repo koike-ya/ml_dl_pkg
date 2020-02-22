@@ -229,12 +229,18 @@ class BaseTrainManager(metaclass=ABCMeta):
             phases = ['train']
 
         self.check_keys_from_dict(phases, self.dataloaders)
+        batch_size = self.cfg['batch_size']
+        dtype_ = np.int if self.cfg['task_type'] == 'classify' else np.float
 
         for epoch in range(self.cfg['epochs']):
             for phase in phases:
-                for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
+                # ラベルが入れられなかった部分を除くため、小さな負の数を初期値として格納
+                pred_list = np.zeros((len(self.dataloaders[phase]) * batch_size,),
+                                     dtype=dtype_) - 1000000
 
+                for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
                     loss, predicts = self.model.fit(inputs.to(self.device), labels.to(self.device), phase)
+                    pred_list[i * batch_size:i * batch_size + predicts.shape[0]] = predicts
 
                     # save loss and metrics in one batch
                     for metric in self.metrics[phase]:
@@ -249,7 +255,7 @@ class BaseTrainManager(metaclass=ABCMeta):
 
                 best_val_flag = self._update_by_epoch(phase, epoch, self.cfg['learning_anneal'])
                 if best_val_flag:
-                    best_val_pred = predicts
+                    best_val_pred = pred_list[~(pred_list == -1000000)]
 
             self._epoch_verbose(epoch, epoch_metrics, phases)
 
