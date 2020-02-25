@@ -4,9 +4,9 @@ from typing import Tuple
 import numpy as np
 import torch
 import torch.nn.functional as F
-from ml.models.multitask_panns_model import construct_multitask_panns
-from ml.models.nn_model_manager import NNModel
-from ml.models.nn_utils import get_param_size
+from ml.models.nn_models.multitask_panns_model import construct_multitask_panns
+from ml.models.model_managers.nn_model_manager import NNModelManager
+from ml.models.nn_models.nn_utils import get_param_size
 from sklearn.exceptions import NotFittedError
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ class MultitaskCriterion(torch.nn.BCELoss, torch.nn.MSELoss):
             return F.mse_loss(input, target)
 
 
-class MultitaskNNModel(NNModel):
+class MultitaskNNModelManager(NNModelManager):
     def __init__(self, class_labels, cfg):
         super().__init__(class_labels, cfg)
         self.n_tasks = cfg['n_tasks']
@@ -92,9 +92,9 @@ class MultitaskNNModel(NNModel):
 
         return loss.item(), pred_list
 
-    def predict(self, inputs) -> np.array:  # NNModelは自身がfittedを管理している
+    def predict(self, inputs) -> np.array:  # NNModelManagerは自身がfittedを管理している
         if not self.fitted:
-            raise NotFittedError(f'This NNModel instance is not fitted yet.')
+            raise NotFittedError(f'This NNModelManager instance is not fitted yet.')
 
         with torch.set_grad_enabled(False):
             self.model.eval()

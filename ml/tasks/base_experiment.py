@@ -7,8 +7,8 @@ from typing import Tuple, Dict, List, Union
 import mlflow
 import numpy as np
 import pandas as pd
-from ml.models.train_manager import BaseTrainManager, train_manager_args
-from ml.models.multitask_train_manager import MultitaskTrainManager
+from ml.models.train_managers.train_manager import BaseTrainManager, train_manager_args
+from ml.models.train_managers.multitask_train_manager import MultitaskTrainManager
 from ml.src.cv_manager import KFoldManager, SUPPORTED_CV
 from ml.src.dataloader import set_dataloader, set_ml_dataloader
 from ml.src.metrics import get_metrics

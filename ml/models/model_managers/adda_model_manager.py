@@ -15,15 +15,10 @@ import torch
 from torch import nn
 from tqdm import tqdm, trange
 
-from ml.models.train_manager import BaseTrainManager
+from ml.models.model_managers.nn_model_manager import NNModelManager
 
 
 DOMAIN_ADAPTATION_LABELS = ['source', 'target']
-
-
-def loop_iterable(iterable):
-    while True:
-        yield from iterable
 
 
 def set_requires_grad(model, requires_grad=True):
@@ -31,83 +26,78 @@ def set_requires_grad(model, requires_grad=True):
         param.requires_grad = requires_grad
 
 
-class AddaTrainManager(BaseTrainManager):
-    def __init__(self, source_model, cfg, dataloaders, metrics):
-        super().__init__(DOMAIN_ADAPTATION_LABELS, cfg, dataloaders, metrics)
-        self.raw_source_model = source_model
-        self.src_fe, self.src_model = self._init_src_model(source_model)
-        self.tgt_fe, self.tgt_clf = self._init_tgt_model()
-        self.tgt_optimizer = source_model.optimizer
-        self.disc = self._init_discriminator(self.tgt_clf.in_features)
-
-    def _init_src_model(self, src_model):
-        src_model.model.eval()
-        set_requires_grad(src_model.model, requires_grad=False)
-        return src_model.model.features, src_model.model
-
-    def _init_tgt_model(self):
-        target_feature_extractor = deepcopy(self.src_model).features
-        target_classifier = deepcopy(self.src_model).classifier
-        target_classifier.eval()
-        return target_feature_extractor, target_classifier
+class AddaModelManager(NNModelManager):
+    def __init__(self, class_labels, cfg):
+        super().__init__(class_labels, cfg)
+        self.src = None
+        self.tgt = None
+        # self.tgt_fe, self.tgt_clf = self._init_tgt_model()
+        self.tgt_optimizer = deepcopy(self.optimizer)
+        self.disc = self._init_discriminator(in_features=2048)
+        self.discriminator_optim = torch.optim.Adam(self.disc.parameters())
+        self.disc_criterion = nn.BCEWithLogitsLoss()
+    #
+    # def _init_src_model(self):
+    #     _ = list(self.model.children())
+    #     feature_extractor = nn.Sequential(*list(self.model.children())[:-1])
+    #     src_model.model.eval()
+    #     set_requires_grad(src_model.model, requires_grad=False)
+    #     return src_model.model.features, src_model.model
+    #
+    # def _init_tgt_model(self):
+    #     target_feature_extractor = deepcopy(self.src_model).features
+    #     target_classifier = deepcopy(self.src_model).classifier
+    #     target_classifier.eval()
+    #     return target_feature_extractor, target_classifier
 
     def _init_discriminator(self, in_features):
         return nn.Sequential(
-            nn.Linear(in_features, 400),
+            nn.Linear(in_features, 2048),
             nn.ReLU(),
-            nn.Linear(400, 20),
+            nn.Linear(2048, 200),
             nn.ReLU(),
-            nn.Linear(20, 1)
+            nn.Linear(200, 1)
         ).to(self.device)
 
-    def train(self):
-        discriminator_optim = torch.optim.Adam(self.disc.parameters())
-        disc_criterion = nn.BCEWithLogitsLoss()
+    def fit_discriminator(self, src_x, tgt_x):
+        if not self.src:
+            self.src = self.model
+            self.tgt = deepcopy(self.model)
 
-        batch_iterator = zip(loop_iterable(self.dataloaders['source']), loop_iterable(self.dataloaders['target']))
+        set_requires_grad(self.tgt.feature_extractor, requires_grad=False)
+        set_requires_grad(self.disc, requires_grad=True)
 
-        for _ in trange(self.cfg['iterations'], leave=False):
-            # Train discriminator
-            set_requires_grad(self.tgt_fe, requires_grad=False)
-            set_requires_grad(self.disc, requires_grad=True)
-            for _ in range(self.cfg['k_disc']):
-                (source_x, _), (target_x, _) = next(batch_iterator)
-                source_x, target_x = source_x.to(self.device), target_x.to(self.device)
+        src_features = self.src.feature_extract(src_x).view(src_x.shape[0], -1)
+        tgt_features = self.tgt.feature_extract(tgt_x).view(tgt_x.shape[0], -1)
 
-                source_features = self.src_fe(source_x).view(source_x.shape[0], -1)
-                target_features = self.tgt_fe(target_x).view(target_x.shape[0], -1)
+        print(src_features.size())
+        discriminator_x = torch.cat([src_features, tgt_features])
+        print(discriminator_x.size())
+        exit()
+        discriminator_y = torch.cat([torch.zeros(src_x.shape[0], device=self.device),
+                                     torch.ones(tgt_x.shape[0], device=self.device)])
 
-                discriminator_x = torch.cat([source_features, target_features])
-                discriminator_y = torch.cat([torch.ones(source_x.shape[0], device=self.device),
-                                             torch.zeros(target_x.shape[0], device=self.device)])
+        disc_preds = self.disc(discriminator_x).squeeze()
+        disc_loss = self.disc_criterion(disc_preds, discriminator_y)
 
-                disc_preds = self.disc(discriminator_x).squeeze()
-                disc_loss = disc_criterion(disc_preds, discriminator_y)
+        self.discriminator_optim.zero_grad()
+        disc_loss.backward()
+        self.discriminator_optim.step()
 
-                discriminator_optim.zero_grad()
-                disc_loss.backward()
-                discriminator_optim.step()
+        return disc_loss.item()
 
-                disc_loss += disc_loss.item()
+    def fit_classifier(self, tgt_x):
+        set_requires_grad(self.tgt.feature_extractor, requires_grad=True)
+        set_requires_grad(self.disc, requires_grad=False)
 
-            # Train classifier
-            set_requires_grad(self.tgt_fe, requires_grad=True)
-            set_requires_grad(self.disc, requires_grad=False)
+        tgt_features = self.tgt.feature_extract(tgt_x).view(tgt_x.shape[0], -1)
 
-            for _ in range(self.cfg['k_clf']):
-                _, (target_x, _) = next(batch_iterator)
-                target_x = target_x.to(self.device)
-                target_features = self.tgt_fe(target_x).view(target_x.shape[0], -1)
+        # flipped labels
+        discriminator_y = torch.zeros(tgt_x.shape[0], device=self.device)
 
-                # flipped labels
-                discriminator_y = torch.ones(target_x.shape[0], device=self.device)
+        preds = self.disc(tgt_features).squeeze()
+        disc_loss = disc_criterion(preds, discriminator_y)
 
-                preds = self.disc(target_features).squeeze()
-                disc_loss = disc_criterion(preds, discriminator_y)
-
-                self.tgt_optimizer.zero_grad()
-                disc_loss.backward()
-                self.tgt_optimizer.step()
-
-        self.raw_source_model.model.features = self.tgt_fe
-        return self.raw_source_model
+        self.tgt_optimizer.zero_grad()
+        disc_loss.backward()
+        self.tgt_optimizer.step()

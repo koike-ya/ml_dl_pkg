@@ -1,9 +1,5 @@
-import numpy as np
-import torch
-from copy import deepcopy
 from ml.src.signal_processor import *
-from ml.models.pretrained_models import PretrainedNN, supported_pretrained_models
-from sklearn import preprocessing
+from ml.models.nn_models.pretrained_models import PretrainedNN, supported_pretrained_models
 
 
 def preprocess_args(parser):

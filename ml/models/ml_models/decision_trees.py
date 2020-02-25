@@ -4,7 +4,7 @@ import pandas as pd
 import xgboost as xgb
 import lightgbm as lgb
 
-from ml.models.toolbox import BaseMLPredictor
+from ml.models.ml_models.toolbox import BaseMLPredictor
 
 
 def decision_trees_args(parser):

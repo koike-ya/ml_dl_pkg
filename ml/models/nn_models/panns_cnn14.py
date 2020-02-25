@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.utils.checkpoint as cp
-from ml.models.stft import Spectrogram, LogmelFilterBank
+from ml.models.nn_models.stft import Spectrogram, LogmelFilterBank
+from ml.models.augment import SpecAugmentation
+from typing import Dict
 
 
 def init_layer(layer):
@@ -65,10 +66,10 @@ class ConvBlock(nn.Module):
         return x
 
 
-class Cnn14_no_specaug(nn.Module):
+class Cnn14(nn.Module):
     def __init__(self, sample_rate, window_size, hop_size, mel_bins, fmin,
-                 fmax, classes_num, checkpoint_path):
-        super(Cnn14_no_specaug, self).__init__()
+                 fmax, classes_num, checkpoint_path, spec_augment_params: Dict):
+        super(Cnn14, self).__init__()
 
         window = 'hann'
         center = True
@@ -76,6 +77,16 @@ class Cnn14_no_specaug(nn.Module):
         ref = 1.0
         amin = 1e-10
         top_db = None
+
+        # Spectrogram extractor
+        self.spectrogram_extractor = Spectrogram(n_fft=1024, hop_length=320,
+            win_length=1024, window=window, center=center, pad_mode=pad_mode,
+            freeze_parameters=True)
+
+        # Logmel feature extractor
+        self.logmel_extractor = LogmelFilterBank(sr=2000, n_fft=1024,
+            n_mels=64, fmin=fmin, fmax=fmax, ref=ref, amin=amin, top_db=top_db,
+            freeze_parameters=True)
 
         self.bn0 = nn.BatchNorm2d(64)
 
@@ -88,16 +99,6 @@ class Cnn14_no_specaug(nn.Module):
 
         self.fc1 = nn.Linear(2048, 2048, bias=True)
         self.fc_audioset = nn.Linear(2048, 527, bias=True)
-
-        # Spectrogram extractor
-        self.spectrogram_extractor = Spectrogram(n_fft=1024, hop_length=320,
-            win_length=1024, window=window, center=center, pad_mode=pad_mode,
-            freeze_parameters=True)
-
-        # Logmel feature extractor
-        self.logmel_extractor = LogmelFilterBank(sr=2000, n_fft=1024,
-            n_mels=64, fmin=fmin, fmax=fmax, ref=ref, amin=amin, top_db=top_db,
-            freeze_parameters=True)
 
         self.init_weight()
 
@@ -118,29 +119,38 @@ class Cnn14_no_specaug(nn.Module):
                                                  freeze_parameters=True)
         self.bn0 = nn.BatchNorm2d(mel_bins)
 
+        # Spec augmenter
+        self.spec_augmenter = SpecAugmentation(**spec_augment_params)
+
         self.fc_audioset = nn.Linear(2048, classes_num, bias=True)
-        self.classify = classes_num > 1
+        self.classify_flag = classes_num > 1
+
+        self.feature_extractor = nn.ModuleList([
+            self.spectrogram_extractor,
+            self.logmel_extractor,
+            self.bn0,
+            *[getattr(self, f'conv_block{i}') for i in range(1, 7)],
+        ])
+
+        self.classifier = nn.ModuleList([
+            self.fc1,
+            self.fc_audioset
+        ])
 
     def init_weight(self):
         init_bn(self.bn0)
         init_layer(self.fc1)
         init_layer(self.fc_audioset)
 
-    def forward(self, input, feature_extract=False):
-        """
-        Input: (batch_size, data_length)"""
-        x = self.spectrogram_extractor(input)  # (batch_size, 1, time_steps, freq_bins)
-        # import seaborn as sns
-        # print(x[0][0].cpu().numpy().shape)
-        # sns.heatmap(x[0][0].cpu().numpy())
-        # import matplotlib.pyplot as plt
-        # plt.show()
-        # exit()
+    def feature_extract(self, x):
+        x = self.spectrogram_extractor(x)  # (batch_size, 1, time_steps, freq_bins)
         x = self.logmel_extractor(x)  # (batch_size, 1, time_steps, mel_bins)
-
         x = x.transpose(1, 3)
         x = self.bn0(x)
         x = x.transpose(1, 3)
+
+        if self.training:
+            x = self.spec_augmenter(x)
 
         x = self.conv_block1(x, pool_size=(2, 2), pool_type='avg')
         x = F.dropout(x, p=0.2, training=self.training)
@@ -160,18 +170,24 @@ class Cnn14_no_specaug(nn.Module):
         x2 = torch.mean(x, dim=2)
         x = x1 + x2
         x = F.dropout(x, p=0.5, training=self.training)
+        return x
 
-        if feature_extract:
-            return x
-
+    def classify(self, x):
         x = F.relu_(self.fc1(x))
 
-        if self.classify:
+        if self.classify_flag:
             x = torch.sigmoid(self.fc_audioset(x))
         else:
             x = self.fc_audioset(x)
 
         return x
+
+    def forward(self, input, feature_extract=False):
+        """
+        Input: (batch_size, data_length)"""
+        x = self.feature_extract(input)
+
+        return self.classify(x)
 
 
 def construct_panns(cfg):
@@ -182,10 +198,16 @@ def construct_panns(cfg):
     fmin = cfg['low_cutoff']
     fmax = cfg['high_cutoff']
 
+    spec_augment_params = dict(
+        time_drop_rate=cfg['time_drop_rate'],
+        freq_drop_rate=cfg['freq_drop_rate'],
+    )
+
     checkpoint_path = cfg['checkpoint_path']
     device = torch.device('cuda') if cfg['cuda'] and torch.cuda.is_available() else torch.device('cpu')
 
-    model = Cnn14_no_specaug(sample_rate=sample_rate, window_size=window_size, hop_size=hop_size, mel_bins=mel_bins,
-                             fmin=fmin, fmax=fmax, classes_num=len(cfg['class_names']), checkpoint_path=checkpoint_path).to(device)
+    model = Cnn14(sample_rate=sample_rate, window_size=window_size, hop_size=hop_size, mel_bins=mel_bins, fmin=fmin,
+                  fmax=fmax, classes_num=len(cfg['class_names']), checkpoint_path=checkpoint_path,
+                  spec_augment_params=spec_augment_params).to(device)
 
     return model

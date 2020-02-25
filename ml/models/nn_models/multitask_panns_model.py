@@ -2,13 +2,13 @@ import logging
 
 import torch
 import torch.nn.functional as F
-from ml.models.panns_cnn14 import Cnn14_no_specaug
+from ml.models.nn_models.panns_cnn14 import Cnn14
 from torch import nn
 
 logger = logging.getLogger(__name__)
 
 
-class MultitaskPanns(Cnn14_no_specaug):
+class MultitaskPanns(Cnn14):
     def __init__(self, sample_rate, window_size, hop_size, mel_bins, fmin,
                  fmax, classes_num, checkpoint_path):
         super(MultitaskPanns, self).__init__(sample_rate, window_size, hop_size, mel_bins, fmin,
@@ -28,6 +28,9 @@ class MultitaskPanns(Cnn14_no_specaug):
         x = x.transpose(1, 3)
         x = self.bn0(x)
         x = x.transpose(1, 3)
+
+        if self.training:
+            x = self.spec_augmenter(x)
 
         x = self.conv_block1(x, pool_size=(2, 2), pool_type='avg')
         x = F.dropout(x, p=0.2, training=self.training)

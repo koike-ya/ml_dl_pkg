@@ -1,12 +1,10 @@
-from collections import OrderedDict
 from copy import deepcopy
 from pathlib import Path
 from typing import List
 
 import numpy as np
 import pandas as pd
-import torch
-from ml.models.train_manager import train_manager_args, BaseTrainManager
+from ml.models.train_managers.train_manager import train_manager_args, BaseTrainManager
 from ml.src.metrics import Metric
 
 

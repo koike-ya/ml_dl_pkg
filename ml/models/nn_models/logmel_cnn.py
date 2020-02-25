@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from ml.models.misc import LogMel
-from ml.models.nn_utils import initialize_weights, init_bn
+from ml.models.nn_models.nn_utils import initialize_weights, init_bn
 
 
 class ConvBlock(nn.Module):

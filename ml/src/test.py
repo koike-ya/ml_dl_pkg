@@ -5,7 +5,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.metrics import confusion_matrix
 from tqdm import tqdm
 
-from ml.models.rnn import *
+from ml.models.nn_models.rnn import *
 from ml.utils import init_seed, init_device, set_dataloader, set_model
 from ml.utils import test_args
 

@@ -9,22 +9,22 @@ from sklearn.exceptions import NotFittedError
 
 logger = logging.getLogger(__name__)
 
-from ml.models.base_model import BaseModel
-from ml.models.rnn import construct_rnn
+from ml.models.model_managers.base_model_manager import BaseModelManager
+from ml.models.nn_models.rnn import construct_rnn
 from ml.models.nn_models.cnn_rnn import construct_cnn_rnn
 from ml.models.nn_models.cnn import construct_cnn
-from ml.models.logmel_cnn import construct_logmel_cnn
+from ml.models.nn_models.logmel_cnn import construct_logmel_cnn
 from ml.models.nn_models.attention import construct_attention_cnn
-from ml.models.panns_cnn14 import construct_panns
-from ml.models.multitask_panns_model import construct_multitask_panns
-from ml.models.nn_utils import get_param_size
-from ml.models.pretrained_models import construct_pretrained, supported_pretrained_models
+from ml.models.nn_models.panns_cnn14 import construct_panns
+from ml.models.nn_models.multitask_panns_model import construct_multitask_panns
+from ml.models.nn_models.nn_utils import get_param_size
+from ml.models.nn_models.pretrained_models import construct_pretrained, supported_pretrained_models
 
 
 supported_nn_models = ['cnn', 'rnn', 'cnn_rnn', 'logmel_cnn', 'attention_cnn', 'panns']
 
 
-class NNModel(BaseModel):
+class NNModelManager(BaseModelManager):
     def __init__(self, class_labels, cfg):
         must_contain_keys = ['lr', 'weight_decay', 'momentum', 'learning_anneal']
         super().__init__(class_labels, cfg, must_contain_keys)
@@ -202,9 +202,9 @@ class NNModel(BaseModel):
 
         self.fitted = True
 
-    def predict(self, inputs):  # NNModelは自身がfittedを管理している
+    def predict(self, inputs):  # NNModelManagerは自身がfittedを管理している
         if not self.fitted:
-            raise NotFittedError(f'This NNModel instance is not fitted yet.')
+            raise NotFittedError(f'This NNModelManager instance is not fitted yet.')
 
         with torch.set_grad_enabled(False):
             self.model.eval()

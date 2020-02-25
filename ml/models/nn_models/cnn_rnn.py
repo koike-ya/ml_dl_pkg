@@ -1,8 +1,8 @@
 import torch
 from torch import nn
 
-from ml.models.nn_utils import get_param_size
-from ml.models.rnn import RNNClassifier, supported_rnns
+from ml.models.nn_models.nn_utils import get_param_size
+from ml.models.nn_models.rnn import RNNClassifier, supported_rnns
 
 
 class DeepSpeech(RNNClassifier):

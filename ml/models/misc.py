@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from ml.models.nn_utils import initialize_weights, init_bn
-from ml.models.stft import Spectrogram, LogmelFilterBank
+from ml.models.nn_models.nn_utils import initialize_weights, init_bn
+from ml.models.nn_models.stft import Spectrogram, LogmelFilterBank
 
 
 class LogMel(nn.Module):

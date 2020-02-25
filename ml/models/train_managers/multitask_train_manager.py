@@ -1,6 +1,5 @@
 import argparse
 import logging
-import sys
 import time
 
 logger = logging.getLogger(__name__)
@@ -8,8 +7,8 @@ logger = logging.getLogger(__name__)
 import numpy as np
 import torch
 from copy import deepcopy
-from ml.models.multitask_nn_model_manager import MultitaskNNModel
-from ml.models.train_manager import train_manager_args, BaseTrainManager
+from ml.models.model_managers.multitask_nn_model_manager import MultitaskNNModelManager
+from ml.models.train_managers.train_manager import train_manager_args, BaseTrainManager
 from tqdm import tqdm
 from typing import List, Tuple
 from ml.utils.utils import Metrics
@@ -28,10 +27,10 @@ class MultitaskTrainManager(BaseTrainManager):
         super(MultitaskTrainManager, self).__init__(class_labels, cfg, dataloaders, metrics)
         self.n_tasks = cfg['n_tasks']
 
-    def _init_model(self) -> MultitaskNNModel:
+    def _init_model(self) -> MultitaskNNModelManager:
         self.cfg['input_size'] = list(self.dataloaders.values())[0].get_input_size()
 
-        return MultitaskNNModel(self.class_labels, self.cfg)
+        return MultitaskNNModelManager(self.class_labels, self.cfg)
 
     def _init_device(self) -> torch.device:
         if self.cfg['cuda']:

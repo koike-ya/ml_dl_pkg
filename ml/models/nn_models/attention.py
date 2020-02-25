@@ -1,7 +1,7 @@
 from torch import nn
 import torch
 from torch.functional import F
-from ml.models.nn_utils import initialize_weights, init_bn
+from ml.models.nn_models.nn_utils import initialize_weights, init_bn
 from ml.models.misc import Attention2d, LogMel
 
 

@@ -1,12 +1,12 @@
 import numpy as np
 import torch
 
-from ml.models.base_model import BaseModel
+from ml.models.model_managers.base_model_manager import BaseModelManager
 from ml.models.ml_models.decision_trees import CatBoost, XGBoost, LightGBM
-from ml.models.toolbox import KNN, SGDC, SVM
+from ml.models.ml_models.toolbox import KNN, SGDC, SVM
 
 
-class MLModel(BaseModel):
+class MLModel(BaseModelManager):
     def __init__(self, class_labels, cfg):
         must_contain_keys = []
         super().__init__(class_labels, cfg, must_contain_keys)

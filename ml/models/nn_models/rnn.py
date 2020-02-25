@@ -5,7 +5,7 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 
-from ml.models.nn_utils import initialize_weights
+from ml.models.nn_models.nn_utils import initialize_weights
 
 
 supported_rnns = {

@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 from ml.models.nn_models.bonn_rnn import BonnRNN
 from ml.models.nn_models.cnns_on_chb_mit import CHBMITCNN
-from ml.models.train_manager import BaseTrainManager
+from ml.models.train_managers.train_manager import BaseTrainManager
 from tqdm import tqdm
 
 

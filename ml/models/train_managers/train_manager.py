@@ -101,7 +101,7 @@ class BaseTrainManager(metaclass=ABCMeta):
         self.cfg = cfg
         self.dataloaders = dataloaders
         self.device = self._init_device()
-        self.model = self._init_model()
+        self.model_manager = self._init_model_manager()
         self._init_seed()
         self.logger = self._init_logger()
         self.metrics = metrics
@@ -112,7 +112,7 @@ class BaseTrainManager(metaclass=ABCMeta):
         for key in must_contain_keys:
             assert key in dic.keys(), f'{key} must be in {str(dic)}'
 
-    def _init_model(self) -> Union[NNModelManager, MLModel]:
+    def _init_model_manager(self) -> Union[NNModelManager, MLModel]:
         self.cfg['input_size'] = list(self.dataloaders.values())[0].get_input_size()
 
         if self.cfg['model_type'] in supported_nn_models + list(supported_pretrained_models.keys()):
@@ -170,7 +170,7 @@ class BaseTrainManager(metaclass=ABCMeta):
             best_flag = metric.average_meter.update_best()
             if metric.save_model and best_flag and phase == 'val':
                 logger.info(f"Found better validated model, saving to {self.cfg['model_path']}")
-                self.model.save_model()
+                self.model_manager.save_model()
                 best_val_flag = True
 
             # reset epoch average meter
@@ -178,12 +178,12 @@ class BaseTrainManager(metaclass=ABCMeta):
 
         # anneal lr
         if phase == 'train':
-            self.model.anneal_lr(learning_anneal)
+            self.model_manager.anneal_lr(learning_anneal)
 
         return best_val_flag
 
     def _epoch_verbose(self, epoch, epoch_metrics, phases):
-        message = f'epoch {str(epoch + 1).ljust(2)}-> lr: {self.model.get_lr():.6f}\t'
+        message = f'epoch {str(epoch + 1).ljust(2)}-> lr: {self.model_manager.get_lr():.6f}\t'
         for phase in phases:
             message += f'{phase}: ['
             message += '\t'.join([f'{m.name}: {m.average_meter.average:.4f}' for m in epoch_metrics[phase]])
@@ -202,7 +202,7 @@ class BaseTrainManager(metaclass=ABCMeta):
         for i, (inputs, labels) in tqdm(enumerate(self.dataloaders[phase]), total=len(self.dataloaders[phase])):
 
             inputs, labels = inputs.to(self.device), labels.numpy().reshape(-1,)
-            preds = self.model.predict(inputs)
+            preds = self.model_manager.predict(inputs)
             pred_list[i * batch_size:i * batch_size + preds.shape[0], 0] = preds.reshape(-1,)
             label_list[i * batch_size:i * batch_size + labels.shape[0], 0] = labels
 
@@ -214,9 +214,9 @@ class BaseTrainManager(metaclass=ABCMeta):
 
         return pred_list, label_list
 
-    def train(self, model=None, with_validate=True) -> Tuple[Metrics, np.array]:
+    def train(self, model=None, with_validate=True, only_validate=False) -> Tuple[Metrics, np.array]:
         if model:
-            self.model = model
+            self.model_manager = model
 
         start = time.time()
         epoch_metrics = {}
@@ -226,6 +226,8 @@ class BaseTrainManager(metaclass=ABCMeta):
             phases = ['train', 'val']
         else:
             phases = ['train']
+        if only_validate:
+            phases = ['val']
 
         self.check_keys_from_dict(phases, self.dataloaders)
         batch_size = self.cfg['batch_size']
@@ -238,7 +240,7 @@ class BaseTrainManager(metaclass=ABCMeta):
                                      dtype=dtype_) - 1000000
 
                 for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
-                    loss, predicts = self.model.fit(inputs.to(self.device), labels.to(self.device), phase)
+                    loss, predicts = self.model_manager.fit(inputs.to(self.device), labels.to(self.device), phase)
                     pred_list[i * batch_size:i * batch_size + predicts.shape[0]] = predicts
 
                     # save loss and metrics in one batch
@@ -266,7 +268,7 @@ class BaseTrainManager(metaclass=ABCMeta):
     def test(self, return_metrics=False, load_best=True, phase='test') -> Union[Tuple[np.array, np.array, Metrics],
                                                                                 Tuple[np.array, np.array]]:
         if load_best:
-            self.model.load_model()
+            self.model_manager.load_model()
 
         pred_list, label_list = self._predict(phase=phase)
 
@@ -277,9 +279,9 @@ class BaseTrainManager(metaclass=ABCMeta):
                     y_onehot = y_onehot.scatter_(1, torch.from_numpy(label_list).view(-1, 1).type(torch.LongTensor), 1)
                     pred_onehot = torch.zeros(pred_list.shape[0], len(self.class_labels))
                     pred_onehot = pred_onehot.scatter_(1, torch.from_numpy(pred_list).view(-1, 1).type(torch.LongTensor), 1)
-                    loss_value = self.model.criterion(pred_onehot.to(self.device), y_onehot.to(self.device)).item()
+                    loss_value = self.model_manager.criterion(pred_onehot.to(self.device), y_onehot.to(self.device)).item()
                 elif self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn']:
-                    loss_value = self.model.criterion(torch.from_numpy(pred_list).to(self.device),
+                    loss_value = self.model_manager.criterion(torch.from_numpy(pred_list).to(self.device),
                                                       torch.from_numpy(label_list).to(self.device))
             else:
                 loss_value = 10000000
@@ -299,7 +301,7 @@ class BaseTrainManager(metaclass=ABCMeta):
 
     def infer(self, load_best=True, phase='infer') -> np.array:
         if load_best:
-            self.model.load_model()
+            self.model_manager.load_model()
 
         pred_list, _ = self._predict(phase=phase)
 
@@ -307,7 +309,7 @@ class BaseTrainManager(metaclass=ABCMeta):
 
     def retrain(self):
         phase = 'retrain'
-        self.model.load_model()
+        self.model_manager.load_model()
 
         for metric in self.metrics:
             metric.add_average_meter(phase_name=phase)
@@ -318,7 +320,7 @@ class BaseTrainManager(metaclass=ABCMeta):
         for epoch in range(self.cfg['retrain_epochs']):
             for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
 
-                loss, predicts = self.model.fit(inputs.to(self.device), labels.to(self.device), 'train')
+                loss, predicts = self.model_manager.fit(inputs.to(self.device), labels.to(self.device), 'train')
 
                 # save loss and metrics in one batch
                 for metric in self.metrics[phase]:
