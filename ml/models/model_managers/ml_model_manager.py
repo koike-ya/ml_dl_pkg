@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 from ml.models.base_model import BaseModel
-from ml.models.decision_trees import CatBoost, XGBoost, LightGBM
+from ml.models.ml_models.decision_trees import CatBoost, XGBoost, LightGBM
 from ml.models.toolbox import KNN, SGDC, SVM
 
 

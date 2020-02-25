@@ -4,10 +4,8 @@ from collections import OrderedDict
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from ml.models.cnn import construct_cnn
-from ml.models.nn_utils import get_param_size, initialize_weights
+from ml.models.nn_utils import initialize_weights
 
 
 supported_rnns = {

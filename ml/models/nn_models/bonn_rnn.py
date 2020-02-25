@@ -29,7 +29,7 @@ from keras.utils import np_utils
 from keras import metrics
 from keras import backend
 
-from ml.models.nn_model import NNModel
+from ml.models.nn_model_manager import NNModel
 
 
 # Reference:

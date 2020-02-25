@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 import numpy as np
 import torch
 from copy import deepcopy
-from ml.models.multitask_nn_model import MultitaskNNModel
+from ml.models.multitask_nn_model_manager import MultitaskNNModel
 from ml.models.train_manager import train_manager_args, BaseTrainManager
 from tqdm import tqdm
 from typing import List, Tuple

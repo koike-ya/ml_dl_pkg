@@ -8,11 +8,11 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 
 
-def ml_model_args(parser):
+def ml_model_manager_args(parser):
 
-    ml_model_parser = parser.add_argument_group("ML model hyper parameters")
-    ml_model_parser.add_argument('--C', type=float, default=1.0)
-    ml_model_parser.add_argument('--svm-kernel', choices=['linear', 'rbf'], default='linear')
+    ml_model_manager_parser = parser.add_argument_group("ML model hyper parameters")
+    ml_model_manager_parser.add_argument('--C', type=float, default=1.0)
+    ml_model_manager_parser.add_argument('--svm-kernel', choices=['linear', 'rbf'], default='linear')
 
     return parser
 

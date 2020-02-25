@@ -1,4 +1,3 @@
-import copy
 import logging
 from typing import Tuple
 
@@ -12,13 +11,12 @@ logger = logging.getLogger(__name__)
 
 from ml.models.base_model import BaseModel
 from ml.models.rnn import construct_rnn
-from ml.models.cnn_rnn import construct_cnn_rnn
-from ml.models.cnn import construct_cnn
+from ml.models.nn_models.cnn_rnn import construct_cnn_rnn
+from ml.models.nn_models.cnn import construct_cnn
 from ml.models.logmel_cnn import construct_logmel_cnn
-from ml.models.attention import construct_attention_cnn
+from ml.models.nn_models.attention import construct_attention_cnn
 from ml.models.panns_cnn14 import construct_panns
 from ml.models.multitask_panns_model import construct_multitask_panns
-from ml.models.ml_model import MLModel
 from ml.models.nn_utils import get_param_size
 from ml.models.pretrained_models import construct_pretrained, supported_pretrained_models
 

@@ -1,7 +1,6 @@
 import argparse
 import logging
 import random
-import sys
 import time
 from abc import ABCMeta
 from contextlib import contextmanager
@@ -12,9 +11,9 @@ logger = logging.getLogger(__name__)
 import numpy as np
 import torch
 from copy import deepcopy
-from ml.models.base_model import model_args
-from ml.models.ml_model import MLModel
-from ml.models.nn_model import NNModel, supported_nn_models, supported_pretrained_models
+from ml.models.model_managers.base_model_manager import model_args
+from ml.models.model_managers.ml_model_manager import MLModel
+from ml.models.model_managers.nn_model_manager import NNModelManager, supported_nn_models, supported_pretrained_models
 from sklearn.metrics import confusion_matrix
 from ml.utils.logger import TensorBoardLogger
 from tqdm import tqdm
@@ -113,7 +112,7 @@ class BaseTrainManager(metaclass=ABCMeta):
         for key in must_contain_keys:
             assert key in dic.keys(), f'{key} must be in {str(dic)}'
 
-    def _init_model(self) -> Union[NNModel, MLModel]:
+    def _init_model(self) -> Union[NNModelManager, MLModel]:
         self.cfg['input_size'] = list(self.dataloaders.values())[0].get_input_size()
 
         if self.cfg['model_type'] in supported_nn_models + list(supported_pretrained_models.keys()):
@@ -125,7 +124,7 @@ class BaseTrainManager(metaclass=ABCMeta):
                 self.cfg['image_size'] = list(self.dataloaders.values())[0].get_image_size()
                 self.cfg['n_channels'] = list(self.dataloaders.values())[0].get_n_channels()
 
-            return NNModel(self.class_labels, self.cfg)
+            return NNModelManager(self.class_labels, self.cfg)
 
         elif self.cfg['model_type'] in supported_ml_models:
             return MLModel(self.class_labels, self.cfg)

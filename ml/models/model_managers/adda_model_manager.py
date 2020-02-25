@@ -15,7 +15,7 @@ import torch
 from torch import nn
 from tqdm import tqdm, trange
 
-from ml.models.model_manager import BaseModelManager
+from ml.models.train_manager import BaseTrainManager
 
 
 DOMAIN_ADAPTATION_LABELS = ['source', 'target']
@@ -31,7 +31,7 @@ def set_requires_grad(model, requires_grad=True):
         param.requires_grad = requires_grad
 
 
-class AddaModelManager(BaseModelManager):
+class AddaTrainManager(BaseTrainManager):
     def __init__(self, source_model, cfg, dataloaders, metrics):
         super().__init__(DOMAIN_ADAPTATION_LABELS, cfg, dataloaders, metrics)
         self.raw_source_model = source_model

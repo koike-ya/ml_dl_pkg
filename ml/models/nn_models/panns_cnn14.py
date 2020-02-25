@@ -126,7 +126,7 @@ class Cnn14_no_specaug(nn.Module):
         init_layer(self.fc1)
         init_layer(self.fc_audioset)
 
-    def forward(self, input, mixup_lambda=None):
+    def forward(self, input, feature_extract=False):
         """
         Input: (batch_size, data_length)"""
         x = self.spectrogram_extractor(input)  # (batch_size, 1, time_steps, freq_bins)
@@ -141,10 +141,6 @@ class Cnn14_no_specaug(nn.Module):
         x = x.transpose(1, 3)
         x = self.bn0(x)
         x = x.transpose(1, 3)
-
-        # Mixup on spectrogram
-        # if self.training and mixup_lambda is not None:
-        #     x = do_mixup(x, mixup_lambda)
 
         x = self.conv_block1(x, pool_size=(2, 2), pool_type='avg')
         x = F.dropout(x, p=0.2, training=self.training)
@@ -164,6 +160,9 @@ class Cnn14_no_specaug(nn.Module):
         x2 = torch.mean(x, dim=2)
         x = x1 + x2
         x = F.dropout(x, p=0.5, training=self.training)
+
+        if feature_extract:
+            return x
 
         x = F.relu_(self.fc1(x))
 

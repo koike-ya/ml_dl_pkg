@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from ml.models.multitask_panns_model import construct_multitask_panns
-from ml.models.nn_model import NNModel
+from ml.models.nn_model_manager import NNModel
 from ml.models.nn_utils import get_param_size
 from sklearn.exceptions import NotFittedError
 
