@@ -149,8 +149,9 @@ class BaseTrainManager(metaclass=ABCMeta):
         if self.cfg['tensorboard']:
             return TensorBoardLogger(self.cfg['log_id'], self.cfg['log_dir'])
 
-    def _verbose(self, epoch, phase, i, elapsed) -> None:
-        data_len = len(self.dataloaders[phase])
+    def _verbose(self, epoch, phase, i, elapsed, data_len=None) -> None:
+        if not data_len:
+            data_len = len(self.dataloaders[phase])
         eta = int(elapsed / (i + 1) * (data_len - (i + 1)))
         progress = f'\r{phase} epoch: [{epoch + 1}][{i + 1}/{data_len}]\t {elapsed}(s) eta:{eta}(s)\t'
         progress += '\t'.join([f'{metric.name} {metric.average_meter.value:.4f}' for metric in self.metrics[phase]])
@@ -214,9 +215,9 @@ class BaseTrainManager(metaclass=ABCMeta):
 
         return pred_list, label_list
 
-    def train(self, model=None, with_validate=True, only_validate=False) -> Tuple[Metrics, np.array]:
-        if model:
-            self.model_manager = model
+    def train(self, model_manager=None, with_validate=True, only_validate=False) -> Tuple[Metrics, np.array]:
+        if model_manager:
+            self.model_manager = model_manager
 
         start = time.time()
         epoch_metrics = {}

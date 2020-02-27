@@ -12,6 +12,7 @@ from ml.models.model_managers.adda_model_manager import AddaModelManager
 from ml.models.nn_models.nn_utils import set_requires_grad
 from sklearn.metrics import confusion_matrix
 from torch import nn
+from ml.src.metrics import get_metrics
 from tqdm import tqdm
 from typing import Tuple, Union, List
 from ml.utils.utils import Metrics
@@ -28,6 +29,8 @@ def loop_iterable(iterable):
 class AddaTrainManager(BaseTrainManager):
     def __init__(self, class_labels, cfg, dataloaders, metrics):
         super(AddaTrainManager, self).__init__(class_labels, cfg, dataloaders, metrics)
+        self.metrics['source'] = get_metrics(['loss'])
+        self.metrics['target'] = get_metrics(['loss'])
 
     def _init_model_manager(self) -> AddaModelManager:
         return AddaModelManager(self.class_labels, self.cfg)
@@ -56,38 +59,62 @@ class AddaTrainManager(BaseTrainManager):
 
         return pred_list, label_list
 
-    def train(self, model=None, with_validate=True, only_validate=False) -> None:
+    def train(self, model_manager=None, with_validate=True, only_validate=False) -> None:
 
-        super().train(with_validate=with_validate)
+        # super().train(with_validate=with_validate)
 
         start = time.time()
         epoch_metrics = {}
         best_val_pred = np.array([])
+        batch_size = self.cfg['batch_size']
 
         for epoch in range(self.cfg['adda_epochs']):
+
+            phase = 'source'
             batch_iterator = zip(loop_iterable(self.dataloaders['source']), loop_iterable(self.dataloaders['target']))
             # Train discriminator
-            disc_loss = 0
-            for _ in range(self.cfg['k_disc']):
+            for i in range(self.cfg['k_disc']):
                 (src_inputs, _), (tgt_inputs, _) = next(batch_iterator)
-                disc_loss += self.model_manager.fit_discriminator(src_inputs.to(self.device), tgt_inputs.to(self.device))
-            logger.debug(f'Epoch {epoch} Discriminator loss: {disc_loss}')
+                loss = self.model_manager.fit_discriminator(src_inputs.to(self.device), tgt_inputs.to(self.device))
+                # save loss and metrics in one batch
+                for metric in self.metrics[phase]:
+                    metric.update(loss, _, _)
+                self._verbose(epoch, phase, i, elapsed=int(time.time() - start), data_len=self.cfg['k_disc'])
+            logger.info(f"Epoch {epoch} Discriminator loss: {self.metrics[phase][0].average_meter.average}")
+            if self.logger:
+                self._record_log(phase, epoch)
+            epoch_metrics[phase] = deepcopy(self.metrics[phase])
 
+            phase = 'target'
             batch_iterator = loop_iterable(self.dataloaders['target'])
             # Train classifier
-            for _ in range(self.cfg['k_clf']):
+            for i in range(self.cfg['k_clf']):
                 (tgt_inputs, _) = next(batch_iterator)
-                feature_extractor = self.model_manager.fit_classifier(tgt_inputs.to(self.device))
-            logger.debug(f'Epoch {epoch} Discriminator loss: {disc_loss}')
+                loss = self.model_manager.fit_classifier(tgt_inputs.to(self.device))
+                # save loss and metrics in one batch
+                for metric in self.metrics[phase]:
+                    metric.update(loss, _, _)
+                self._verbose(epoch, phase, i, elapsed=int(time.time() - start), data_len=self.cfg['k_clf'])
+            logger.debug(f"Epoch {epoch} Discriminator loss: {self.metrics[phase][0].average_meter.average}")
+            if self.logger:
+                self._record_log(phase, epoch)
+            epoch_metrics[phase] = deepcopy(self.metrics[phase])
 
-            self.model.feature_extractor = self.model_manager.tgt.feature_extractor
+            self.model_manager.model.feature_extractor = self.model_manager.tgt.feature_extractor
 
             if with_validate:
+                phase = 'val'
                 # Validate with class label
                 orig_epochs = self.cfg['epochs']
                 self.cfg['epochs'] = 1
-                metrics, pred = super().train(only_validate=True)
+                metrics, pred_list = super().train(only_validate=True)
+                epoch_metrics[phase] = deepcopy(metrics[phase])
+                best_val_flag = self._update_by_epoch(phase, epoch, self.cfg['learning_anneal'])
+                if best_val_flag:
+                    best_val_pred = pred_list
                 self.cfg['epochs'] = orig_epochs
+
+            self._epoch_verbose(epoch, epoch_metrics, ['source', 'target'])
 
         if self.logger:
             self.logger.close()

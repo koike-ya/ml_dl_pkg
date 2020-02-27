@@ -70,10 +70,7 @@ class AddaModelManager(NNModelManager):
         src_features = self.src.feature_extract(src_x).view(src_x.shape[0], -1)
         tgt_features = self.tgt.feature_extract(tgt_x).view(tgt_x.shape[0], -1)
 
-        print(src_features.size())
         discriminator_x = torch.cat([src_features, tgt_features])
-        print(discriminator_x.size())
-        exit()
         discriminator_y = torch.cat([torch.zeros(src_x.shape[0], device=self.device),
                                      torch.ones(tgt_x.shape[0], device=self.device)])
 
@@ -96,8 +93,10 @@ class AddaModelManager(NNModelManager):
         discriminator_y = torch.zeros(tgt_x.shape[0], device=self.device)
 
         preds = self.disc(tgt_features).squeeze()
-        disc_loss = disc_criterion(preds, discriminator_y)
+        disc_loss = self.disc_criterion(preds, discriminator_y)
 
         self.tgt_optimizer.zero_grad()
         disc_loss.backward()
         self.tgt_optimizer.step()
+
+        return disc_loss.item()
