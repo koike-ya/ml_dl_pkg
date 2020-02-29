@@ -1,8 +1,8 @@
 import catboost as ctb
+import lightgbm as lgb
 import numpy as np
 import pandas as pd
 import xgboost as xgb
-import lightgbm as lgb
 
 from ml.models.ml_models.toolbox import BaseMLPredictor
 
@@ -88,7 +88,7 @@ class CatBoost(BaseMLPredictor):
             self.model = ctb.CatBoostRegressor(**params)
         super(CatBoost, self).__init__(class_labels, cfg)
 
-    def partial_fit(self, x, y):
+    def fit(self, x, y):
         self.model.fit(x, y, verbose=False)
         if self.classify:
             return self.model.best_score_['learn']['Accuracy']
@@ -113,11 +113,12 @@ class LightGBM(BaseMLPredictor):
             n_jobs=cfg['n_jobs'],
             reg_lambda=cfg['reg_lambda'],
             reg_alpha=cfg['reg_alpha'],
-            class_weight={i: weight for i, weight in enumerate(cfg['loss_weight'])},
-            # class_weight='balanced',
+            # class_weight={i: weight for i, weight in enumerate(cfg['loss_weight'])},
+            class_weight='balanced',
             missing=None,
             random_state=cfg['seed'],
             max_bin=255,
+            num_iterations=1000,
         )
         if self.classify:
             if len(cfg['class_names']) == 2:
@@ -133,9 +134,14 @@ class LightGBM(BaseMLPredictor):
             self.model = lgb.LGBMRegressor(**self.params, num_trees=cfg['n_estimators'])
         super(LightGBM, self).__init__(class_labels, cfg)
 
-    def partial_fit(self, x, y):
-        self.model.fit(x, y, eval_set=[(x, y)], verbose=False)
-        return self.model.best_score_['training'][self.params['metric']]
+    def fit(self, x, y, eval_x=None, eval_y=None):
+        eval_set = [(x, y)]
+        if isinstance(eval_x, np.ndarray):
+            eval_set.append((eval_x, eval_y))
+
+            # return self.model.best_score_['training'][self.params['metric']]
+        self.model.fit(x, y, eval_set=eval_set, verbose=50, early_stopping_rounds=20)
+        return list(self.model.best_score_.keys())[-1]
 
     def predict(self, x):
         return self.model.predict(x).reshape((-1,))

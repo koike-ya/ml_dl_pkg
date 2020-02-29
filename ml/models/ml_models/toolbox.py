@@ -1,4 +1,7 @@
+import logging
 import pickle
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 from sklearn.exceptions import NotFittedError
@@ -11,7 +14,7 @@ from sklearn.svm import SVC
 def ml_model_manager_args(parser):
 
     ml_model_manager_parser = parser.add_argument_group("ML model hyper parameters")
-    ml_model_manager_parser.add_argument('--C', type=float, default=1.0)
+    ml_model_manager_parser.add_argument('--C', type=float, default=0.01)
     ml_model_manager_parser.add_argument('--svm-kernel', choices=['linear', 'rbf'], default='linear')
 
     return parser
@@ -33,6 +36,7 @@ class BaseMLPredictor:
         self.fitted = True
 
     def fit(self, x, y) -> np.float:
+        logger.info('Now fitting...')
         self.fitted = True
         # lossを返却
         self.model.fit(x, y)
@@ -69,5 +73,5 @@ class SVM(BaseMLPredictor):
     def __init__(self, class_labels, cfg):
         class_weight = dict(zip(class_labels, cfg['loss_weight']))
         self.model = SVC(C=cfg['C'], kernel=cfg['svm_kernel'], class_weight=class_weight, probability=True,
-                         random_state=cfg['seed'], verbose=not cfg['silent'])
+                         random_state=cfg['seed'], verbose=False)
         super(SVM, self).__init__(class_labels, cfg)

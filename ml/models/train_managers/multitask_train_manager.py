@@ -8,7 +8,8 @@ import numpy as np
 import torch
 from copy import deepcopy
 from ml.models.model_managers.multitask_nn_model_manager import MultitaskNNModelManager
-from ml.models.train_managers.train_manager import train_manager_args, BaseTrainManager
+from ml.models.train_managers.nn_train_manager import NNTrainManager
+from ml.models.train_managers.base_train_manager import train_manager_args
 from tqdm import tqdm
 from typing import List, Tuple
 from ml.utils.utils import Metrics
@@ -22,7 +23,7 @@ def multitask_train_manager_args(parser) -> argparse.ArgumentParser:
     return parser
 
 
-class MultitaskTrainManager(BaseTrainManager):
+class MultitaskTrainManager(NNTrainManager):
     def __init__(self, class_labels, cfg, dataloaders, metrics):
         super(MultitaskTrainManager, self).__init__(class_labels, cfg, dataloaders, metrics)
         self.n_tasks = cfg['n_tasks']
