@@ -1,16 +1,19 @@
 import numpy as np
 import torch
 
-from ml.models.model_managers.base_model_manager import BaseModelManager
 from ml.models.ml_models.decision_trees import CatBoost, XGBoost, LightGBM
 from ml.models.ml_models.toolbox import KNN, SGDC, SVM
+from ml.models.model_managers.base_model_manager import BaseModelManager
+
+supported_ml_models = ['xgboost', 'knn', 'catboost', 'sgdc', 'lightgbm', 'svm']
 
 
-class MLModel(BaseModelManager):
+class MLModelManager(BaseModelManager):
     def __init__(self, class_labels, cfg):
         must_contain_keys = []
         super().__init__(class_labels, cfg, must_contain_keys)
         self.model = self._init_model(cfg['model_type'])
+        self.early_stopping = self.cfg['early_stopping']
 
     def _init_model(self, model_type):
         if model_type == 'xgboost':
@@ -28,39 +31,38 @@ class MLModel(BaseModelManager):
         else:
             raise NotImplementedError('Model type: cnn|xgboost|knn|catboost|sgdc|svm are supported.')
 
-    def _fit_regress(self, inputs, labels, phase):
+    def _fit_regress(self, inputs, labels, eval_inputs=None, eval_labels=None):
         if phase == 'train':  # train時はパラメータ更新&trainのlossを算出
-            loss = self.model.fit(inputs, labels.numpy())
+            if self.early_stopping:
+                loss = self.model.fit(inputs, labels, eval_inputs, eval_labels)
+            else:
+                loss = self.model.fit(inputs, labels)
             self.fitted = self.model.fitted
 
-        preds = self.model.predict(inputs)
+        preds = self.model.predict(eval_inputs)
 
         if phase == 'val':  # validation時はlossのみ算出
             loss = self.criterion(torch.from_numpy(preds).float(), labels.float()).item()
 
         return loss, preds
 
-    def _fit_classify(self, inputs, labels, phase):
-        if phase == 'train':  # train時はパラメータ更新&trainのlossを算出
-            loss = self.model.fit(inputs, labels.numpy())
-            self.fitted = self.model.fitted
+    def _fit_classify(self, inputs, labels, eval_inputs=None, eval_labels=None):
+        if self.early_stopping:
+            loss = self.model.fit(inputs, labels, eval_inputs, eval_labels)
+        else:
+            loss = self.model.fit(inputs, labels)
+        self.fitted = self.model.fitted
 
-        outputs = self.model.predict_proba(inputs)
+        outputs = self.model.predict_proba(eval_inputs)
         preds = np.argmax(outputs, 1)
-
-        if phase == 'val':  # validation時はlossのみ算出
-            y_onehot = torch.zeros(labels.size(0), len(self.class_labels))
-            y_onehot = y_onehot.scatter_(1, labels.view(-1, 1).type(torch.LongTensor), 1)
-            loss = self.criterion(torch.from_numpy(outputs), y_onehot).item()
 
         return loss, preds
 
-    def fit(self, inputs, labels, phase):
-        inputs, labels = inputs.cpu().numpy(), labels.cpu()
+    def fit(self, inputs, labels, eval_inputs=None, eval_labels=None):
         if self.cfg['task_type'] == 'classify':
-            return self._fit_classify(inputs, labels, phase)
+            return self._fit_classify(inputs, labels, eval_inputs=eval_inputs, eval_labels=eval_labels)
         else:
-            return self._fit_regress(inputs, labels, phase)
+            return self._fit_regress(inputs, labels, eval_inputs=eval_inputs, eval_labels=eval_labels)
 
     def predict(self, inputs):
-        return self.model.predict(inputs.cpu().numpy())
+        return self.model.predict(list(inputs.values())[0])

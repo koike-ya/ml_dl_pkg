@@ -61,16 +61,14 @@ class CSVDataSet(BaseDataSet):
         self.phase = phase
 
         if load_func:
-            df = load_func(csv_path)
+            self.x, self.y = load_func(csv_path)
         else:
             df = pd.read_csv(csv_path, header=data_conf.get('header', 'infer'))
+            # TODO yの指定を修正。Manifest側のheaderない問題とうまいこと。
+            if phase in ['train', 'val']:
+                self.y = df.iloc[:, -1]
+                self.x = df.iloc[:, :-1].values
 
-        # TODO yの指定を修正。Manifest側のheaderない問題とうまいこと。
-        if phase in ['train', 'val']:
-            self.y = df.iloc[:, -1]
-            self.x = df.iloc[:, :-1].values
-        else:
-            self.x = df.values
         self.process_func = process_func if process_func else None
 
     def __getitem__(self, idx):
@@ -98,7 +96,7 @@ class CSVDataSet(BaseDataSet):
 
 class ManifestDataSet(BaseDataSet):
     # TODO 要テスト実装
-    def __init__(self, manifest_path, data_conf, load_func=None, process_func=None, label_func=None, phase='train'):
+    def __init__(self, manifest_path, data_conf, phase='train', load_func=None, process_func=None, label_func=None):
         """
         data_conf: {
             'load_func': Function to load data from manifest correctly,
