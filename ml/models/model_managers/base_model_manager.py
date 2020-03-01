@@ -5,9 +5,9 @@ import torch
 
 from ml.models.ml_models.decision_trees import decision_trees_args
 from ml.models.ml_models.toolbox import ml_model_manager_args
-from ml.models.nn_models.rnn import rnn_args
-from ml.models.nn_models.cnn import cnn_args
 from ml.models.nn_models.adda import adda_args
+from ml.models.nn_models.cnn import cnn_args
+from ml.models.nn_models.rnn import rnn_args
 
 
 # from ml.models.adda import adda_args
@@ -18,6 +18,7 @@ def model_args(parser):
     # cnn|xgboost|knn|catboost|sgdc will be supported
 
     nn_parser = parser.add_argument_group("Neural nerwork model arguments")
+    nn_parser.add_argument('--early-stopping', help='Early stopping with validation data', action='store_true')
     parser = rnn_args(parser)
     parser = cnn_args(parser)
     parser = adda_args(parser)
