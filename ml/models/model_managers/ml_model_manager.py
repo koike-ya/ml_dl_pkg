@@ -47,13 +47,14 @@ class MLModelManager(BaseModelManager):
         return loss, preds
 
     def _fit_classify(self, inputs, labels, eval_inputs=None, eval_labels=None):
-        if self.early_stopping:
+        if self.early_stopping and isinstance(eval_inputs, np.ndarray):
             loss = self.model.fit(inputs, labels, eval_inputs, eval_labels)
+            outputs = self.model.predict_proba(eval_inputs)
         else:
             loss = self.model.fit(inputs, labels)
+            outputs = self.model.predict_proba(inputs)
         self.fitted = self.model.fitted
 
-        outputs = self.model.predict_proba(eval_inputs)
         preds = np.argmax(outputs, 1)
 
         return loss, preds
@@ -65,4 +66,4 @@ class MLModelManager(BaseModelManager):
             return self._fit_regress(inputs, labels, eval_inputs=eval_inputs, eval_labels=eval_labels)
 
     def predict(self, inputs):
-        return self.model.predict(list(inputs.values())[0])
+        return self.model.predict(inputs)

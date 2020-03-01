@@ -29,8 +29,8 @@ def loop_iterable(iterable):
 class AddaTrainManager(BaseTrainManager):
     def __init__(self, class_labels, cfg, dataloaders, metrics):
         super(AddaTrainManager, self).__init__(class_labels, cfg, dataloaders, metrics)
-        self.metrics['source'] = get_metrics(['loss'])
-        self.metrics['target'] = get_metrics(['loss'])
+        self.metrics['source'] = get_metrics(['loss'], target_metric=False)
+        self.metrics['target'] = get_metrics(['loss'], target_metric=False)
 
     def _init_model_manager(self) -> AddaModelManager:
         return AddaModelManager(self.class_labels, self.cfg)
@@ -61,7 +61,7 @@ class AddaTrainManager(BaseTrainManager):
 
     def train(self, model_manager=None, with_validate=True, only_validate=False) -> None:
 
-        # super().train(with_validate=with_validate)
+        super().train(with_validate=with_validate)
 
         start = time.time()
         epoch_metrics = {}

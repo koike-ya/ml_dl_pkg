@@ -32,9 +32,11 @@ def base_expt_args(parser):
     expt_parser.add_argument('--n-seed-average', type=int, help='Seed averaging', default=0)
     expt_parser.add_argument('--cv-name', choices=SUPPORTED_CV, default=None)
     expt_parser.add_argument('--n-splits', type=int, help='Number of split on cv', default=0)
-    expt_parser.add_argument('--train-with-all', action='store_true',
-                             help='Whether train with train+devel dataset after hyperparameter tuning')
-    expt_parser.add_argument('--train-manager', choices=TRAINMANAGERS.keys(), default='normal')
+    expt_parser.add_argument('--infer', action='store_true',
+                             help='Whether training with train+devel dataset after hyperparameter tuning')
+    expt_parser.add_argument('--test', action='store_true',
+                             help='Whether training with train+devel dataset after hyperparameter tuning')
+    expt_parser.add_argument('--train-manager', choices=TRAINMANAGERS.keys(), default='nn')
     expt_parser.add_argument('--data-loader', choices=DATALOADERS.keys(), default='normal')
     expt_parser.add_argument('--manifest-path', help='data file for training', default='input/train.csv')
 
@@ -62,6 +64,8 @@ class BaseExperimentor(metaclass=ABCMeta):
         self.data_loader_cls = DATALOADERS[cfg['data_loader']]
         self.train_manager_cls = TRAINMANAGERS[cfg['train_manager']]
         self.process_func = process_func
+        self.test = cfg['test']
+        self.infer = cfg['infer']
         
     def _experiment(self, metrics, phases) -> Tuple[Metrics, Dict[str, np.array]]:
         pred_list = {}
@@ -77,7 +81,7 @@ class BaseExperimentor(metaclass=ABCMeta):
         train_manager = self.train_manager_cls(self.cfg['class_names'], self.cfg, dataloaders, deepcopy(metrics))
         
         if 'val' in phases:
-            metrics, pred_list['val'] = train_manager.train_with_early_stopping()
+            metrics, pred_list['val'] = train_manager.train()
         else:       # This is the case in ['train', 'infer'], ['train', 'test']
             metrics, _ = train_manager.train(with_validate=False)
             
@@ -95,7 +99,7 @@ class BaseExperimentor(metaclass=ABCMeta):
         return np.array([m.average_meter.best_score for m in metrics['val']]), pred_list['val']
 
     def experiment_with_validation(self, metrics: Metrics, infer=False) -> Tuple[np.array, Dict[str, np.array]]:
-        if infer:
+        if self.infer:
             phases = ['train', 'val', 'infer']
         else:
             phases = ['train', 'val', 'test']
@@ -104,19 +108,19 @@ class BaseExperimentor(metaclass=ABCMeta):
         return np.array([m.average_meter.best_score for m in metrics['val']]), pred_list
 
     def experiment_without_validation(self, metrics: Metrics, infer=False, seed_average=0) -> np.array:
-        if infer:
+        if self.infer:
             phases = ['train', 'infer']
         else:
             phases = ['train', 'test']
             
         if not seed_average:
-            _, pred = self._experiment(val_metrics=None, phases=phases)
+            _, pred = self._experiment(metrics=metrics, phases=phases)
             return pred
 
         else:
             pred_list = []
             for seed in range(self.cfg['seed']):
-                _, pred = self._experiment(val_metrics=None, phases=phases)
+                _, pred = self._experiment(metrics=metrics, phases=phases)
                 pred_list.append(pred)
 
             assert np.array(pred_list).T.shape[1] == seed_average

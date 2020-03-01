@@ -1,4 +1,7 @@
+import logging
 from abc import ABCMeta, abstractmethod
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 import torch
@@ -61,6 +64,7 @@ class BaseModelManager(metaclass=ABCMeta):
         pass
 
     def save_model(self):
+        logger.info(f"Best model is saved to {self.cfg['model_path']}")
         self.model.save_model(self.cfg['model_path'])
 
     def load_model(self):

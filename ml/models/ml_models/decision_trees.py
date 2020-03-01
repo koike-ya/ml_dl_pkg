@@ -11,6 +11,7 @@ def decision_trees_args(parser):
 
     decision_trees_parser = parser.add_argument_group("Decision tree-like model hyper parameters")
     decision_trees_parser.add_argument('--n-estimators', type=int, default=200)
+    decision_trees_parser.add_argument('--num-iterations', type=int, default=1000)
     decision_trees_parser.add_argument('--n-leaves', type=int, default=32)
     decision_trees_parser.add_argument('--max-depth', type=int, default=5)
     decision_trees_parser.add_argument('--reg-alpha', type=float, default=1.0, help='L1 regularization term on weights')
@@ -118,7 +119,7 @@ class LightGBM(BaseMLPredictor):
             missing=None,
             random_state=cfg['seed'],
             max_bin=255,
-            num_iterations=1000,
+            num_iterations=cfg['num_iterations'],
         )
         if self.classify:
             if len(cfg['class_names']) == 2:
