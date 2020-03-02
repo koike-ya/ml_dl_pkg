@@ -188,7 +188,7 @@ class BaseTrainManager(metaclass=ABCMeta):
         if self.cfg['task_type'] == 'classify':
             confusion_matrix_ = confusion_matrix(label_list, pred_list,
                                                  labels=list(range(len(self.class_labels))))
-            logger.info(confusion_matrix_)
+            logger.info(f'Confusion matrix: \n{confusion_matrix_}')
 
         if return_metrics:
             return pred_list, label_list, self.metrics

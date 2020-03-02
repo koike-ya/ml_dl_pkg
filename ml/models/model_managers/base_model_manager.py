@@ -6,11 +6,12 @@ logger = logging.getLogger(__name__)
 import numpy as np
 import torch
 
-from ml.models.ml_models.decision_trees import decision_trees_args
+from ml.models.ml_models.decision_trees import decision_tree_args
 from ml.models.ml_models.toolbox import ml_model_manager_args
 from ml.models.nn_models.adda import adda_args
 from ml.models.nn_models.cnn import cnn_args
 from ml.models.nn_models.rnn import rnn_args
+from ml.models.nn_models.nn import nn_args
 
 
 # from ml.models.adda import adda_args
@@ -22,13 +23,14 @@ def model_args(parser):
 
     nn_parser = parser.add_argument_group("Neural nerwork model arguments")
     nn_parser.add_argument('--early-stopping', help='Early stopping with validation data', action='store_true')
+    parser = nn_args(parser)
     parser = rnn_args(parser)
     parser = cnn_args(parser)
     parser = adda_args(parser)
 
     # ML系用のパラメータ
     parser = ml_model_manager_args(parser)
-    parser = decision_trees_args(parser)
+    parser = decision_tree_args(parser)
 
     return parser
 

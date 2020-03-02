@@ -51,7 +51,7 @@ class WrapperDataLoader(DataLoader):
         super(WrapperDataLoader, self).__init__(*args, **kwargs)
 
     def get_input_size(self):
-        self.dataset.get_feature_size()
+        return self.dataset.get_feature_size()
 
     def get_image_size(self):
         return self.dataset.get_image_size()

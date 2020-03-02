@@ -54,6 +54,7 @@ def get_metrics(phases, task_type, train_manager='normal'):
         else:
             metrics[phase] = get_metric_list(['loss'], target_metric='loss')
 
+    return metrics
 
 class BaseExperimentor(metaclass=ABCMeta):
     def __init__(self, cfg, load_func, label_func, process_func=None, dataset_cls=None):
@@ -209,7 +210,7 @@ def typical_train(expt_conf, load_func, label_func, process_func, dataset_cls, g
     phases = ['train', 'val']
 
     if not metrics_names:
-        metrics = get_metrics(phases, cfg['task_type'], cfg['train_dataloader'])
+        metrics = get_metrics(phases, expt_conf['task_type'], expt_conf['train_manager'])
     else:
         metrics = {p: get_metric_list(metrics_names[p]) for p in phases}
 

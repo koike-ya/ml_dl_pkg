@@ -9,6 +9,7 @@ from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import log_loss
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
+from sklearn.naive_bayes import GaussianNB
 
 
 def ml_model_manager_args(parser):
@@ -39,6 +40,7 @@ class BaseMLPredictor:
         logger.info('Now fitting...')
         self.fitted = True
         # lossを返却
+
         self.model.fit(x, y)
         return log_loss(y, self.model.predict_proba(x), labels=self.class_labels)
 
@@ -71,7 +73,14 @@ class SGDC(BaseMLPredictor):
 
 class SVM(BaseMLPredictor):
     def __init__(self, class_labels, cfg):
-        class_weight = dict(zip(class_labels, cfg['loss_weight']))
+
+        class_weight = 'balanced' if cfg['loss_weight'] == 'balanced' else dict(zip(class_labels, cfg['loss_weight']))
         self.model = SVC(C=cfg['C'], kernel=cfg['svm_kernel'], class_weight=class_weight, probability=True,
                          random_state=cfg['seed'], verbose=False)
         super(SVM, self).__init__(class_labels, cfg)
+
+
+class NaiveBayes(BaseMLPredictor):
+    def __init__(self, class_labels, cfg):
+        self.model = GaussianNB()
+        super(NaiveBayes, self).__init__(class_labels, cfg)

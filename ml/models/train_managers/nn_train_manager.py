@@ -132,6 +132,9 @@ class NNTrainManager(BaseTrainManager):
         if self.logger:
             self.logger.close()
 
+        if not with_validate:
+            self.model_manager.save_model()
+
         return self.metrics, best_val_pred
 
     def retrain(self):

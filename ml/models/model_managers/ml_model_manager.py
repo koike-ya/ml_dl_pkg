@@ -1,11 +1,11 @@
 import numpy as np
 import torch
 
-from ml.models.ml_models.decision_trees import CatBoost, XGBoost, LightGBM
-from ml.models.ml_models.toolbox import KNN, SGDC, SVM
+from ml.models.ml_models.decision_trees import CatBoost, XGBoost, LightGBM, RandomForest
+from ml.models.ml_models.toolbox import KNN, SGDC, SVM, NaiveBayes
 from ml.models.model_managers.base_model_manager import BaseModelManager
 
-supported_ml_models = ['xgboost', 'knn', 'catboost', 'sgdc', 'lightgbm', 'svm']
+supported_ml_models = ['xgboost', 'knn', 'catboost', 'sgdc', 'lightgbm', 'svm', 'rf', 'nb']
 
 
 class MLModelManager(BaseModelManager):
@@ -22,8 +22,12 @@ class MLModelManager(BaseModelManager):
             return SGDC(self.class_labels, self.cfg)
         elif model_type == 'svm':
             return SVM(self.class_labels, self.cfg)
+        elif model_type == 'rf':
+            return RandomForest(self.class_labels, self.cfg)
         elif model_type == 'knn':
             return KNN(self.class_labels, self.cfg)
+        elif model_type == 'nb':
+            return NaiveBayes(self.class_labels, self.cfg)
         elif model_type == 'catboost':
             return CatBoost(self.class_labels, self.cfg)
         elif model_type == 'lightgbm':
@@ -49,15 +53,11 @@ class MLModelManager(BaseModelManager):
     def _fit_classify(self, inputs, labels, eval_inputs=None, eval_labels=None):
         if self.early_stopping and isinstance(eval_inputs, np.ndarray):
             loss = self.model.fit(inputs, labels, eval_inputs, eval_labels)
-            outputs = self.model.predict_proba(eval_inputs)
         else:
             loss = self.model.fit(inputs, labels)
-            outputs = self.model.predict_proba(inputs)
         self.fitted = self.model.fitted
 
-        preds = np.argmax(outputs, 1)
-
-        return loss, preds
+        return loss
 
     def fit(self, inputs, labels, eval_inputs=None, eval_labels=None):
         if self.cfg['task_type'] == 'classify':

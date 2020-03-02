@@ -14,6 +14,7 @@ from ml.models.nn_models.rnn import construct_rnn
 from ml.models.nn_models.cnn_rnn import construct_cnn_rnn
 from ml.models.nn_models.cnn import construct_cnn
 from ml.models.nn_models.logmel_cnn import construct_logmel_cnn
+from ml.models.nn_models.nn import construct_nn
 from ml.models.nn_models.attention import construct_attention_cnn
 from ml.models.nn_models.panns_cnn14 import construct_panns
 from ml.models.nn_models.multitask_panns_model import construct_multitask_panns
@@ -21,7 +22,7 @@ from ml.models.nn_models.nn_utils import get_param_size
 from ml.models.nn_models.pretrained_models import construct_pretrained, supported_pretrained_models
 
 
-supported_nn_models = ['cnn', 'rnn', 'cnn_rnn', 'logmel_cnn', 'attention_cnn', 'panns']
+supported_nn_models = ['nn', 'cnn', 'rnn', 'cnn_rnn', 'logmel_cnn', 'attention_cnn', 'panns']
 
 
 class NNModelManager(BaseModelManager):
@@ -50,6 +51,8 @@ class NNModelManager(BaseModelManager):
             self.class_labels = self.cfg['prev_classes']
         if self.cfg['model_type'] in supported_pretrained_models.keys():
             model = construct_pretrained(self.cfg, len(self.class_labels))
+        elif self.cfg['model_type'] == 'nn':
+            model = construct_nn(self.cfg)
         elif self.cfg['model_type'] == 'rnn':
             model = construct_rnn(self.cfg, len(self.class_labels))
         elif self.cfg['model_type'] == 'cnn_rnn':

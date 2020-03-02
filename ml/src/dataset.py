@@ -1,7 +1,10 @@
 from abc import ABCMeta, abstractmethod
+import logging
 
 import pandas as pd
 from torch.utils.data import Dataset
+
+logger = logging.getLogger(__name__)
 
 
 class BaseDataSet(Dataset, metaclass=ABCMeta):
@@ -62,6 +65,7 @@ class CSVDataSet(BaseDataSet):
 
         if load_func:
             self.x, self.y = load_func(csv_path)
+            logger.debug(f'{phase}: mean {self.x.mean()}\t std {self.x.std()}')
         else:
             df = pd.read_csv(csv_path, header=data_conf.get('header', 'infer'))
             # TODO yの指定を修正。Manifest側のheaderない問題とうまいこと。
