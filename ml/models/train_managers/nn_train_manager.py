@@ -5,6 +5,7 @@ from contextlib import contextmanager
 logger = logging.getLogger(__name__)
 
 import numpy as np
+import pandas as pd
 from copy import deepcopy
 from ml.models.train_managers.base_train_manager import BaseTrainManager
 from tqdm import tqdm
@@ -134,6 +135,9 @@ class NNTrainManager(BaseTrainManager):
 
         if not with_validate:
             self.model_manager.save_model()
+
+        if best_val_flag:
+            logger.debug(f'Best prediction of validation info:\n{pd.Series(best_val_pred).describe()}')
 
         return self.metrics, best_val_pred
 

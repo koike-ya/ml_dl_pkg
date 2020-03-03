@@ -115,8 +115,8 @@ class BaseExperimentor(metaclass=ABCMeta):
             phases = ['train', 'test']
             
         if not seed_average:
-            _, pred = self._experiment(metrics=metrics, phases=phases)
-            return pred
+            _, pred_list = self._experiment(metrics=metrics, phases=phases)
+            return pred_list['infer' if self.infer else 'test']
 
         else:
             pred_list = []
