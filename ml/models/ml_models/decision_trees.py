@@ -14,6 +14,7 @@ def decision_tree_args(parser):
     decision_tree_parser.add_argument('--n-estimators', type=int, default=200)
     decision_tree_parser.add_argument('--num-iterations', type=int, default=1000)
     decision_tree_parser.add_argument('--n-leaves', type=int, default=32)
+    decision_tree_parser.add_argument('--max-bin', type=int, default=255)
     decision_tree_parser.add_argument('--max-depth', type=int, default=5)
     decision_tree_parser.add_argument('--min-data-in-leaf', type=int, default=50)
     decision_tree_parser.add_argument('--reg-alpha', type=float, default=0.5, help='L1 regularization term on weights')
@@ -127,7 +128,7 @@ class LightGBM(BaseMLPredictor):
             # class_weight={i: weight for i, weight in enumerate(cfg['loss_weight'])},
             class_weight='balanced',
             missing=None,
-            random_state=cfg['seed'],
+            seed=cfg['seed'],
             max_bin=cfg['max_bin'],
             num_iterations=cfg['num_iterations'],
             min_child_samples=cfg['min_data_in_leaf'],
