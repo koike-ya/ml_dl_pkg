@@ -8,7 +8,7 @@ from ml.models.rnn import construct_rnn, construct_cnn_rnn
 from ml.models.cnn import construct_cnn, construct_1dcnn
 
 
-supported_nn_models = ['cnn', 'rnn', 'cnn_rnn', '1dcnn_rnn']
+supported_nn_models = ['cnn', 'rnn', 'cnn_rnn', '1dcnn_rnn', '1dcnn']
 
 
 class NNModel(BaseModel):
@@ -30,6 +30,8 @@ class NNModel(BaseModel):
             return construct_cnn(self.cfg, use_as_extractor=False)
         elif self.cfg['model_type'] == '1dcnn_rnn':
             return construct_cnn_rnn(self.cfg, construct_1dcnn, len(self.class_labels), self.device)
+        elif self.cfg['model_type'] == '1dcnn':
+            return construct_1dcnn(self.cfg).to(self.device)
         else:
             raise NotImplementedError('model_type should be either rnn or cnn, nn would be implemented in the future.')
 

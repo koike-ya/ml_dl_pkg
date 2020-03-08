@@ -28,9 +28,10 @@ def cnn_args(parser):
 
 
 class CNN(nn.Module):
-    def __init__(self, features, in_features, n_classes=2, dim=2):
+    def __init__(self, features, in_features_dict, n_classes=2, dim=2):
         super(CNN, self).__init__()
         self.features = features
+        in_features = in_features_dict['n_channels'] * in_features_dict['height'] * in_features_dict['width']
         self.classifier = nn.Sequential(
             nn.Linear(in_features, 4096),
             nn.ReLU(inplace=True),
@@ -118,7 +119,7 @@ class CNNMaker:
             'width': int(feature_shape[1])}
 
 
-def construct_cnn(cfg, use_as_extractor=False):
+def construct_cnn(cfg, n_dim=2, use_as_extractor=False):
     layer_info = []
     for layer in range(len(cfg['n_channels'])):
         layer_info.append((
@@ -131,7 +132,7 @@ def construct_cnn(cfg, use_as_extractor=False):
         (32, (4, 2), (3, 2), (0, 1)),
         (64, (4, 2), (3, 2), (0, 1)),
     ]
-    cnn_maker = CNNMaker(in_channels=cfg['n_channels'], image_size=cfg['image_size'], cfg=layer_info, n_dim=2,
+    cnn_maker = CNNMaker(in_channels=cfg['n_channels'], image_size=cfg['image_size'], cfg=layer_info, n_dim=n_dim,
                          n_classes=len(cfg['class_names']), use_as_extractor=use_as_extractor)
     return cnn_maker.construct_cnn()
 
@@ -145,9 +146,9 @@ def construct_1dcnn(cfg, use_as_extractor=False):
     for layer in range(len(cfg['cnn_channel_list'])):
         layer_info.append((
             cfg['cnn_channel_list'][layer],
-            cfg['cnn_kernel_sizes'][layer],
-            cfg['cnn_stride_sizes'][layer],
-            cfg['cnn_padding_sizes'][layer],
+            [cfg['cnn_kernel_sizes'][layer]],
+            [cfg['cnn_stride_sizes'][layer]],
+            [cfg['cnn_padding_sizes'][layer]],
         ))
     cnn_maker = CNNMaker(in_channels=cfg['n_channels'], image_size=cfg['image_size'], cfg=layer_info, n_dim=1,
                          n_classes=len(cfg['class_names']), use_as_extractor=use_as_extractor)

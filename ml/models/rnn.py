@@ -43,8 +43,8 @@ def rnn_args(parser):
                             help='Norm cutoff to prevent explosion of gradients')
     rnn_parser.add_argument('--no-bidirectional', dest='bidirectional', action='store_false', default=True,
                             help='Turn off bi-directional RNNs, introduces lookahead convolution')
-    rnn_parser.add_argument('--no-inference-softmax', dest='is_inference_softmax', action='store_false',
-                            default=True, help='Turn off inference softmax')
+    rnn_parser.add_argument('--with-inference-softmax', dest='is_inference_softmax', action='store_true',
+                            help='Turn off inference softmax')
     rnn_parser.add_argument('--batch-normalization', dest='batch_norm', action='store_true',
                             default=False, help='Batch normalization or not')
     rnn_parser.add_argument('--sequence-wise', dest='sequence_wise', action='store_true',
@@ -59,7 +59,7 @@ def construct_cnn_rnn(cfg, construct_cnn_func, output_size, device):
                       rnn_type=supported_rnns[cfg['rnn_type']], labels="abc", eeg_conf=None,
                       rnn_hidden_size=cfg['rnn_hidden_size'], n_layers=cfg['rnn_n_layers'],
                       bidirectional=cfg['bidirectional'], output_size=output_size,
-                      is_inference_softmax=cfg.get('is_inference_softmax', True))
+                      is_inference_softmax=cfg.get('is_inference_softmax', False))
 
 
 def construct_rnn(cfg, output_size):
@@ -162,7 +162,7 @@ class InferenceBatchSoftmax(nn.Module):
 
 class RNNClassifier(nn.Module):
     def __init__(self, batch_size, input_size, out_time_feature, output_size, batch_norm_size=None, sequence_wise=False,
-                 rnn_type=nn.LSTM, rnn_hidden_size=768, n_layers=5, bidirectional=True, is_inference_softmax=True):
+                 rnn_type=nn.LSTM, rnn_hidden_size=768, n_layers=5, bidirectional=True, is_inference_softmax=False):
         super(RNNClassifier, self).__init__()
 
         rnns = []
@@ -214,7 +214,7 @@ class RNNClassifier(nn.Module):
 
 class DeepSpeech(RNNClassifier):
     def __init__(self, conv, input_size, out_time_feature, batch_size, rnn_type=nn.LSTM, labels="abc", eeg_conf=None,
-                 rnn_hidden_size=768, n_layers=5, bidirectional=True, is_inference_softmax=True, output_size=2):
+                 rnn_hidden_size=768, n_layers=5, bidirectional=True, is_inference_softmax=False, output_size=2):
         super(DeepSpeech, self).__init__(batch_size, input_size=input_size, out_time_feature=out_time_feature,
                                          rnn_type=nn.LSTM, rnn_hidden_size=rnn_hidden_size, n_layers=n_layers,
                                          bidirectional=bidirectional, is_inference_softmax=is_inference_softmax,
