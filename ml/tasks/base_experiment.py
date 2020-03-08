@@ -17,6 +17,7 @@ from ml.src.dataloader import set_dataloader, set_ml_dataloader
 from ml.src.metrics import get_metric_list
 from ml.src.preprocessor import Preprocessor, preprocess_args
 from ml.utils.utils import Metrics
+import scipy.stats as stats
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +91,7 @@ class BaseExperimentor(metaclass=ABCMeta):
         if 'infer' in phases:
             pred_list['infer'] = train_manager.infer()
         elif 'test' in phases:
-            metrics, pred_list['test'] = train_manager.test()
+            pred_list['test'], label_list, metrics = train_manager.test(return_metrics=True)
 
         return metrics, pred_list
 
@@ -107,26 +108,29 @@ class BaseExperimentor(metaclass=ABCMeta):
             phases = ['train', 'val', 'test']
         
         metrics, pred_list = self._experiment(metrics, phases)
-        return np.array([m.average_meter.best_score for m in metrics['val']]), pred_list
+        if self.infer:
+            return np.array([m.average_meter.best_score for m in metrics['val']]), pred_list
+        else:
+            return np.array([m.average_meter.best_score for m in metrics['test']]), pred_list
 
-    def experiment_without_validation(self, metrics: Metrics, infer=False, seed_average=0) -> np.array:
+    def experiment_without_validation(self, metrics: Metrics, infer=False, seed_average=0) -> Tuple[Metrics, np.array]:
         if self.infer:
             phases = ['train', 'infer']
         else:
             phases = ['train', 'test']
             
         if not seed_average:
-            _, pred_list = self._experiment(metrics=metrics, phases=phases)
-            return pred_list['infer' if self.infer else 'test']
+            metrics, pred_list = self._experiment(metrics=metrics, phases=phases)
+            return metrics, pred_list
 
         else:
             pred_list = []
             for seed in range(self.cfg['seed']):
-                _, pred = self._experiment(metrics=metrics, phases=phases)
+                metrics, pred = self._experiment(metrics=metrics, phases=phases)
                 pred_list.append(pred)
 
             assert np.array(pred_list).T.shape[1] == seed_average
-            return np.array(pred_list).T.mean(axis=1)
+            return metrics, np.array(pred_list).T.mean(axis=1)
 
 
 class CrossValidator(BaseExperimentor):
@@ -137,7 +141,6 @@ class CrossValidator(BaseExperimentor):
         self.cv_name = cv_name
         self.n_splits = n_splits
         self.groups = groups
-        self.metrics_df = pd.DataFrame()
         self.pred_list = []
 
     def _save_path(self, df_x, train_idx, val_idx, temp_dir):
@@ -146,11 +149,15 @@ class CrossValidator(BaseExperimentor):
         self.cfg[f'train_path'] = f'{temp_dir}/train_manifest.csv'
         self.cfg[f'val_path'] = f'{temp_dir}/val_manifest.csv'
 
-    def set_metrics_df(self, result_list: List[float]):
-        self.metrics_df = pd.concat([self.metrics_df.T, pd.Series(result_list)], axis=1).T
-        assert self.metrics_df.shape[1] == len(result_list), self.metrics_df
+    def _set_metrics_df(self, metrics_df, result_list: List[float]):
+        metrics_df = pd.concat([metrics_df.T, pd.Series(result_list)], axis=1).T
+        assert metrics_df.shape[1] == len(result_list), metrics_df
+        return metrics_df
 
     def train_with_validation(self, metrics: Metrics) -> Tuple[np.array, List[Dict[str, np.array]]]:
+        pred_list = []
+        metric_df = pd.DataFrame()
+
         df_x = pd.concat([pd.read_csv(self.orig_cfg[f'train_path'], header=None),
                           pd.read_csv(self.orig_cfg[f'val_path'], header=None)])
         y = df_x.apply(lambda x: self.label_func(x), axis=1)
@@ -164,17 +171,20 @@ class CrossValidator(BaseExperimentor):
                 self._save_path(df_x, train_idx, val_idx, temp_dir)
 
                 result_series, fold_pred_list = super().train_with_validation(metrics)
-                self.pred_list.append(fold_pred_list)
-                self.set_metrics_df(result_series)
+                pred_list.append(fold_pred_list)
+                metrics_df = self._set_metrics_df(metric_df, result_series)
 
-        self.metrics_df.columns = val_metrics
+        metrics_df.columns = [m.name for m in metrics['val']]
+        logger.debug(f'Cross validation metrics:\n{metrics_df}')
         self.cfg['train_path'] = self.orig_cfg['train_path']
         self.cfg['val_path'] = self.orig_cfg['val_path']
 
-        return self.metrics_df.mean(axis=0).values, self.pred_list
+        return metrics_df.mean(axis=0).values, pred_list
 
-    def experiment_with_validation(self, metrics: Metrics, infer=False) -> Tuple[np.array,
-                                                                                       List[Dict[str, np.array]]]:
+    def experiment_with_validation(self, metrics: Metrics, infer=False) -> Tuple[np.array, List[Dict[str, np.array]]]:
+        pred_list = []
+        metrics_df = pd.DataFrame()
+
         df_x = pd.concat([pd.read_csv(self.orig_cfg[f'train_path'], header=None),
                           pd.read_csv(self.orig_cfg[f'val_path'], header=None)])
         y = df_x.apply(lambda x: self.label_func(x), axis=1)
@@ -188,16 +198,17 @@ class CrossValidator(BaseExperimentor):
                 self._save_path(df_x, train_idx, val_idx, temp_dir)
 
                 result_series, fold_pred_list = super().experiment_with_validation(metrics, infer=infer)
-                self.pred_list.append(fold_pred_list)
-                self.set_metrics_df(result_series)
+                pred_list.append(fold_pred_list)
+                metrics_df = self._set_metrics_df(metrics_df, result_series)
 
-        self.metrics_df.columns = val_metrics
+        metrics_df.columns = [m.name for m in metrics['val' if self.infer else 'test']]
+        logger.debug(f'Cross validation metrics:\n{metrics_df}')
         self.cfg['train_path'] = self.orig_cfg['train_path']
         self.cfg['val_path'] = self.orig_cfg['val_path']
 
-        return self.metrics_df.mean(axis=0).values, self.pred_list
+        return metrics_df.mean(axis=0).values, pred_list
 
-    def experiment_without_validation(self, infer=False, seed_average=0) -> np.array:
+    def experiment_without_validation(self) -> np.array:
         raise NotImplementedError
 
 
@@ -223,22 +234,22 @@ def typical_train(expt_conf, load_func, label_func, process_func, dataset_cls, g
 
 
 def typical_experiment(expt_conf, load_func, label_func, process_func, dataset_cls, groups, metrics_names=None):
-    infer = np.array(['infer' in key.replace('_path', '') for key in expt_conf.keys()]).any()
+    infer = 'infer_path' in expt_conf.keys()
     if expt_conf['cv_name']:
         experimentor = CrossValidator(expt_conf, load_func, label_func, process_func, dataset_cls, expt_conf['cv_name'],
                                       expt_conf['n_splits'], groups)
     else:
         experimentor = BaseExperimentor(expt_conf, load_func, label_func, process_func, dataset_cls)
 
-    phases = ['train', 'val', '']
+    phases = ['train', 'val', 'infer'] if infer else ['train', 'val', 'test']
 
     if not metrics_names:
-        metrics = get_metrics(phases, cfg['task_type'], cfg['train_dataloader'])
+        metrics = get_metrics(phases, expt_conf['task_type'], expt_conf['train_manager'])
     else:
-        metrics = {p: get_metric_list[metrics_names[p]] for p in phases}
+        metrics = {p: get_metric_list(metrics_names[p]) for p in phases}
 
     result_series, pred_list = experimentor.experiment_with_validation(metrics)
-    val_metric_names = [m.name for m in metrics['val']]
-    mlflow.log_metrics({metric_name: value for metric_name, value in zip(val_metric_names, result_series)})
+    metric_names = [m.name for m in metrics['val' if infer else 'test']]
+    mlflow.log_metrics({metric_name: value for metric_name, value in zip(metric_names, result_series)})
 
     return result_series, pred_list
