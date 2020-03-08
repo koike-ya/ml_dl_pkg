@@ -30,10 +30,10 @@ class NNTrainManager(BaseTrainManager):
             data_len = len(self.dataloaders[phase])
         eta = int(elapsed / (i + 1) * (data_len - (i + 1)))
         progress = f'\r{phase} epoch: [{epoch + 1}][{i + 1}/{data_len}]\t {elapsed}(s) eta:{eta}(s)\t'
-        progress += '\t'.join([f'{metric.name} {metric.average_meter.value:.4f}' for metric in self.metrics[phase]])
+        progress += '\t'.join([f'{m.name} {m.average_meter.value:.4f}' for m in self.metrics[phase] if m.name == 'loss'])
         logger.debug(progress)
 
-    def _update_by_epoch(self, phase, epoch, learning_anneal) -> bool:
+    def _update_by_epoch(self, phase, learning_anneal) -> bool:
         best_val_flag = False
 
         for metric in self.metrics[phase]:
@@ -65,18 +65,14 @@ class NNTrainManager(BaseTrainManager):
 
         self.check_keys_from_dict([phase], self.dataloaders)
 
-        dtype_ = np.int if self.cfg['task_type'] == 'classify' else np.float
         # ラベルが入れられなかった部分を除くため、小さな負の数を初期値として格納
-        pred_list = np.zeros((len(self.dataloaders[phase]) * batch_size, 1), dtype=dtype_) - 1000000
-        label_list = np.zeros((len(self.dataloaders[phase]) * batch_size, 1), dtype=dtype_) - 1000000
+        pred_list, label_list = np.array([]), np.array([])
         for i, (inputs, labels) in tqdm(enumerate(self.dataloaders[phase]), total=len(self.dataloaders[phase])):
 
             inputs, labels = inputs.to(self.device), labels.numpy().reshape(-1,)
             preds = self.model_manager.predict(inputs)
-            pred_list[i * batch_size:i * batch_size + preds.shape[0], 0] = preds.reshape(-1,)
-            label_list[i * batch_size:i * batch_size + labels.shape[0], 0] = labels
-
-        pred_list, label_list = pred_list[~(pred_list == -1000000)], label_list[~(label_list == -1000000)]
+            pred_list = np.hstack((pred_list, preds.reshape(-1,)))
+            label_list = np.hstack((label_list, labels))
 
         if self.cfg['tta']:
             pred_list = pred_list.reshape(self.cfg['tta'], -1).mean(axis=0)
@@ -100,33 +96,34 @@ class NNTrainManager(BaseTrainManager):
             phases = ['val']
 
         self.check_keys_from_dict(phases, self.dataloaders)
-        batch_size = self.cfg['batch_size']
-        dtype_ = np.int if self.cfg['task_type'] == 'classify' else np.float
 
         for epoch in range(self.cfg['epochs']):
             for phase in phases:
-                # ラベルが入れられなかった部分を除くため、小さな負の数を初期値として格納
-                pred_list = np.zeros((len(self.dataloaders[phase]) * batch_size,),
-                                     dtype=dtype_) - 1000000
+                pred_list, label_list = np.array([]), np.array([])
 
                 for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
                     loss, predicts = self.model_manager.fit(inputs.to(self.device), labels.to(self.device), phase)
-                    pred_list[i * batch_size:i * batch_size + predicts.shape[0]] = predicts
+                    pred_list = np.hstack((pred_list, predicts))
+                    label_list = np.hstack((label_list, labels))
+                    # logger.info(f'prediction of {phase} info:\n{pd.Series(predicts).describe()}')
 
-                    # save loss and metrics in one batch
-                    for metric in self.metrics[phase]:
-                        metric.update(loss, predicts, labels.numpy())
+                    # save loss in one batch
+                    self.metrics[phase][0].update(loss, predicts, labels.numpy())
 
                     self._verbose(epoch, phase, i, elapsed=int(time.time() - start))
 
+                # save metrics in one batch
+                [metric.update(0.0, pred_list, label_list) for metric in self.metrics[phase][1:]]
                 if self.logger:
                     self._record_log(phase, epoch)
 
+                best_val_flag = self._update_by_epoch(phase, self.cfg['learning_anneal'])
+
                 epoch_metrics[phase] = deepcopy(self.metrics[phase])
 
-                best_val_flag = self._update_by_epoch(phase, epoch, self.cfg['learning_anneal'])
                 if best_val_flag:
-                    best_val_pred = pred_list[~(pred_list == -1000000)]
+                    best_val_pred = pred_list.copy()
+                    logger.debug(f'Best prediction of validation info:\n{pd.Series(best_val_pred).describe()}')
 
             self._epoch_verbose(epoch, epoch_metrics, phases)
 
@@ -135,9 +132,6 @@ class NNTrainManager(BaseTrainManager):
 
         if not with_validate:
             self.model_manager.save_model()
-
-        if best_val_flag:
-            logger.debug(f'Best prediction of validation info:\n{pd.Series(best_val_pred).describe()}')
 
         return self.metrics, best_val_pred
 

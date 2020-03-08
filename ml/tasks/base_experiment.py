@@ -50,11 +50,12 @@ def get_metrics(phases, task_type, train_manager='normal'):
             if train_manager == 'ml':
                 metrics[phase] = get_metric_list(['uar'], target_metric='uar')
             else:
-                metrics[phase] = get_metric_list(['loss', 'uar'], target_metric='loss')
+                metrics[phase] = get_metric_list(['loss', 'uar'], target_metric='uar')
         else:
             metrics[phase] = get_metric_list(['loss'], target_metric='loss')
 
     return metrics
+
 
 class BaseExperimentor(metaclass=ABCMeta):
     def __init__(self, cfg, load_func, label_func, process_func=None, dataset_cls=None):

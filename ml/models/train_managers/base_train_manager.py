@@ -9,6 +9,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 import numpy as np
+import pandas as pd
 import torch
 from ml.models.model_managers.base_model_manager import model_args
 from ml.models.model_managers.ml_model_manager import MLModelManager, supported_ml_models
@@ -166,6 +167,7 @@ class BaseTrainManager(metaclass=ABCMeta):
             self.model_manager.load_model()
 
         pred_list, label_list = self._predict(phase=phase)
+        logger.debug(f'Prediction info:{pd.Series(pred_list).describe()}')
 
         for metric in self.metrics['test']:
             if metric.name == 'loss':
