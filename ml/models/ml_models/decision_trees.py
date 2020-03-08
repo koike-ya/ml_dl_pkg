@@ -14,10 +14,13 @@ def decision_tree_args(parser):
     decision_tree_parser.add_argument('--n-estimators', type=int, default=200)
     decision_tree_parser.add_argument('--num-iterations', type=int, default=1000)
     decision_tree_parser.add_argument('--n-leaves', type=int, default=32)
+    decision_tree_parser.add_argument('--max-bin', type=int, default=255)
     decision_tree_parser.add_argument('--max-depth', type=int, default=5)
-    decision_tree_parser.add_argument('--reg-alpha', type=float, default=1.0, help='L1 regularization term on weights')
-    decision_tree_parser.add_argument('--reg-lambda', type=float, default=1.0, help='L2 regularization term on weights')
+    decision_tree_parser.add_argument('--min-data-in-leaf', type=int, default=50)
+    decision_tree_parser.add_argument('--reg-alpha', type=float, default=0.5, help='L1 regularization term on weights')
+    decision_tree_parser.add_argument('--reg-lambda', type=float, default=0.5, help='L2 regularization term on weights')
     decision_tree_parser.add_argument('--subsample', type=float, default=0.8, help='Sample rate for bagging')
+    decision_tree_parser.add_argument('--feature-fraction', type=float, default=0.8, help='Sample rate for bagging')
 
     return parser
 
@@ -119,16 +122,17 @@ class LightGBM(BaseMLPredictor):
             learning_rate=cfg['lr'],
             max_depth=cfg['max_depth'],
             subsample=cfg['subsample'],
-            colsample_bytree=0.8,
             n_jobs=cfg['n_jobs'],
             reg_lambda=cfg['reg_lambda'],
             reg_alpha=cfg['reg_alpha'],
             # class_weight={i: weight for i, weight in enumerate(cfg['loss_weight'])},
             class_weight='balanced',
             missing=None,
-            random_state=cfg['seed'],
-            max_bin=255,
+            seed=cfg['seed'],
+            max_bin=cfg['max_bin'],
             num_iterations=cfg['num_iterations'],
+            min_child_samples=cfg['min_data_in_leaf'],
+            colsample_bytree=cfg['feature_fraction'],
         )
         if self.classify:
             if len(cfg['class_names']) == 2:

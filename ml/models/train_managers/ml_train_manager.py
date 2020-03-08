@@ -42,12 +42,11 @@ class MLTrainManager(BaseTrainManager):
             inputs[phase] = np.vstack(tuple([x.numpy() for x, _ in self.dataloaders[phase]]))
             labels[phase] = np.hstack(tuple([y for _, y in self.dataloaders[phase]]))
 
-        else:
-            if 'train' in phases:
-                if self.cfg['early_stopping'] and 'val' in phases:
-                    loss = self.model_manager.fit(inputs['train'], labels['train'], inputs['val'], labels['val'])
-                else:
-                    loss = self.model_manager.fit(inputs['train'], labels['train'])
+        if 'train' in phases:
+            if self.cfg['early_stopping'] and 'val' in phases:
+                loss = self.model_manager.fit(inputs['train'], labels['train'], inputs['val'], labels['val'])
+            else:
+                loss = self.model_manager.fit(inputs['train'], labels['train'])
 
             predicts = {}
             for phase in phases:
@@ -69,35 +68,3 @@ class MLTrainManager(BaseTrainManager):
         self.model_manager.save_model()
 
         return self.metrics, list(predicts.values())[-1]
-
-    def train_with_early_stopping(self, model_manager=None, with_validate=True, only_validate=False) -> Tuple[Metrics, np.array]:
-        if model_manager:
-            self.model_manager = model_manager
-
-        if with_validate:
-            phases = ['train', 'val']
-        else:
-            phases = ['train']
-        if only_validate:
-            phases = ['val']
-
-        self.check_keys_from_dict(phases, self.dataloaders)
-
-        inputs, labels = {}, {}
-        for phase in phases:
-            inputs[phase] = np.vstack(tuple([data[0].numpy() for data in self.dataloaders[phase]]))
-            labels[phase] = np.hstack(tuple([data[1].numpy() for data in self.dataloaders[phase]]))
-
-        if 'train' in phases:
-            loss, predicts = self.model_manager.fit(inputs['train'], labels['train'], inputs['val'], labels['val'])
-            
-        # save loss and metrics in one batch
-        for metric in self.metrics[phase]:
-            metric.update(loss, predicts, labels['val'])
-            metric.average_meter.best_score = metric.average_meter.average
-
-        message = 'val:' + '\t'.join([f'{m.name}: {m.average_meter.average:.4f}' for m in self.metrics['val']])
-        message += ']\t'
-        logger.info(message)
-
-        return self.metrics, predicts
