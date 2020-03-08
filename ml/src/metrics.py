@@ -1,7 +1,10 @@
 import numpy as np
 import pandas as pd
 import torch
-from sklearn.metrics import recall_score, accuracy_score, f1_score, precision_score, balanced_accuracy_score
+from sklearn.metrics import recall_score, accuracy_score, f1_score, precision_score, balanced_accuracy_score, confusion_matrix
+
+
+ALLOWED_METRICS = ['loss', 'far', 'accuracy', 'f1', 'precision', 'uar', 'specificity']
 
 
 class AverageMeter(object):
@@ -60,12 +63,10 @@ def metrics2df(metrics, phase='test'):
 
 
 class Metric:
-    def __init__(self, name, direction, save_model: bool = False, label_to_detect: int = 1, numpy_: bool = True):
+    def __init__(self, name, save_model: bool = False, label_to_detect: int = 1, numpy_: bool = True):
         self.name = name
-        self.direction = direction
-        self.average_meter = {'train': AverageMeter(direction),
-                              'val': AverageMeter(direction),
-                              'test': AverageMeter(direction)}
+        self.direction = 'minimize' if name == 'loss' else 'maximize'
+        self.average_meter = AverageMeter(self.direction)
         self.save_model = save_model
         self.label_to_detect = label_to_detect
         # numpy を変更可能に
@@ -74,24 +75,37 @@ class Metric:
     def add_average_meter(self, phase_name):
         self.average_meter[phase_name] = AverageMeter(self.direction)
 
-    def update(self, phase, loss_value, preds, labels):
+    def update(self, loss_value, preds, labels):
         if self.name == 'loss':
-            self.average_meter[phase].update(loss_value / len(labels), len(labels))
+            self.average_meter.update(loss_value / len(labels), len(labels))
         elif 'recall' in self.name:
             recall_label = int(self.name[-1])
-            self.average_meter[phase].update(recall(labels.copy(), preds.copy(), recall_label, self.numpy_))
+            self.average_meter.update(recall(labels.copy(), preds.copy(), recall_label, self.numpy_))
         elif self.name == 'far':
-            self.average_meter[phase].update(false_detection_rate(preds, labels, self.label_to_detect, self.numpy_))
+            self.average_meter.update(false_detection_rate(preds, labels, self.label_to_detect, self.numpy_))
         elif self.name == 'accuracy':
-            self.average_meter[phase].update(accuracy(preds, labels, self.numpy_))
+            self.average_meter.update(accuracy(preds, labels, self.numpy_))
         elif self.name == 'f1':
-            self.average_meter[phase].update(f1_score(labels, preds, self.numpy_))
+            self.average_meter.update(f1_score(labels, preds))
         elif self.name == 'precision':
-            self.average_meter[phase].update(precision_score(labels, preds, self.numpy_))
+            self.average_meter.update(precision_score(labels, preds, self.numpy_))
         elif self.name == 'uar':
-            self.average_meter[phase].update(balanced_accuracy_score(labels, preds))
+            self.average_meter.update(balanced_accuracy_score(labels, preds))
+        elif self.name == 'specificity':
+            self.average_meter.update(specificity(labels, preds))
         else:
             raise NotImplementedError
+
+
+def get_metric_list(metric_names, target_metric=None):
+    for name in metric_names:
+        assert name in ALLOWED_METRICS, f'You need to select metrics from {ALLOWED_METRICS}'
+
+    metric_list = []
+    for one_metric in metric_names:
+        metric_list.append(Metric(one_metric, save_model=one_metric == target_metric))
+
+    return metric_list
 
 
 def false_detection_rate(pred, true, label_to_detect: int = 1, numpy_: bool = True):
@@ -126,3 +140,8 @@ def recall(labels, preds, recall_label: int = 1, numpy_: bool = False):
         return recall_score(labels, preds)
 
     return recall_score(labels, preds)
+
+
+def specificity(pred, true):
+    cm1 = confusion_matrix(true, pred)
+    return cm1[0, 0] / (cm1[0, 0] + cm1[0, 1])

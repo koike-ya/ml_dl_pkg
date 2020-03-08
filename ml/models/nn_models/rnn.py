@@ -4,10 +4,8 @@ from collections import OrderedDict
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from ml.models.cnn import construct_cnn
-
+from ml.models.nn_models.nn_utils import initialize_weights
 
 supported_rnns = {
     'lstm': nn.LSTM,
@@ -15,20 +13,6 @@ supported_rnns = {
     'gru': nn.GRU
 }
 supported_rnns_inv = dict((v, k) for k, v in supported_rnns.items())
-
-
-def initialize_weights(model):
-    if type(model) in [nn.Linear]:
-        nn.init.xavier_uniform_(model.weight)
-        if model.bias:
-            nn.init.zeros_(model.bias)
-    elif type(model) in [nn.LSTM, nn.RNN, nn.GRU]:
-        nn.init.orthogonal_(model.weight_hh_l0)
-        nn.init.xavier_uniform_(model.weight_ih_l0)
-        nn.init.zeros_(model.bias_hh_l0)
-        nn.init.zeros_(model.bias_ih_l0)
-
-    return model
 
 
 def rnn_args(parser):
@@ -43,23 +27,13 @@ def rnn_args(parser):
                             help='Norm cutoff to prevent explosion of gradients')
     rnn_parser.add_argument('--no-bidirectional', dest='bidirectional', action='store_false', default=True,
                             help='Turn off bi-directional RNNs, introduces lookahead convolution')
-    rnn_parser.add_argument('--with-inference-softmax', dest='is_inference_softmax', action='store_true',
-                            help='Turn off inference softmax')
+    rnn_parser.add_argument('--inference-softmax', dest='is_inference_softmax', action='store_true',
+                            help='Turn on inference softmax')
     rnn_parser.add_argument('--batch-normalization', dest='batch_norm', action='store_true',
                             default=False, help='Batch normalization or not')
     rnn_parser.add_argument('--sequence-wise', dest='sequence_wise', action='store_true',
                             default=False, help='sequence-wise batch normalization or not')
     return parser
-
-
-def construct_cnn_rnn(cfg, construct_cnn_func, output_size, device):
-    conv, conv_out_ftrs = construct_cnn_func(cfg, use_as_extractor=True)
-    input_size = conv_out_ftrs['n_channels'] * conv_out_ftrs['width']
-    return DeepSpeech(conv.to(device), input_size, out_time_feature=conv_out_ftrs['height'], batch_size=cfg['batch_size'],
-                      rnn_type=supported_rnns[cfg['rnn_type']], labels="abc", eeg_conf=None,
-                      rnn_hidden_size=cfg['rnn_hidden_size'], n_layers=cfg['rnn_n_layers'],
-                      bidirectional=cfg['bidirectional'], output_size=output_size,
-                      is_inference_softmax=cfg.get('is_inference_softmax', False))
 
 
 def construct_rnn(cfg, output_size):
@@ -129,6 +103,7 @@ class BatchRNN(nn.Module):
 
         if self.bidirectional:
             x = x.view(x.size(0), x.size(1), 2, -1).sum(dim=2).view(x.size(0), x.size(1), -1)  # (TxNxH*2) -> (TxNxH) by sum
+
         return x
 
 
@@ -238,12 +213,7 @@ class DeepSpeech(RNNClassifier):
         x = super().forward(x)
         return x
 
-
-def get_param_size(model):
-    params = 0
-    for p in model.parameters():
-        tmp = 1
-        for x in p.size():
-            tmp *= x
-        params += tmp
-    return params
+    def change_last_layer(self, n_classes):
+        self.fc[1] = initialize_weights(nn.Linear(self.fc[1].in_features, n_classes, bias=False))
+        # print(self.fc[1].in_features)
+        # self.fc[1] = nn.Linear(self.fc[1].in_features, n_classes, bias=False)

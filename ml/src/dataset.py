@@ -1,7 +1,10 @@
+import logging
 from abc import ABCMeta, abstractmethod
 
 import pandas as pd
 from torch.utils.data import Dataset
+
+logger = logging.getLogger(__name__)
 
 
 class BaseDataSet(Dataset, metaclass=ABCMeta):
@@ -61,16 +64,15 @@ class CSVDataSet(BaseDataSet):
         self.phase = phase
 
         if load_func:
-            df = load_func(csv_path)
+            self.x, self.y = load_func(csv_path)
+            logger.debug(f'{phase}: mean {self.x.mean()}\t std {self.x.std()}')
         else:
             df = pd.read_csv(csv_path, header=data_conf.get('header', 'infer'))
+            # TODO yの指定を修正。Manifest側のheaderない問題とうまいこと。
+            if phase in ['train', 'val']:
+                self.y = df.iloc[:, -1]
+                self.x = df.iloc[:, :-1].values
 
-        # TODO yの指定を修正。Manifest側のheaderない問題とうまいこと。
-        if phase in ['train', 'val']:
-            self.y = df.iloc[:, -1]
-            self.x = df.iloc[:, :-1].values
-        else:
-            self.x = df.values
         self.process_func = process_func if process_func else None
 
     def __getitem__(self, idx):
@@ -98,7 +100,7 @@ class CSVDataSet(BaseDataSet):
 
 class ManifestDataSet(BaseDataSet):
     # TODO 要テスト実装
-    def __init__(self, manifest_path, data_conf, load_func=None, process_func=None, label_func=None):
+    def __init__(self, manifest_path, data_conf, phase='train', load_func=None, process_func=None, label_func=None):
         """
         data_conf: {
             'load_func': Function to load data from manifest correctly,
@@ -108,15 +110,20 @@ class ManifestDataSet(BaseDataSet):
 
         """
         super(ManifestDataSet, self).__init__()
-        self.path_list = list(pd.read_csv(manifest_path, header=None).values.reshape(-1,))
+        self.path_df = pd.read_csv(manifest_path, header=None)
+        if phase == 'test' and data_conf['tta']:
+            self.path_df = pd.concat([self.path_df] * data_conf['tta'])
         self.load_func = load_func
         self.label_func = label_func
-        self.labels = self._set_labels(data_conf['labels'] if 'labels' in data_conf.keys() else None)
+        if phase == 'infer':
+            self.labels = [-100] * len(self.path_df)
+        else:
+            self.labels = self._set_labels(data_conf['labels'] if 'labels' in data_conf.keys() else None)
         self.process_func = process_func if process_func else None
+        self.phase = phase
 
     def __getitem__(self, idx):
-        # TODO phaseがinferの場合はlabelsは[None]で返す
-        x = self.load_func(self.path_list[idx])
+        x = self.load_func(self.path_df.iloc[idx, :])
         label = self.labels[idx]
 
         if self.process_func:
@@ -125,16 +132,30 @@ class ManifestDataSet(BaseDataSet):
         return x, label
 
     def __len__(self):
-        return len(self.path_list)
+        return self.path_df.shape[0]
 
     def _set_labels(self, labels=None):
         if self.label_func:
-            return [self.label_func(path) for path in self.path_list]
+            return self.path_df.apply(self.label_func, axis=1)
         else:
             return labels
 
     def get_feature_size(self):
-        return self.load_func(self.path_list[0]).size(0)
+        x = self.load_func(self.path_df.iloc[0, :])
+        if self.process_func:
+            x, _ = self.process_func(x, 0)
+        return x.size()
 
     def get_labels(self):
         return self.labels
+
+
+class ManifestWaveDataSet(ManifestDataSet):
+    def __init__(self, manifest_path, data_conf, load_func=None, process_func=None, label_func=None, phase='train'):
+        super(ManifestWaveDataSet, self).__init__(manifest_path, data_conf, load_func, process_func, label_func, phase)
+
+    def get_image_size(self):
+        return self.get_feature_size()[1:]
+
+    def get_n_channels(self):
+        return self.get_feature_size()[0]

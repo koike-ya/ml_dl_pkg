@@ -1,21 +1,23 @@
 import catboost as ctb
+import lightgbm as lgb
 import numpy as np
 import pandas as pd
 import xgboost as xgb
-import lightgbm as lgb
+from sklearn.ensemble import RandomForestClassifier
 
-from ml.models.toolbox import BaseMLPredictor
+from ml.models.ml_models.toolbox import BaseMLPredictor
 
 
-def decision_trees_args(parser):
+def decision_tree_args(parser):
 
-    decision_trees_parser = parser.add_argument_group("Decision tree-like model hyper parameters")
-    decision_trees_parser.add_argument('--n-estimators', type=int, default=200)
-    decision_trees_parser.add_argument('--n-leaves', type=int, default=32)
-    decision_trees_parser.add_argument('--max-depth', type=int, default=5)
-    decision_trees_parser.add_argument('--reg-alpha', type=float, default=1.0, help='L1 regularization term on weights')
-    decision_trees_parser.add_argument('--reg-lambda', type=float, default=1.0, help='L2 regularization term on weights')
-    decision_trees_parser.add_argument('--subsample', type=float, default=0.8, help='Sample rate for bagging')
+    decision_tree_parser = parser.add_argument_group("Decision tree-like model hyper parameters")
+    decision_tree_parser.add_argument('--n-estimators', type=int, default=200)
+    decision_tree_parser.add_argument('--num-iterations', type=int, default=1000)
+    decision_tree_parser.add_argument('--n-leaves', type=int, default=32)
+    decision_tree_parser.add_argument('--max-depth', type=int, default=5)
+    decision_tree_parser.add_argument('--reg-alpha', type=float, default=1.0, help='L1 regularization term on weights')
+    decision_tree_parser.add_argument('--reg-lambda', type=float, default=1.0, help='L2 regularization term on weights')
+    decision_tree_parser.add_argument('--subsample', type=float, default=0.8, help='Sample rate for bagging')
 
     return parser
 
@@ -26,6 +28,14 @@ def get_feature_importance(model_cls, features):
     feature_importances['importance'] = model_cls.model.feature_importances_
     feature_importances = feature_importances.sort_values(by='importance', ascending=False)
     return feature_importances
+
+
+class RandomForest(BaseMLPredictor):
+    def __init__(self, class_labels, cfg):
+        self.model = RandomForestClassifier(n_estimators=cfg['n_estimators'], max_depth=cfg['max_depth'],
+                                            random_state=cfg['seed'], verbose=1, class_weight='balanced',
+                                            max_samples=cfg['subsample'])
+        super(RandomForest, self).__init__(class_labels, cfg)
 
 
 class XGBoost(BaseMLPredictor):
@@ -88,7 +98,7 @@ class CatBoost(BaseMLPredictor):
             self.model = ctb.CatBoostRegressor(**params)
         super(CatBoost, self).__init__(class_labels, cfg)
 
-    def partial_fit(self, x, y):
+    def fit(self, x, y):
         self.model.fit(x, y, verbose=False)
         if self.classify:
             return self.model.best_score_['learn']['Accuracy']
@@ -113,11 +123,12 @@ class LightGBM(BaseMLPredictor):
             n_jobs=cfg['n_jobs'],
             reg_lambda=cfg['reg_lambda'],
             reg_alpha=cfg['reg_alpha'],
-            class_weight={i: weight for i, weight in enumerate(cfg['loss_weight'])},
-            # class_weight='balanced',
+            # class_weight={i: weight for i, weight in enumerate(cfg['loss_weight'])},
+            class_weight='balanced',
             missing=None,
             random_state=cfg['seed'],
             max_bin=255,
+            num_iterations=cfg['num_iterations'],
         )
         if self.classify:
             if len(cfg['class_names']) == 2:
@@ -133,9 +144,14 @@ class LightGBM(BaseMLPredictor):
             self.model = lgb.LGBMRegressor(**self.params, num_trees=cfg['n_estimators'])
         super(LightGBM, self).__init__(class_labels, cfg)
 
-    def partial_fit(self, x, y):
-        self.model.fit(x, y, eval_set=[(x, y)], verbose=False)
-        return self.model.best_score_['training'][self.params['metric']]
+    def fit(self, x, y, eval_x=None, eval_y=None):
+        eval_set = [(x, y)]
+        if isinstance(eval_x, np.ndarray):
+            eval_set.append((eval_x, eval_y))
+
+            # return self.model.best_score_['training'][self.params['metric']]
+        self.model.fit(x, y, eval_set=eval_set, verbose=50, early_stopping_rounds=20)
+        return list(self.model.best_score_.keys())[-1]
 
     def predict(self, x):
         return self.model.predict(x).reshape((-1,))

@@ -1,18 +1,20 @@
 from __future__ import print_function, division
 
-import pandas as pd
 import argparse
+
+import pandas as pd
+from ml.models.train_managers.train_manager import train_manager_args, BaseTrainManager
+
 from ml.src import Metric
 from ml.src.dataloader import set_dataloader
 from ml.src.dataset import ManifestDataSet
-from ml.models.model_manager import model_manager_args, BaseModelManager
 
 
 def train_args(parser):
     train_parser = parser.add_argument_group('train arguments')
     train_parser.add_argument('--only-model-test', action='store_true', help='Load learned model and not training')
     train_parser.add_argument('--test', action='store_true', help='Do testing')
-    parser = model_manager_args(parser)
+    parser = train_manager_args(parser)
 
     return parser
 
@@ -64,11 +66,11 @@ def train(model_conf):
         dataloaders[phase] = set_dataloader(dataset, phase, model_conf)
 
     # modelManagerをインスタンス化、trainの実行
-    model_manager = BaseModelManager(class_names, model_conf, dataloaders, metrics)
+    train_manager = BaseTrainManager(class_names, model_conf, dataloaders, metrics)
 
     # モデルの学習を行う場合
     if not model_conf['only_test']:
-        model_manager.train()
+        train_manager.train()
 
 
 if __name__ == '__main__':

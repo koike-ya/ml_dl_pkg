@@ -3,12 +3,15 @@ import torch
 seed = 0
 torch.manual_seed(seed)
 import math
-import numpy as np
+
 torch.cuda.manual_seed_all(seed)
 import random
 random.seed(seed)
 import torch.nn as nn
-from torchvision import models
+
+
+def type_int_list_list(args):
+    return [list(map(int, arg.split('-'))) for arg in args.split(',')]
 
 
 def type_int_list(args):
@@ -19,39 +22,48 @@ def cnn_args(parser):
     cnn_parser = parser.add_argument_group("CNN model arguments")
 
     # cnn params
-    cnn_parser.add_argument('--cnn-channel-list', default='8,16', type=type_int_list)
-    cnn_parser.add_argument('--cnn-kernel-sizes', default='8,16', type=type_int_list)
-    cnn_parser.add_argument('--cnn-stride-sizes', default='4,2', type=type_int_list)
-    cnn_parser.add_argument('--cnn-padding-sizes', default='0,0', type=type_int_list)
+    cnn_parser.add_argument('--cnn-channel-list', default='8,32', type=type_int_list)
+    cnn_parser.add_argument('--cnn-kernel-sizes', default='4-4,4-4', type=type_int_list_list)
+    cnn_parser.add_argument('--cnn-stride-sizes', default='2-2,2-2', type=type_int_list_list)
+    cnn_parser.add_argument('--cnn-padding-sizes', default='1-1,1-1', type=type_int_list_list)
 
     return parser
 
 
 class CNN(nn.Module):
-    def __init__(self, features, in_features_dict, n_classes=2, dim=2):
+    def __init__(self, feature_extractor, in_features_dict, n_classes=2, feature_extract=False, dim=2):
         super(CNN, self).__init__()
-        self.features = features
+        self.feature_extractor = feature_extractor
         in_features = in_features_dict['n_channels'] * in_features_dict['height'] * in_features_dict['width']
-        self.classifier = nn.Sequential(
+        out_features = 2048
+        self.fc = nn.Sequential(
             nn.Linear(in_features, 4096),
             nn.ReLU(inplace=True),
             nn.Dropout(),
-            nn.Linear(4096, 4096),
+            nn.Linear(4096, out_features),
             nn.ReLU(inplace=True),
             nn.Dropout(),
-            nn.Linear(4096, n_classes),
         )
-        self.softmax = nn.Softmax(dim=-1)
         self.n_dim = dim
+        self.feature_extract = feature_extract
+        self.predictor = nn.Linear(out_features, n_classes)
+        if n_classes >= 2:
+            self.predictor = nn.Sequential(
+                self.predictor,
+                nn.Softmax(dim=-1)
+            )
 
     def forward(self, x):
         if self.n_dim == 3:
             x = torch.unsqueeze(x, dim=1)
-        x = self.features(x.to(torch.float))
+        x = self.feature_extractor(x.to(torch.float))
         x = x.view(x.size(0), -1)
-        x = self.classifier(x)
-        x = self.softmax(x)
-        return x
+
+        if self.feature_extract:
+            return x
+
+        x = self.fc(x)
+        return self.predictor(x)
 
 
 class CNNMaker:
@@ -150,7 +162,7 @@ def construct_1dcnn(cfg, use_as_extractor=False):
             [cfg['cnn_stride_sizes'][layer]],
             [cfg['cnn_padding_sizes'][layer]],
         ))
-    cnn_maker = CNNMaker(in_channels=cfg['n_channels'], image_size=cfg['image_size'], cfg=layer_info, n_dim=1,
+    cnn_maker = CNNMaker(in_channels=cfg['n_channels'], image_size=cfg['image_size'], cfg=layer_info, n_dim=n_dim,
                          n_classes=len(cfg['class_names']), use_as_extractor=use_as_extractor)
     return cnn_maker.construct_cnn()
 
