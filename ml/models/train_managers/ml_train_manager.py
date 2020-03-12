@@ -17,10 +17,9 @@ class MLTrainManager(BaseTrainManager):
         label_list = np.hstack(tuple([y for _, y in self.dataloaders[phase]]))
 
         pred_list = self.model_manager.predict(inputs)
-        
+
         if self.cfg['tta']:
-            pred_list = pred_list.reshape(self.cfg['tta'], -1).mean(axis=0)
-            label_list = label_list[:label_list.shape[0] // self.cfg['tta']]
+            pred_list, label_list = self._average_tta(pred_list, label_list)
 
         return pred_list, label_list
 

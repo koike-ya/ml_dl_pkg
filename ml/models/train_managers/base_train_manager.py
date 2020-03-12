@@ -158,6 +158,15 @@ class BaseTrainManager(metaclass=ABCMeta):
     def _predict(self, phase) -> Tuple[np.array, np.array]:
         raise NotImplementedError
 
+    def _average_tta(self, pred_list, label_list):
+        new_pred_list = np.zeros((-1, pred_list.shape[0] // self.cfg['tta']))
+        for label in range(pred_list.shape[1]):
+            new_pred_list[:, label] = pred_list[:, label].reshape(self.cfg['tta'], -1).mean(axis=0)
+        pred_list = new_pred_list
+        label_list = label_list[:label_list.shape[0] // self.cfg['tta']]
+
+        return pred_list, label_list
+
     def train(self, model_manager=None, with_validate=True, only_validate=False) -> Tuple[Metrics, np.array]:
         raise NotImplementedError
 
@@ -167,6 +176,10 @@ class BaseTrainManager(metaclass=ABCMeta):
             self.model_manager.load_model()
 
         pred_list, label_list = self._predict(phase=phase)
+        if self.cfg['return_prob']:
+            pred_onehot = torch.from_numpy(pred_list)
+            pred_list = np.argmax(pred_list, axis=1)
+
         logger.debug(f'Prediction info:{pd.Series(pred_list).describe()}')
 
         for metric in self.metrics['test']:
@@ -174,12 +187,13 @@ class BaseTrainManager(metaclass=ABCMeta):
                 if self.cfg['task_type'] == 'classify':
                     y_onehot = torch.zeros(label_list.shape[0], len(self.class_labels))
                     y_onehot = y_onehot.scatter_(1, torch.from_numpy(label_list).view(-1, 1).type(torch.LongTensor), 1)
-                    pred_onehot = torch.zeros(pred_list.shape[0], len(self.class_labels))
-                    pred_onehot = pred_onehot.scatter_(1, torch.from_numpy(pred_list).view(-1, 1).type(torch.LongTensor), 1)
+                    if not self.cfg['return_prob']:
+                        pred_onehot = torch.zeros(pred_list.shape[0], len(self.class_labels))
+                        pred_onehot = pred_onehot.scatter_(1, torch.from_numpy(pred_list).view(-1, 1).type(torch.LongTensor), 1)
                     loss_value = self.model_manager.criterion(pred_onehot.to(self.device), y_onehot.to(self.device)).item()
                 elif self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn']:
                     loss_value = self.model_manager.criterion(torch.from_numpy(pred_list).to(self.device),
-                                                      torch.from_numpy(label_list).to(self.device))
+                                                              torch.from_numpy(label_list).to(self.device))
             else:
                 loss_value = 10000000
 
@@ -193,7 +207,10 @@ class BaseTrainManager(metaclass=ABCMeta):
             logger.info(f'Confusion matrix: \n{confusion_matrix_}')
 
         if return_metrics:
-            return pred_list, label_list, self.metrics
+            if self.cfg['return_prob']:
+                return pred_onehot.numpy(), label_list, self.metrics
+            else:
+                return pred_list, label_list, self.metrics
         return pred_list, label_list
 
     def infer(self, load_best=True, phase='infer') -> np.array:

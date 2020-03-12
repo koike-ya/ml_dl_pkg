@@ -61,8 +61,6 @@ class NNTrainManager(BaseTrainManager):
         logger.info(message)
 
     def _predict(self, phase) -> Tuple[np.array, np.array]:
-        batch_size = self.cfg['batch_size']
-
         self.check_keys_from_dict([phase], self.dataloaders)
 
         # ラベルが入れられなかった部分を除くため、小さな負の数を初期値として格納
@@ -71,12 +69,14 @@ class NNTrainManager(BaseTrainManager):
 
             inputs, labels = inputs.to(self.device), labels.numpy().reshape(-1,)
             preds = self.model_manager.predict(inputs)
-            pred_list = np.hstack((pred_list, preds.reshape(-1,)))
+            if pred_list.size == 0:
+                pred_list = preds
+            else:
+                pred_list = np.vstack((pred_list, preds))
             label_list = np.hstack((label_list, labels))
 
         if self.cfg['tta']:
-            pred_list = pred_list.reshape(self.cfg['tta'], -1).mean(axis=0)
-            label_list = label_list[:label_list.shape[0] // self.cfg['tta']]
+            pred_list, label_list = self._average_tta(pred_list, label_list)
 
         return pred_list, label_list
 
@@ -103,9 +103,13 @@ class NNTrainManager(BaseTrainManager):
 
                 for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
                     loss, predicts = self.model_manager.fit(inputs.to(self.device), labels.to(self.device), phase)
-                    pred_list = np.hstack((pred_list, predicts))
+                    if pred_list.size == 0:
+                        pred_list = predicts
+                    else:
+                        pred_list = np.vstack((pred_list, predicts))
                     label_list = np.hstack((label_list, labels))
-                    # logger.info(f'prediction of {phase} info:\n{pd.Series(predicts).describe()}')
+                    if not self.cfg['return_prob']:
+                        logger.info(f'prediction of {phase} info:\n{pd.Series(predicts).describe()}')
 
                     # save loss in one batch
                     self.metrics[phase][0].update(loss, predicts, labels.numpy())
@@ -123,7 +127,8 @@ class NNTrainManager(BaseTrainManager):
 
                 if best_val_flag:
                     best_val_pred = pred_list.copy()
-                    logger.debug(f'Best prediction of validation info:\n{pd.Series(best_val_pred).describe()}')
+                    if not self.cfg['return_prob']:
+                        logger.debug(f'Best prediction of validation info:\n{pd.Series(best_val_pred).describe()}')
 
             self._epoch_verbose(epoch, epoch_metrics, phases)
 

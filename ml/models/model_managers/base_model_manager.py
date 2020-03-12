@@ -21,8 +21,9 @@ def model_args(parser):
     model_parser = parser.add_argument_group("Model arguments")
     # cnn|xgboost|knn|catboost|sgdc will be supported
 
-    nn_parser = parser.add_argument_group("Neural nerwork model arguments")
-    nn_parser.add_argument('--early-stopping', help='Early stopping with validation data', action='store_true')
+    model_parser = parser.add_argument_group("ML/DL model arguments")
+    model_parser.add_argument('--early-stopping', help='Early stopping with validation data', action='store_true')
+    model_parser.add_argument('--return-prob', help='Returns probability', action='store_true')
     parser = nn_args(parser)
     parser = rnn_args(parser)
     parser = cnn_args(parser)

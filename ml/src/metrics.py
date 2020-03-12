@@ -76,6 +76,9 @@ class Metric:
         self.average_meter[phase_name] = AverageMeter(self.direction)
 
     def update(self, loss_value, preds, labels):
+        if len(preds.shape) > 1:
+            preds = np.argmax(preds, axis=1)
+
         if self.name == 'loss':
             self.average_meter.update(loss_value / len(labels), len(labels))
         elif 'recall' in self.name:

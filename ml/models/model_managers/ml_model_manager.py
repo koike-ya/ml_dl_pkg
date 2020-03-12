@@ -35,22 +35,29 @@ class MLModelManager(BaseModelManager):
         else:
             raise NotImplementedError('Model type: cnn|xgboost|knn|catboost|sgdc|svm are supported.')
 
-    def _fit_regress(self, inputs, labels, eval_inputs=None, eval_labels=None):
-        if phase == 'train':  # train時はパラメータ更新&trainのlossを算出
-            if self.early_stopping:
-                loss = self.model.fit(inputs, labels, eval_inputs, eval_labels)
-            else:
-                loss = self.model.fit(inputs, labels)
-            self.fitted = self.model.fitted
+    # def _fit_regress(self, inputs, labels, eval_inputs=None, eval_labels=None):
+    #     if self.early_stopping and isinstance(eval_inputs, np.ndarray):
+    #         loss = self.model.fit(inputs, labels, eval_inputs, eval_labels)
+    #     else:
+    #         loss = self.model.fit(inputs, labels)
+    #     self.fitted = self.model.fitted
+    #
+    #     return loss
+    #
+    # def _fit_classify(self, inputs, labels, eval_inputs=None, eval_labels=None):
+    #     if self.early_stopping and isinstance(eval_inputs, np.ndarray):
+    #         loss = self.model.fit(inputs, labels, eval_inputs, eval_labels)
+    #     else:
+    #         loss = self.model.fit(inputs, labels)
+    #     self.fitted = self.model.fitted
+    #
+    #     return loss
 
-        preds = self.model.predict(eval_inputs)
-
-        if phase == 'val':  # validation時はlossのみ算出
-            loss = self.criterion(torch.from_numpy(preds).float(), labels.float()).item()
-
-        return loss, preds
-
-    def _fit_classify(self, inputs, labels, eval_inputs=None, eval_labels=None):
+    def fit(self, inputs, labels, eval_inputs=None, eval_labels=None):
+        # if self.cfg['task_type'] == 'classify':
+        #     return self._fit_classify(inputs, labels, eval_inputs=eval_inputs, eval_labels=eval_labels)
+        # else:
+        #     return self._fit_regress(inputs, labels, eval_inputs=eval_inputs, eval_labels=eval_labels)
         if self.early_stopping and isinstance(eval_inputs, np.ndarray):
             loss = self.model.fit(inputs, labels, eval_inputs, eval_labels)
         else:
@@ -59,11 +66,8 @@ class MLModelManager(BaseModelManager):
 
         return loss
 
-    def fit(self, inputs, labels, eval_inputs=None, eval_labels=None):
-        if self.cfg['task_type'] == 'classify':
-            return self._fit_classify(inputs, labels, eval_inputs=eval_inputs, eval_labels=eval_labels)
-        else:
-            return self._fit_regress(inputs, labels, eval_inputs=eval_inputs, eval_labels=eval_labels)
-
     def predict(self, inputs):
-        return self.model.predict(inputs)
+        if self.cfg['return_prob']:
+            return self.model.predict_proba(inputs)
+        else:
+            return self.model.predict(inputs)

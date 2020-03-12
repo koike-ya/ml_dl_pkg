@@ -139,7 +139,10 @@ class NNModelManager(BaseModelManager):
                     loss.backward(retain_graph=True)
                 self.optimizer.step()
 
-            _, preds = torch.max(outputs, 1)
+            if self.cfg['return_prob']:
+                preds = outputs.detach()
+            else:
+                _, preds = torch.max(outputs, 1)
 
         return loss.item(), preds.cpu().numpy()
 
@@ -217,7 +220,8 @@ class NNModelManager(BaseModelManager):
                 if hasattr(self, 'predictor'):
                     # TODO classifierも別ファイルに重みを保存しておいて、train_managerで読み込み
                     preds = torch.from_numpy(self.predictor.predict(preds.detach()))
-                else:
+
+                if not self.cfg['return_prob']:
                     _, preds = torch.max(preds, 1)
 
         return preds.cpu().numpy()

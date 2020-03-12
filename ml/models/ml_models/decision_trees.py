@@ -119,6 +119,7 @@ class LightGBM(BaseMLPredictor):
 
         self.params = dict(
             num_leaves=cfg['n_leaves'],
+            n_estimators=cfg['n_estimators'],
             learning_rate=cfg['lr'],
             max_depth=cfg['max_depth'],
             subsample=cfg['subsample'],
