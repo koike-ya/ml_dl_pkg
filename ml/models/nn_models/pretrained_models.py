@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 from torchvision import models
-from ml.models.panns_cnn14 import construct_panns
 
+from ml.models.nn_models.panns_cnn14 import construct_panns
 
 supported_pretrained_models = {'resnet': models.resnet18, 'resnet152': models.resnet152, 'alexnet': models.alexnet,# 'densenet': models.densenet121,
                                'wideresnet': models.wide_resnet50_2, 'resnext': models.resnext50_32x4d,

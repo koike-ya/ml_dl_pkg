@@ -1,9 +1,5 @@
-import numpy as np
-import torch
-from copy import deepcopy
+from ml.models.nn_models.pretrained_models import PretrainedNN, supported_pretrained_models
 from ml.src.signal_processor import *
-from ml.models.pretrained_models import PretrainedNN, supported_pretrained_models
-from sklearn import preprocessing
 
 
 def preprocess_args(parser):
@@ -20,7 +16,7 @@ def preprocess_args(parser):
     prep_parser.add_argument('--n-mels', default=200, type=int, help='Number of mel filters banks')
     prep_parser.add_argument('--transform', choices=['spectrogram', 'scalogram', 'logmel'], default=None)
     prep_parser.add_argument('--low-cutoff', default=0.0, type=float, help='High pass filter')
-    prep_parser.add_argument('--high-cutoff', default=0.0, type=float, help='Low pass filter')
+    prep_parser.add_argument('--high-cutoff', default=None, type=float, help='Low pass filter')
     prep_parser.add_argument('--muscle-noise', default=0.0, type=float)
     prep_parser.add_argument('--eye-noise', default=0.0, type=float)
     prep_parser.add_argument('--white-noise', default=0.0, type=float)
@@ -87,7 +83,6 @@ class Preprocessor:
             #     wave[i] = shift(wave[i], self.sr * 5)
             #     wave[i] = stretch(wave[i], rate=0.3)
             #     wave[i] = shift_pitch(wave[i], rate=0.3)
-
         y = self.transform_(wave)    # channel x freq x time
 
         if self.normalize:

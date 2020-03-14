@@ -8,7 +8,7 @@ torch.cuda.manual_seed_all(seed)
 import random
 random.seed(seed)
 import tensorflow as tf
-from ml.models.base_model import BaseModel
+from ml.models.model_managers.base_model_manager import BaseModelManager
 
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"   # see issue #152
@@ -20,7 +20,7 @@ from keras.models import Sequential
 from keras.layers import  Dense, Conv3D, Dropout, Flatten, BatchNormalization
 
 
-class CHBMITCNN(BaseModel):
+class CHBMITCNN(BaseModelManager):
     def __init__(self, model_path, cfg):
         super(CHBMITCNN, self).__init__(cfg['class_names'], cfg, [])
         self.model_path = model_path

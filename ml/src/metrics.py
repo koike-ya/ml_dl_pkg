@@ -4,7 +4,7 @@ import torch
 from sklearn.metrics import recall_score, accuracy_score, f1_score, precision_score, balanced_accuracy_score, confusion_matrix
 
 
-ALLOWED_METRICS = ['loss', 'far', 'accuracy', 'f1', 'precision', 'uar', 'specificity', 'recall_1']
+ALLOWED_METRICS = ['loss', 'far', 'accuracy', 'f1', 'precision', 'uar', 'specificity']
 
 
 class AverageMeter(object):
@@ -63,11 +63,10 @@ def metrics2df(metrics, phase='test'):
 
 
 class Metric:
-    def __init__(self, name, direction, save_model: bool = False, label_to_detect: int = 1, numpy_: bool = True):
-        assert name in ALLOWED_METRICS, f'You need to select metrics from {ALLOWED_METRICS}, but {name} was selected'
+    def __init__(self, name, save_model: bool = False, label_to_detect: int = 1, numpy_: bool = True):
         self.name = name
-        self.direction = direction
-        self.average_meter = AverageMeter(direction)
+        self.direction = 'minimize' if name == 'loss' else 'maximize'
+        self.average_meter = AverageMeter(self.direction)
         self.save_model = save_model
         self.label_to_detect = label_to_detect
         # numpy を変更可能に
@@ -77,6 +76,9 @@ class Metric:
         self.average_meter[phase_name] = AverageMeter(self.direction)
 
     def update(self, loss_value, preds, labels):
+        if len(preds.shape) > 1:
+            preds = np.argmax(preds, axis=1)
+
         if self.name == 'loss':
             self.average_meter.update(loss_value / len(labels), len(labels))
         elif 'recall' in self.name:
@@ -96,6 +98,17 @@ class Metric:
             self.average_meter.update(specificity(labels, preds))
         else:
             raise NotImplementedError
+
+
+def get_metric_list(metric_names, target_metric=None):
+    for name in metric_names:
+        assert name in ALLOWED_METRICS, f'You need to select metrics from {ALLOWED_METRICS}'
+
+    metric_list = []
+    for one_metric in metric_names:
+        metric_list.append(Metric(one_metric, save_model=one_metric == target_metric))
+
+    return metric_list
 
 
 def false_detection_rate(pred, true, label_to_detect: int = 1, numpy_: bool = True):

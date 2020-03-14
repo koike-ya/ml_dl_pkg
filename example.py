@@ -1,18 +1,14 @@
 import argparse
-import json
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from ml.src.dataset import ManifestWaveDataSet
-from librosa.core import load
-from ml.models.model_manager import BaseModelManager
-from ml.models.pretrained_models import supported_pretrained_models
-from ml.src.dataloader import set_dataloader, set_ml_dataloader
-from ml.src.metrics import metrics2df, Metric
-from ml.src.preprocessor import Preprocessor, preprocess_args
 from ml.tasks.train_manager import TrainManager, train_manager_args
-from ml.src.gradcam import gradcam_main
+
+from ml.src.dataloader import set_dataloader, set_ml_dataloader
+from ml.src.dataset import ManifestWaveDataSet
+from ml.src.metrics import Metric
+from ml.src.preprocessor import Preprocessor, preprocess_args
 
 DATALOADERS = {'normal': set_dataloader, 'ml': set_ml_dataloader}
 

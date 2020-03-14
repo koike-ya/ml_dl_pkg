@@ -1,7 +1,7 @@
 import librosa
-from scipy import signal
-import torch
 import numpy as np
+import torch
+from scipy import signal
 from scipy.signal import butter, lfilter
 
 windows = {'hamming': signal.hamming, 'hann': signal.hann, 'blackman': signal.blackman,

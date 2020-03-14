@@ -1,13 +1,17 @@
+import logging
 from abc import ABCMeta, abstractmethod
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 import torch
 
-from ml.models.decision_trees import decision_trees_args
-from ml.models.toolbox import ml_model_args
-from ml.models.rnn import rnn_args
-from ml.models.cnn import cnn_args
-from ml.models.adda import adda_args
+from ml.models.ml_models.decision_trees import decision_tree_args
+from ml.models.ml_models.toolbox import ml_model_manager_args
+from ml.models.nn_models.adda import adda_args
+from ml.models.nn_models.cnn import cnn_args
+from ml.models.nn_models.rnn import rnn_args
+from ml.models.nn_models.nn import nn_args
 
 
 # from ml.models.adda import adda_args
@@ -17,19 +21,22 @@ def model_args(parser):
     model_parser = parser.add_argument_group("Model arguments")
     # cnn|xgboost|knn|catboost|sgdc will be supported
 
-    nn_parser = parser.add_argument_group("Neural nerwork model arguments")
+    model_parser = parser.add_argument_group("ML/DL model arguments")
+    model_parser.add_argument('--early-stopping', help='Early stopping with validation data', action='store_true')
+    model_parser.add_argument('--return-prob', help='Returns probability', action='store_true')
+    parser = nn_args(parser)
     parser = rnn_args(parser)
     parser = cnn_args(parser)
     parser = adda_args(parser)
 
     # ML系用のパラメータ
-    parser = ml_model_args(parser)
-    parser = decision_trees_args(parser)
+    parser = ml_model_manager_args(parser)
+    parser = decision_tree_args(parser)
 
     return parser
 
 
-class BaseModel(metaclass=ABCMeta):
+class BaseModelManager(metaclass=ABCMeta):
     def __init__(self, class_labels, cfg, must_contain_keys):
         self.class_labels = class_labels
         self.cfg = self._check_cfg(cfg, must_contain_keys)
@@ -60,6 +67,7 @@ class BaseModel(metaclass=ABCMeta):
         pass
 
     def save_model(self):
+        logger.info(f"Best model is saved to {self.cfg['model_path']}")
         self.model.save_model(self.cfg['model_path'])
 
     def load_model(self):

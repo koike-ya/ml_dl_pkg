@@ -9,8 +9,6 @@ import random
 random.seed(seed)
 import torch.nn as nn
 
-from ml.models.stft import Spectrogram, LogmelFilterBank
-
 
 def type_int_list_list(args):
     return [list(map(int, arg.split('-'))) for arg in args.split(',')]
@@ -28,21 +26,6 @@ def cnn_args(parser):
     cnn_parser.add_argument('--cnn-kernel-sizes', default='4-4,4-4', type=type_int_list_list)
     cnn_parser.add_argument('--cnn-stride-sizes', default='2-2,2-2', type=type_int_list_list)
     cnn_parser.add_argument('--cnn-padding-sizes', default='1-1,1-1', type=type_int_list_list)
-
-    # parser = logmel_cnn_args(parser)
-
-    return parser
-
-
-def logmel_cnn_args(parser):
-    logmel_cnn_parser = parser.add_argument_group("LogMelCNN model arguments")
-
-    # logmel cnn params
-    logmel_cnn_parser.add_argument('--window-size', default=4.0, type=float, help='Window size for spectrogram in seconds')
-    logmel_cnn_parser.add_argument('--window-stride', default=2.0, type=float,
-                             help='Window stride for spectrogram in seconds')
-    logmel_cnn_parser.add_argument('--window', default='hamming', help='Window type for spectrogram generation')
-    logmel_cnn_parser.add_argument('--n-mels', default=200, type=int, help='Number of mel filters banks')
 
     return parser
 
@@ -81,54 +64,6 @@ class CNN(nn.Module):
 
         x = self.fc(x)
         return self.predictor(x)
-
-
-class LogMelCNN(nn.Module):
-    def __init__(self, cnn, sample_rate, window_size, hop_size, mel_bins, fmin=0.0, fmax=None, feature_extract=False):
-        super(LogMelCNN, self).__init__()
-
-        window = 'hann'
-        center = True
-        pad_mode = 'reflect'
-        ref = 1.0
-        amin = 1e-10
-        top_db = None
-
-        # Spectrogram extractor
-        self.spectrogram_extractor = Spectrogram(n_fft=window_size, hop_length=hop_size,
-                                                 win_length=window_size, window=window, center=center,
-                                                 pad_mode=pad_mode,
-                                                 freeze_parameters=True)
-
-        # Logmel feature extractor
-        self.logmel_extractor = LogmelFilterBank(sr=sample_rate, n_fft=window_size,
-                                                 n_mels=mel_bins, fmin=fmin, fmax=fmax, ref=ref, amin=amin,
-                                                 top_db=top_db,
-                                                 freeze_parameters=True)
-        self.cnn = cnn
-
-    def forward(self, wave):
-        wave = wave.transpose(0, 1)     # channel x batch x wave
-        spect_tensor = torch.Tensor().to(wave.device)
-
-        if not hasattr(self, 'bn0'):
-            time_features = self.spectrogram_extractor(wave[0]).size(3)
-            self.bn = [nn.BatchNorm2d(time_features).to(wave.device) for i in range(wave.size(0))]
-
-        # STFT and mel filtering
-        for i in range(wave.size(0)):
-            x = wave[i]
-            x = self.spectrogram_extractor(x)  # (batch_size, 1, time_steps, freq_bins)
-            # x = self.logmel_extractor(x)  # (batch_size, 1, time_steps, mel_bins)
-            x = x.transpose(1, 3)
-            x = self.bn[i](x)
-            x = x.transpose(1, 3)
-            x = x.transpose(0, 1)   # (1, batch, time_steps, mel_bins)
-            spect_tensor = torch.cat((spect_tensor, x), 0)  # channel x batch x time x mel_bins
-
-        x = spect_tensor.transpose(0, 1)    # batch x channel x time x mel_bins
-
-        return self.cnn(x)
 
 
 class CNNMaker:
@@ -196,28 +131,40 @@ class CNNMaker:
             'width': int(feature_shape[1])}
 
 
-def construct_cnn(cfg, use_as_extractor=False, n_dim=2, logmel_cnn=False):
+def construct_cnn(cfg, n_dim=2, use_as_extractor=False):
+    layer_info = []
+    for layer in range(len(cfg['n_channels'])):
+        layer_info.append((
+            cfg['n_channels'],
+            cfg['kernel_sizes'],
+            cfg['stride_sizes'],
+            cfg['padding_sizes'],
+        ))
+    layer_info = [
+        (32, (4, 2), (3, 2), (0, 1)),
+        (64, (4, 2), (3, 2), (0, 1)),
+    ]
+    cnn_maker = CNNMaker(in_channels=cfg['n_channels'], image_size=cfg['image_size'], cfg=layer_info, n_dim=n_dim,
+                         n_classes=len(cfg['class_names']), use_as_extractor=use_as_extractor)
+    return cnn_maker.construct_cnn()
+
+
+def construct_1dcnn(cfg, use_as_extractor=False):
+    # layer_info = [
+    #     (4, [4], [2], [0]),
+    #     (16, [4], [2], [0]),
+    # ]
     layer_info = []
     for layer in range(len(cfg['cnn_channel_list'])):
         layer_info.append((
             cfg['cnn_channel_list'][layer],
-            cfg['cnn_kernel_sizes'][layer],
-            cfg['cnn_stride_sizes'][layer],
-            cfg['cnn_padding_sizes'][layer],
+            [cfg['cnn_kernel_sizes'][layer]],
+            [cfg['cnn_stride_sizes'][layer]],
+            [cfg['cnn_padding_sizes'][layer]],
         ))
     cnn_maker = CNNMaker(in_channels=cfg['n_channels'], image_size=cfg['image_size'], cfg=layer_info, n_dim=n_dim,
                          n_classes=len(cfg['class_names']), use_as_extractor=use_as_extractor)
-    if logmel_cnn:
-        cnn, out_features = cnn_maker.construct_cnn()
-        return construct_logmel_cnn(cfg, cnn), out_features
     return cnn_maker.construct_cnn()
-
-
-def construct_logmel_cnn(cfg, cnn):
-    sr = float(cfg['sample_rate'])
-    window_size = int(cfg['window_size'] * sr)
-    hop_size = int(cfg['window_stride'] * sr)
-    return LogMelCNN(cnn=cnn, sample_rate=sr, window_size=window_size, hop_size=hop_size, mel_bins=cfg['n_mels'])
 
 
 def cnn_ftrs_16_751_751(eeg_conf):
