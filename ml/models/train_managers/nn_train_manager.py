@@ -71,6 +71,8 @@ class NNTrainManager(BaseTrainManager):
             preds = self.model_manager.predict(inputs)
             if pred_list.size == 0:
                 pred_list = preds
+            elif pred_list.ndim == 1:
+                pred_list = np.hstack((pred_list, preds))
             else:
                 pred_list = np.vstack((pred_list, preds))
             label_list = np.hstack((label_list, labels))
@@ -105,11 +107,11 @@ class NNTrainManager(BaseTrainManager):
                     loss, predicts = self.model_manager.fit(inputs.to(self.device), labels.to(self.device), phase)
                     if pred_list.size == 0:
                         pred_list = predicts
+                    elif pred_list.ndim == 1:
+                        pred_list = np.hstack((pred_list, predicts))
                     else:
                         pred_list = np.vstack((pred_list, predicts))
                     label_list = np.hstack((label_list, labels))
-                    if not self.cfg['return_prob']:
-                        logger.info(f'prediction of {phase} info:\n{pd.Series(predicts).describe()}')
 
                     # save loss in one batch
                     self.metrics[phase][0].update(loss, predicts, labels.numpy())

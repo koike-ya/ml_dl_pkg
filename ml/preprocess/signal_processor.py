@@ -140,21 +140,30 @@ def shift(y, n=500):
     return np.roll(y, n)
 
 
-def add_muscle_noise(y, sr, rate):
-    muscle_noise = np.random.uniform(0, int((y.max() - y.min()) * rate), y.shape[1])
-    y += bandpass_filter(muscle_noise, l_cutoff=20, h_cutoff=60, sr=sr)
-    return y
+def _add_noise_to_signal(orig_signal, noise_signal, rate):
+    assert rate > 0.0, f'section rate {rate} is invalid, which must be over 0.0'
+    data_length = orig_signal.shape[0]
+    start_idx = int(np.random.uniform(0, orig_signal.shape[0]))
+    duration = min(data_length - start_idx, int(orig_signal.shape[0] * rate))
+    orig_signal[:, start_idx:start_idx + duration] = noise_signal[start_idx:start_idx + duration]
+    return orig_signal
 
 
-def add_eye_noise(y, sr, rate):
-    muscle_noise = np.random.uniform(0, int((y.max() - y.min()) * rate), y.shape[1])
-    y += bandpass_filter(muscle_noise, l_cutoff=1, h_cutoff=3, sr=sr)
-    return y
+def add_muscle_noise(y, sr, amp_rate, section_rate):
+    muscle_noise = np.random.uniform(0, int((y.max() - y.min()) * amp_rate), y.shape[1])
+    muscle_noise = bandpass_filter(muscle_noise, l_cutoff=20, h_cutoff=60, sr=sr)
+    return _add_noise_to_signal(orig_signal=y, noise_signal=muscle_noise, rate=section_rate)
 
 
-def add_white_noise(y, rate):
-    y += np.random.randn(y.shape[1]) * (y.max() - y.min()) * rate
-    return y
+def add_eye_noise(y, sr, amp_rate, section_rate):
+    eye_noise = np.random.uniform(0, int((y.max() - y.min()) * amp_rate), y.shape[1])
+    eye_noise = bandpass_filter(eye_noise, l_cutoff=1, h_cutoff=3, sr=sr)
+    return _add_noise_to_signal(orig_signal=y, noise_signal=eye_noise, rate=section_rate)
+
+
+def add_white_noise(y, amp_rate, section_rate):
+    white_noise = np.random.randn(y.shape[1]) * (y.max() - y.min()) * amp_rate
+    return _add_noise_to_signal(orig_signal=y, noise_signal=white_noise, rate=section_rate)
 
 
 def butter_filter(y, cutoff, fs, btype='lowpass', order=5):
@@ -166,11 +175,11 @@ def butter_filter(y, cutoff, fs, btype='lowpass', order=5):
 
 
 def lowpass_filter(y, h_cutoff, sr):
-    return butter_filter(y, h_cutoff, sr, 'lowpass', order=6)
+    return butter_filter(y, h_cutoff, sr, 'lowpass', order=4)
 
 
 def highpass_filter(y, l_cutoff, sr):
-    return butter_filter(y, l_cutoff, sr, 'highpass', order=6)
+    return butter_filter(y, l_cutoff, sr, 'highpass', order=4)
 
 
 def bandpass_filter(y, l_cutoff, h_cutoff, sr):
