@@ -97,6 +97,15 @@ class CSVDataSet(BaseDataSet):
     def get_labels(self):
         return self.y
 
+    def get_n_channels(self):
+        return 1
+
+    def get_image_size(self):
+        return (self.x.shape[1],)
+
+    def get_seq_len(self):
+        return 32
+
 
 class ManifestDataSet(BaseDataSet):
     # TODO 要テスト実装

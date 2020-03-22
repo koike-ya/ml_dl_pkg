@@ -23,6 +23,9 @@ class DeepSpeech(RNNClassifier):
         print(f'Number of parameters\tconv: {get_param_size(self.conv)}\trnn: {get_param_size(super())}')
 
     def forward(self, x):
+        if len(x.size()) <= 2:
+            x = torch.unsqueeze(x, dim=1)
+
         x = self.conv(x.to(torch.float))    # batch x channel x time x freq
 
         if len(x.size()) == 4:      # batch x channel x time_feature x freq_feature
@@ -35,8 +38,8 @@ class DeepSpeech(RNNClassifier):
         return x
 
 
-def construct_cnn_rnn(cfg, construct_cnn_func, output_size, device, n_dim):
-    conv, conv_out_ftrs = construct_cnn_func(cfg, use_as_extractor=True, n_dim=n_dim)
+def construct_cnn_rnn(cfg, construct_cnn_func, output_size, device):
+    conv, conv_out_ftrs = construct_cnn_func(cfg, use_as_extractor=True)
     input_size = conv_out_ftrs['n_channels'] * conv_out_ftrs['width']
     return DeepSpeech(conv.to(device), input_size, out_time_feature=conv_out_ftrs['height'], batch_size=cfg['batch_size'],
                       rnn_type=supported_rnns[cfg['rnn_type']], labels="abc", eeg_conf=None,

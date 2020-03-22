@@ -35,12 +35,12 @@ class CNN(nn.Module):
         super(CNN, self).__init__()
         self.feature_extractor = feature_extractor
         in_features = in_features_dict['n_channels'] * in_features_dict['height'] * in_features_dict['width']
-        out_features = 2048
+        out_features = in_features // 2
         self.fc = nn.Sequential(
-            nn.Linear(in_features, 4096),
+            nn.Linear(in_features, in_features),
             nn.ReLU(inplace=True),
             nn.Dropout(),
-            nn.Linear(4096, out_features),
+            nn.Linear(in_features, out_features),
             nn.ReLU(inplace=True),
             nn.Dropout(),
         )
@@ -54,7 +54,7 @@ class CNN(nn.Module):
             )
 
     def forward(self, x):
-        if self.n_dim == 3:
+        if self.n_dim == 1:
             x = torch.unsqueeze(x, dim=1)
         x = self.feature_extractor(x.to(torch.float))
         x = x.view(x.size(0), -1)
@@ -81,7 +81,7 @@ class CNNMaker:
         if self.use_as_extractor:
             return layers, feature_size
 
-        model = CNN(layers, feature_size, n_classes=self.n_classes)
+        model = CNN(layers, feature_size, n_classes=self.n_classes, dim=self.n_dim)
 
         return model
 
@@ -131,58 +131,16 @@ class CNNMaker:
             'width': int(feature_shape[1])}
 
 
-def construct_cnn(cfg, n_dim=2, use_as_extractor=False):
+def construct_cnn(cfg, use_as_extractor=False):
     layer_info = []
-    for layer in range(len(cfg['n_channels'])):
-        layer_info.append((
-            cfg['n_channels'],
-            cfg['kernel_sizes'],
-            cfg['stride_sizes'],
-            cfg['padding_sizes'],
-        ))
-    layer_info = [
-        (32, (4, 2), (3, 2), (0, 1)),
-        (64, (4, 2), (3, 2), (0, 1)),
-    ]
-    cnn_maker = CNNMaker(in_channels=cfg['n_channels'], image_size=cfg['image_size'], cfg=layer_info, n_dim=n_dim,
-                         n_classes=len(cfg['class_names']), use_as_extractor=use_as_extractor)
-    return cnn_maker.construct_cnn()
-
-
-def construct_1dcnn(cfg, use_as_extractor=False):
-    # layer_info = [
-    #     (4, [4], [2], [0]),
-    #     (16, [4], [2], [0]),
-    # ]
-    layer_info = []
+    n_dim = len(cfg['cnn_kernel_sizes'][0])
     for layer in range(len(cfg['cnn_channel_list'])):
         layer_info.append((
             cfg['cnn_channel_list'][layer],
-            [cfg['cnn_kernel_sizes'][layer]],
-            [cfg['cnn_stride_sizes'][layer]],
-            [cfg['cnn_padding_sizes'][layer]],
+            cfg['cnn_kernel_sizes'][layer],
+            cfg['cnn_stride_sizes'][layer],
+            cfg['cnn_padding_sizes'][layer],
         ))
-    cnn_maker = CNNMaker(in_channels=cfg['n_channels'], image_size=cfg['image_size'], cfg=layer_info, n_dim=n_dim,
+    cnn_maker = CNNMaker(in_channels=cfg['in_channels'], image_size=cfg['image_size'], cfg=layer_info, n_dim=n_dim,
                          n_classes=len(cfg['class_names']), use_as_extractor=use_as_extractor)
     return cnn_maker.construct_cnn()
-
-
-def cnn_ftrs_16_751_751(eeg_conf):
-    cfg = [
-        (32, (4, 2), (3, 2), (0, 1)),
-        (64, (4, 2), (3, 2), (0, 1)),
-    ]
-    layers = make_layers(cfg)
-    n_channel, (out_height, out_width) = calc_feature_size(cfg, last_shape=True)
-    return layers, n_channel * out_height # for RNN input size
-
-
-def cnn_1_16_751_751(n_classes=1):
-    cfg = [(16, (4, 4, 2), (2, 3, 2), (2, 0, 1)),
-           (32, (4, 4, 2), (2, 3, 2), (2, 2, 1)),
-           (64, (4, 4, 2), (2, 3, 2), (2, 1, 0))]
-    layers = make_layers(cfg, dim=3)
-    feature_size = calc_feature_size(cfg, dim=3)
-    model = CNN(layers, feature_size, n_classes, dim=3)
-
-    return model

@@ -22,7 +22,7 @@ from ml.models.nn_models.nn_utils import get_param_size
 from ml.models.nn_models.pretrained_models import construct_pretrained, supported_pretrained_models
 
 
-supported_nn_models = ['nn', 'cnn', 'rnn', 'cnn_rnn', 'logmel_cnn', 'attention_cnn', 'panns']
+supported_nn_models = ['nn', 'cnn', 'rnn', 'cnn_rnn', 'logmel_cnn', 'attention_cnn', 'panns', '1dcnn_rnn']
 
 
 class NNModelManager(BaseModelManager):
@@ -56,8 +56,7 @@ class NNModelManager(BaseModelManager):
         elif self.cfg['model_type'] == 'rnn':
             model = construct_rnn(self.cfg, len(self.class_labels))
         elif self.cfg['model_type'] == 'cnn_rnn':
-            n_dim = len(self.cfg['cnn_kernel_sizes'][0])
-            model = construct_cnn_rnn(self.cfg, construct_cnn, len(self.class_labels), self.device, n_dim=n_dim)
+            model = construct_cnn_rnn(self.cfg, construct_cnn, len(self.class_labels), self.device)
         elif self.cfg['model_type'] == 'cnn':
             model = construct_cnn(self.cfg, use_as_extractor=False)
         elif self.cfg['model_type'] == 'logmel_cnn':
