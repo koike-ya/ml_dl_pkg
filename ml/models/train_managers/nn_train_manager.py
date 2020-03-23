@@ -108,8 +108,9 @@ class NNTrainManager(BaseTrainManager):
                     else:
                         pred_list = np.vstack((pred_list, predicts))
                     label_list = np.hstack((label_list, labels))
+
                     if not self.cfg['return_prob']:
-                        logger.info(f'prediction of {phase} info:\n{pd.Series(predicts).describe()}')
+                        logger.debug(f'prediction of {phase} info:\n{pd.Series(predicts).describe()}')
 
                     # save loss in one batch
                     self.metrics[phase][0].update(loss, predicts, labels.numpy())

@@ -59,6 +59,9 @@ class WrapperDataLoader(DataLoader):
     def get_n_channels(self):
         return self.dataset.get_n_channels()
 
+    def get_seq_len(self):
+        return self.dataset.get_seq_len()
+
 
 def make_weights_for_balanced_classes(labels, sample_balance):
     labels = np.array(labels, dtype=int)
