@@ -229,7 +229,7 @@ def typical_train(expt_conf, load_func, label_func, process_func, dataset_cls, g
     val_metric_names = [m.name for m in metrics['val']]
     mlflow.log_metrics({metric_name: value for metric_name, value in zip(val_metric_names, result_series)})
 
-    return result_series, val_pred
+    return result_series, val_pred, experimentor
 
 
 def typical_experiment(expt_conf, load_func, label_func, process_func, dataset_cls, groups, metrics_names=None):
@@ -251,4 +251,4 @@ def typical_experiment(expt_conf, load_func, label_func, process_func, dataset_c
     metric_names = [m.name for m in metrics['val' if infer else 'test']]
     mlflow.log_metrics({metric_name: value for metric_name, value in zip(metric_names, result_series)})
 
-    return result_series, pred_list
+    return result_series, pred_list, experimentor

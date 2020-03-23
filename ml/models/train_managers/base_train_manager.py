@@ -71,7 +71,7 @@ def train_manager_args(parser) -> argparse.ArgumentParser:
     general_param_parser.add_argument('--task-type', help='Task type. regress or classify',
                                       default='classify', choices=['classify', 'regress'])
     general_param_parser.add_argument('--seed', default=0, type=int, help='Seed to generators')
-    general_param_parser.add_argument('--cuda', dest='cuda', action='store_true', help='Use cuda to train model')
+    general_param_parser.add_argument('--cuda', action='store_true', help='Use cuda to train model')
     general_param_parser.add_argument('--amp', dest='amp', action='store_true', help='Mixed precision training')
     general_param_parser.add_argument('--cache', action='store_true', help='Make cache after preprocessing or not')
 
