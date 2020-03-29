@@ -12,10 +12,10 @@ from ml.models.train_managers.base_train_manager import train_manager_args
 from ml.models.train_managers.ml_train_manager import MLTrainManager
 from ml.models.train_managers.multitask_train_manager import MultitaskTrainManager
 from ml.models.train_managers.nn_train_manager import NNTrainManager
+from ml.preprocess.preprocessor import Preprocessor, preprocess_args
 from ml.src.cv_manager import KFoldManager, SUPPORTED_CV
 from ml.src.dataloader import set_dataloader, set_ml_dataloader
 from ml.src.metrics import get_metric_list
-from ml.src.preprocessor import Preprocessor, preprocess_args
 from ml.utils.utils import Metrics
 
 logger = logging.getLogger(__name__)

@@ -5,10 +5,10 @@ import numpy as np
 import pandas as pd
 from ml.tasks.train_manager import TrainManager, train_manager_args
 
+from ml.preprocess.preprocessor import Preprocessor, preprocess_args
 from ml.src.dataloader import set_dataloader, set_ml_dataloader
 from ml.src.dataset import ManifestWaveDataSet
 from ml.src.metrics import Metric
-from ml.src.preprocessor import Preprocessor, preprocess_args
 
 DATALOADERS = {'normal': set_dataloader, 'ml': set_ml_dataloader}
 

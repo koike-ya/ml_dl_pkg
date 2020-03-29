@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ml.models.misc import LogMel
 from ml.models.nn_models.nn_utils import initialize_weights, init_bn
 
 
@@ -52,12 +51,11 @@ class ConvBlock(nn.Module):
 
 
 class Cnn14(nn.Module):
-    def __init__(self, sample_rate, window_size, hop_size, mel_bins, fmin,
-                 fmax, classes_num):
+    def __init__(self, in_channels, sample_rate, window_size, hop_size, mel_bins, fmin,
+                 fmax, classes_num, signal_augmentor=None, spect_augmentor=None):
         super(Cnn14, self).__init__()
-        self.logmel_extractor = LogMel(sample_rate, window_size, hop_size, mel_bins, fmin, fmax)
 
-        self.conv_block1 = ConvBlock(in_channels=1, out_channels=64)
+        self.conv_block1 = ConvBlock(in_channels=in_channels, out_channels=64)
         self.conv_block2 = ConvBlock(in_channels=64, out_channels=128)
         self.conv_block3 = ConvBlock(in_channels=128, out_channels=256)
         self.conv_block4 = ConvBlock(in_channels=256, out_channels=512)
@@ -75,8 +73,13 @@ class Cnn14(nn.Module):
 
     def forward(self, input, extract=False):
         """
-        Input: (batch_size, data_length)"""
-        x = self.logmel_extractor(input)
+        Input: (batch_size, n_channels, data_length)"""
+        # x = self.signal_augmentor(input.to(torch.float32))
+        # x = self.logmel_extractor(x)
+        #
+        # x = self.spect_augmentor(x)
+
+        x = input
 
         x = self.conv_block1(x, pool_size=(2, 2), pool_type='avg')
         x = F.dropout(x, p=0.2, training=self.training)
@@ -107,6 +110,7 @@ class Cnn14(nn.Module):
 
 def construct_logmel_cnn(cfg):
     sample_rate = cfg['sample_rate']
+    in_channels = cfg['n_channels']
     classes_num = len(cfg['class_names'])
 
     window_size = cfg['window_size'] * sample_rate
@@ -117,8 +121,8 @@ def construct_logmel_cnn(cfg):
     checkpoint_path = cfg['checkpoint_path']
     device = torch.device('cuda') if cfg['cuda'] and torch.cuda.is_available() else torch.device('cpu')
 
-    model = Cnn14(sample_rate=sample_rate, window_size=window_size, hop_size=hop_size, mel_bins=mel_bins,
-                  fmin=fmin, fmax=fmax, classes_num=classes_num).to(device)
+    model = Cnn14(in_channels=in_channels, sample_rate=sample_rate, window_size=window_size, hop_size=hop_size,
+                  mel_bins=mel_bins, fmin=fmin, fmax=fmax, classes_num=classes_num).to(device)
 
     if checkpoint_path:
         model.fc_audioset = nn.Linear(2048, 527, bias=True)

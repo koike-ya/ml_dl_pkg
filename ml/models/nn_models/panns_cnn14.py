@@ -4,8 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ml.models.augment import SpecAugmentation
 from ml.models.nn_models.stft import Spectrogram, LogmelFilterBank
+from ml.preprocess.augment import SpecAugment
 
 
 def init_layer(layer):
@@ -122,7 +122,7 @@ class Cnn14(nn.Module):
         self.bn0 = nn.BatchNorm2d(mel_bins)
 
         # Spec augmenter
-        self.spec_augmenter = SpecAugmentation(**spec_augment_params)
+        self.spec_augmenter = SpecAugment(**spec_augment_params)
 
         self.fc_audioset = nn.Linear(2048, classes_num, bias=True)
         self.classify_flag = classes_num > 1
