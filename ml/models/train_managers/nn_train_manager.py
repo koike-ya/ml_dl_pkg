@@ -59,7 +59,7 @@ class NNTrainManager(BaseTrainManager):
         message += ']\t'
 
         if phase == 'train':
-            logger.debug(message)
+            logger.info(message)
         else:
             logger.info(message)
 
