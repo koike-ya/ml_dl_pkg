@@ -89,8 +89,6 @@ class CnnPooling(nn.Module):
             x = F.max_pool2d(x, kernel_size=x.shape[2:])
             x = self.fc_final(x.view(x.shape[0:2]))
 
-        output = torch.sigmoid(x)
-
         return output
 
 

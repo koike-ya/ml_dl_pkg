@@ -57,7 +57,7 @@ class BaseModelManager(metaclass=ABCMeta):
         else:
             assert len(self.class_labels) == len(self.cfg['loss_weight']), \
                 'loss weight needs to be matched with the number of classes'
-            return torch.nn.BCELoss(weight=torch.tensor(self.cfg['loss_weight']))
+            return torch.nn.BCEWithLogitsLoss(weight=torch.tensor(self.cfg['loss_weight']))
 
     def anneal_lr(self, learning_anneal):
         pass

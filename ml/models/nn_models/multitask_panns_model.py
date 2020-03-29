@@ -54,12 +54,8 @@ class MultitaskPanns(Cnn14):
         x_v = F.relu_(self.fc_valence(x))
         x_a = F.relu_(self.fc_arousal(x))
 
-        if self.classify:
-            pred_v = torch.sigmoid(self.classifier_valence(x_v))
-            pred_a = torch.sigmoid(self.classifier_valence(x_a))
-        else:
-            pred_v = self.classifier_valence(x_v)
-            pred_a = self.classifier_valence(x_a)
+        pred_v = self.classifier_valence(x_v)
+        pred_a = self.classifier_valence(x_a)
 
         return pred_v, pred_a
 

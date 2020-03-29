@@ -125,7 +125,6 @@ class Cnn14(nn.Module):
         self.spec_augmenter = SpecAugment(**spec_augment_params)
 
         self.fc_audioset = nn.Linear(2048, classes_num, bias=True)
-        self.classify_flag = classes_num > 1
 
         self.feature_extractor = nn.ModuleList([
             self.spectrogram_extractor,
@@ -145,6 +144,7 @@ class Cnn14(nn.Module):
         init_layer(self.fc_audioset)
 
     def feature_extract(self, x):
+        print(x.size())
         x = self.spectrogram_extractor(x)  # (batch_size, 1, time_steps, freq_bins)
         x = self.logmel_extractor(x)  # (batch_size, 1, time_steps, mel_bins)
         x = x.transpose(1, 3)
@@ -176,11 +176,7 @@ class Cnn14(nn.Module):
 
     def classify(self, x):
         x = F.relu_(self.fc1(x))
-
-        if self.classify_flag:
-            x = torch.sigmoid(self.fc_audioset(x))
-        else:
-            x = self.fc_audioset(x)
+        x = self.fc_audioset(x)
 
         return x
 

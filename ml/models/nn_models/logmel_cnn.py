@@ -104,7 +104,7 @@ class Cnn14(nn.Module):
         if extract:
             embedding = F.dropout(x, p=0.5, training=self.training)
             return embedding
-        x = torch.sigmoid(self.fc_audioset(x))
+        x = self.fc_audioset(x)
         return x
 
 
