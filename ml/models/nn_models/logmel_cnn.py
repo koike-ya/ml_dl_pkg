@@ -60,10 +60,10 @@ class Cnn14(nn.Module):
         self.conv_block3 = ConvBlock(in_channels=128, out_channels=256)
         self.conv_block4 = ConvBlock(in_channels=256, out_channels=512)
         self.conv_block5 = ConvBlock(in_channels=512, out_channels=1024)
-        self.conv_block6 = ConvBlock(in_channels=1024, out_channels=2048)
+        # self.conv_block6 = ConvBlock(in_channels=1024, out_channels=2048)
 
-        self.fc1 = nn.Linear(2048, 2048, bias=True)
-        self.fc_audioset = nn.Linear(2048, classes_num, bias=True)
+        self.fc1 = nn.Linear(1024, 1024, bias=True)
+        self.fc_audioset = nn.Linear(1024, classes_num, bias=True)
 
         self.init_weight()
 
@@ -91,8 +91,8 @@ class Cnn14(nn.Module):
         x = F.dropout(x, p=0.2, training=self.training)
         x = self.conv_block5(x, pool_size=(2, 2), pool_type='avg')
         x = F.dropout(x, p=0.2, training=self.training)
-        x = self.conv_block6(x, pool_size=(1, 1), pool_type='avg')
-        x = F.dropout(x, p=0.2, training=self.training)
+        # x = self.conv_block6(x, pool_size=(1, 1), pool_type='avg')
+        # x = F.dropout(x, p=0.2, training=self.training)
 
         x = torch.mean(x, dim=3)
         (x1, _) = torch.max(x, dim=2)
@@ -128,6 +128,6 @@ def construct_logmel_cnn(cfg):
         model.fc_audioset = nn.Linear(2048, 527, bias=True)
         checkpoint = torch.load(checkpoint_path, map_location=device)
         model.load_state_dict(checkpoint['model'])
-    model.fc_audioset = nn.Linear(2048, len(cfg['class_names']), bias=True)
+    model.fc_audioset = nn.Linear(1024, len(cfg['class_names']), bias=True)
 
     return model

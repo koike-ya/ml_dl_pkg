@@ -52,13 +52,16 @@ class NNTrainManager(BaseTrainManager):
 
         return best_val_flag
 
-    def _epoch_verbose(self, epoch, epoch_metrics, phases):
+    def _epoch_verbose(self, epoch, epoch_metrics, phase):
         message = f'epoch {str(epoch + 1).ljust(2)}-> lr: {self.model_manager.get_lr():.6f}\t'
-        for phase in phases:
-            message += f'{phase}: ['
-            message += '\t'.join([f'{m.name}: {m.average_meter.average:.4f}' for m in epoch_metrics[phase]])
-            message += ']\t'
-        logger.info(message)
+        message += f'{phase}: ['
+        message += '\t'.join([f'{m.name}: {m.average_meter.average:.4f}' for m in epoch_metrics[phase]])
+        message += ']\t'
+
+        if phase == 'train':
+            logger.debug(message)
+        else:
+            logger.info(message)
 
     def _predict(self, phase) -> Tuple[np.array, np.array]:
         self.check_keys_from_dict([phase], self.dataloaders)
@@ -87,7 +90,6 @@ class NNTrainManager(BaseTrainManager):
             self.model_manager = model_manager
 
         start = time.time()
-        epoch_metrics = {}
         best_val_pred = np.array([])
 
         if with_validate:
@@ -120,19 +122,18 @@ class NNTrainManager(BaseTrainManager):
 
                 # save metrics in one batch
                 [metric.update(0.0, pred_list, label_list) for metric in self.metrics[phase][1:]]
+
+                self._epoch_verbose(epoch, self.metrics, phase)
+
                 if self.logger:
                     self._record_log(phase, epoch)
 
                 best_val_flag = self._update_by_epoch(phase, self.cfg['learning_anneal'])
 
-                epoch_metrics[phase] = deepcopy(self.metrics[phase])
-
                 if best_val_flag:
                     best_val_pred = pred_list.copy()
                     if not self.cfg['return_prob']:
                         logger.debug(f'Best prediction of validation info:\n{pd.Series(best_val_pred).describe()}')
-
-            self._epoch_verbose(epoch, epoch_metrics, phases)
 
         if self.logger:
             self.logger.close()
