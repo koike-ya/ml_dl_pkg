@@ -68,7 +68,6 @@ class CSVDataSet(BaseDataSet):
             logger.debug(f'{phase}: mean {self.x.mean()}\t std {self.x.std()}')
         else:
             df = pd.read_csv(csv_path, header=data_conf.get('header', 'infer'))
-            # TODO yの指定を修正。Manifest側のheaderない問題とうまいこと。
             if phase in ['train', 'val']:
                 self.y = df.iloc[:, -1]
                 self.x = df.iloc[:, :-1].values

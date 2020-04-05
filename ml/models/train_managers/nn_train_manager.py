@@ -63,10 +63,8 @@ class NNTrainManager(BaseTrainManager):
     def _predict(self, phase) -> Tuple[np.array, np.array]:
         self.check_keys_from_dict([phase], self.dataloaders)
 
-        # ラベルが入れられなかった部分を除くため、小さな負の数を初期値として格納
         pred_list, label_list = np.array([]), np.array([])
         for i, (inputs, labels) in tqdm(enumerate(self.dataloaders[phase]), total=len(self.dataloaders[phase])):
-
             inputs, labels = inputs.to(self.device), labels.numpy().reshape(-1,)
             preds = self.model_manager.predict(inputs)
             if pred_list.size == 0:
