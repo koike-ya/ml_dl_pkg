@@ -119,9 +119,9 @@ class BaseTrainManager(metaclass=ABCMeta):
                 if self.cfg['batch_norm']:
                     self.cfg['batch_norm_size'] = list(self.dataloaders.values())[0].get_batch_norm_size()
                 self.cfg['seq_len'] = list(self.dataloaders.values())[0].get_seq_len()
-            elif self.cfg['model_type'] in ['cnn', 'cnn_rnn'] + list(supported_pretrained_models.keys()):
+            elif self.cfg['model_type'] in ['logmel_cnn', 'cnn', 'cnn_rnn'] + list(supported_pretrained_models.keys()):
                 self.cfg['image_size'] = list(self.dataloaders.values())[0].get_image_size()
-                self.cfg['in_channels'] = list(self.dataloaders.values())[0].get_n_channels()
+                self.cfg['n_channels'] = list(self.dataloaders.values())[0].get_n_channels()
 
             return NNModelManager(self.class_labels, self.cfg)
 

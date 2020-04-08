@@ -1,10 +1,10 @@
 import unittest
 
 import torch
+from ml.models.train_managers.train_manager import BaseTrainManager
 from torch.utils.data import DataLoader
 
 from ml.config import TEST_PATH
-from ml.models.model_manager import BaseModelManager
 from ml.src.dataset import BaseDataSet
 from ml.src.metrics import Metric
 
@@ -36,7 +36,7 @@ class MockDataLoader(DataLoader):
         self.feature_size = self.dataset.get_feature_size()
 
 
-class TestModelManager(unittest.TestCase):
+class TestTrainManager(unittest.TestCase):
 
     def setUp(self):
         # TODO GPU/CPUの互換性テストをどうやるか
@@ -71,15 +71,15 @@ class TestModelManager(unittest.TestCase):
             # print(key, key in args_dict.keys())
             self.assertTrue(key in self.base_cfg.keys())
 
-    def test_baseModelManager(self):
+    def test_BaseTrainManager(self):
 
-        model_manager = BaseModelManager(self.base_classes, self.base_cfg, self.dataloaders, self.metrics)
-        self.assertEqual(self.base_classes, model_manager.class_labels)
+        train_manager = BaseTrainManager(self.base_classes, self.base_cfg, self.dataloaders, self.metrics)
+        self.assertEqual(self.base_classes, train_manager.class_labels)
 
     def test_train(self):
         self.base_cfg['epochs'] = 1
-        model_manager = BaseModelManager(self.base_classes, self.base_cfg, self.dataloaders, self.metrics)
-        model = model_manager.train()
+        train_manager = BaseTrainManager(self.base_classes, self.base_cfg, self.dataloaders, self.metrics)
+        model = train_manager.train()
         self.assertIsInstance(model.model, torch.nn.Module)
 
     def test_test(self):
@@ -87,14 +87,14 @@ class TestModelManager(unittest.TestCase):
         dataset = MockDataSet(self.base_cfg['batch_size'], self.input_size)
         dataloaders = {**self.dataloaders}
         dataloaders.update({phase: MockDataLoader(dataset, batch_size=self.base_cfg['batch_size'])})
-        model_manager = BaseModelManager(self.base_classes, self.base_cfg, dataloaders, self.metrics)
-        model_manager.train()
-        preds = model_manager.test()
+        train_manager = BaseTrainManager(self.base_classes, self.base_cfg, dataloaders, self.metrics)
+        train_manager.train()
+        preds = train_manager.test()
         self.assertTrue(len(dataloaders['test']), len(preds))
 
     def test__predict(self):
         # TODO np.arrayで格納するのか、tensorで格納するのか決定する。現在はtensorのみ。
-        # TODO 上のときNNModelまたはMLModelのどちらかのpredictも変更する
+        # TODO 上のときNNModelManagerまたはMLModelのどちらかのpredictも変更する
         pass
 
 

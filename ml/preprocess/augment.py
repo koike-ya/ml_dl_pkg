@@ -57,7 +57,7 @@ class DropStripes(nn.Module):
                 e[:, :, bgn : bgn + distance] = 0
 
 
-class SpecAugmentation(nn.Module):
+class SpecAugment:
     def __init__(self, time_drop_rate, freq_drop_rate, time_stripes_num=1, freq_stripes_num=1):
         """Spec augmetation.
         [ref] Park, D.S., Chan, W., Zhang, Y., Chiu, C.C., Zoph, B., Cubuk, E.D.
@@ -70,16 +70,13 @@ class SpecAugmentation(nn.Module):
           freq_drop_width: int
           freq_stripes_num: int
         """
-
-        super(SpecAugmentation, self).__init__()
-
         self.time_dropper = DropStripes(dim=2, drop_rate=time_drop_rate,
             stripes_num=time_stripes_num)
 
         self.freq_dropper = DropStripes(dim=3, drop_rate=freq_drop_rate,
             stripes_num=freq_stripes_num)
 
-    def forward(self, input):
-        x = self.time_dropper(input)
-        x = self.freq_dropper(x)
-        return x
+    def __call__(self, spect):
+        y = self.time_dropper(spect)
+        y = self.freq_dropper(y)
+        return y

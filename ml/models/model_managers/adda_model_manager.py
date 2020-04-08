@@ -15,7 +15,6 @@ from torch import nn
 
 from ml.models.model_managers.nn_model_manager import NNModelManager
 
-
 DOMAIN_ADAPTATION_LABELS = ['source', 'target']
 
 
