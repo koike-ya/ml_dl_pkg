@@ -50,6 +50,9 @@ def construct_rnn(cfg, output_size):
     }
     :return:
     """
+    if len(cfg['input_size']) == 2:
+        cfg['input_size'] = cfg['input_size'][0]
+
     return RNNClassifier(cfg['batch_size'], cfg['input_size'], out_time_feature=cfg['seq_len'],
                          rnn_type=supported_rnns[cfg['rnn_type']], output_size=output_size,
                          rnn_hidden_size=cfg['rnn_hidden_size'], n_layers=cfg['rnn_n_layers'],

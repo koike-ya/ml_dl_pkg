@@ -75,7 +75,7 @@ class BaseExperimentor(metaclass=ABCMeta):
         dataloaders = {}
         for phase in phases:
             if not self.process_func:
-                self.process_func = Preprocessor(self.cfg, phase, self.cfg['sample_rate']).preprocess
+                self.process_func = Preprocessor(self.cfg, phase).preprocess
             dataset = self.dataset_cls(self.cfg[f'{phase}_path'], self.cfg, phase, self.load_func, self.process_func,
                                        self.label_func)
             dataloaders[phase] = self.data_loader_cls(dataset, phase, self.cfg)

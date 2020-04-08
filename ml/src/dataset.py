@@ -167,3 +167,9 @@ class ManifestWaveDataSet(ManifestDataSet):
 
     def get_n_channels(self):
         return self.get_feature_size()[0]
+
+    def get_seq_len(self):
+        x = self.load_func(self.path_df.iloc[0, :])
+        if self.transform:
+            x = self.transform(x)
+        return x.size(1)

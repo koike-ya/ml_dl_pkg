@@ -37,9 +37,9 @@ class CNN(nn.Module):
         in_features = in_features_dict['n_channels'] * in_features_dict['height'] * in_features_dict['width']
         out_features = in_features // 2
         self.fc = nn.Sequential(
-            nn.Linear(in_features, in_features),
-            nn.ReLU(inplace=True),
-            nn.Dropout(),
+            # nn.Linear(in_features, in_features),
+            # nn.ReLU(inplace=True),
+            # nn.Dropout(),
             nn.Linear(in_features, out_features),
             nn.ReLU(inplace=True),
             nn.Dropout(),
