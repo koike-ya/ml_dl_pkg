@@ -45,6 +45,8 @@ class PretrainedNN(nn.Module):
             return list(model.children())[-1].in_features
 
     def forward(self, x):
+        if x.size(1) == 1:
+            x = torch.cat([x] * 3, 1)
         x = self.feature_extractor(x)
         x = x.reshape(x.size(0), -1)
         if self.feature_extract:

@@ -29,7 +29,7 @@ class NNTrainManager(BaseTrainManager):
         if not data_len:
             data_len = len(self.dataloaders[phase])
         eta = int(elapsed / (i + 1) * (data_len - (i + 1)))
-        progress = f'\r{phase} epoch: [{epoch + 1}][{i + 1}/{data_len}]\t {elapsed}(s) eta:{eta}(s)\t'
+        progress = f'\r{phase} epoch: [{epoch + 1}][{i + 1}/{data_len}]\t eta:{eta}(s)\t'
         progress += '\t'.join([f'{m.name} {m.average_meter.value:.4f}' for m in self.metrics[phase] if m.name == 'loss'])
         logger.debug(progress)
 

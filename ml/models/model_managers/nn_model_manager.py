@@ -122,6 +122,9 @@ class NNModelManager(BaseModelManager):
             self.criterion = self._mixup_criterion(lamb)
 
         with torch.set_grad_enabled(phase == 'train'):
+            if phase != 'train':
+                self.model.eval()
+
             outputs = self.model(inputs)
 
             y_onehot = torch.zeros(labels.size(0), len(self.class_labels))
@@ -151,6 +154,9 @@ class NNModelManager(BaseModelManager):
             self.criterion = self._mixup_criterion(lamb)
 
         with torch.set_grad_enabled(phase == 'train'):
+            if phase != 'train':
+                self.model.eval()
+
             preds = self.model(inputs)
 
             if hasattr(self, 'predictor'):

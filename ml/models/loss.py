@@ -8,7 +8,7 @@ from torch.functional import F
 
 def loss_args(parser):
     loss_parser = parser.add_argument_group("ML/DL loss arguments")
-    loss_parser.add_argument('--loss-func', help='Loss function', choices=['mse', 'ce', 'kl_div'])
+    loss_parser.add_argument('--loss-func', help='Loss function', choices=['mse', 'ce', 'kl_div'], default='ce')
     loss_parser.add_argument('--kl-penalty', help='Weight of KL regularization term', type=float, default=0.0)
     loss_parser.add_argument('--entropy-penalty', help='Weight of entropy regularization term', type=float, default=0.0)
     return parser
@@ -23,6 +23,8 @@ def set_criterion(cfg):
         criterion = torch.nn.BCEWithLogitsLoss(weight=torch.tensor(cfg['loss_weight']))
     elif cfg['loss_func'] == 'kl_div':
         criterion = KLLoss()
+    else:
+        raise NotImplementedError
 
     penalties = []
     if cfg['kl_penalty']:
