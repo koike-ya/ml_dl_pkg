@@ -88,7 +88,7 @@ class Preprocessor:
             #     wave[i] = shift(wave[i], self.sr * 5)
             #     wave[i] = stretch(wave[i], rate=0.3)
             #     wave[i] = shift_pitch(wave[i], rate=0.3)
-        y = torch.from_numpy(wave)
+        y = torch.from_numpy(wave).float()
         if self.transform:
             y = self.transform_(y)    # channel x freq x time
 

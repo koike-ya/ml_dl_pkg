@@ -157,16 +157,16 @@ class ManifestDataSet(BaseDataSet):
     def get_labels(self):
         return self.labels
 
-
-class ManifestWaveDataSet(ManifestDataSet):
-    def __init__(self, manifest_path, data_conf, load_func=None, transform=None, label_func=None, phase='train'):
-        super(ManifestWaveDataSet, self).__init__(manifest_path, data_conf, load_func, transform, label_func, phase)
-
     def get_image_size(self):
         return self.get_feature_size()[1:]
 
     def get_n_channels(self):
         return self.get_feature_size()[0]
+
+
+class ManifestWaveDataSet(ManifestDataSet):
+    def __init__(self, manifest_path, data_conf, load_func=None, transform=None, label_func=None, phase='train'):
+        super(ManifestWaveDataSet, self).__init__(manifest_path, data_conf, load_func, transform, label_func, phase)
 
     def get_seq_len(self):
         x = self.load_func(self.path_df.iloc[0, :])
