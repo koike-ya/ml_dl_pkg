@@ -6,7 +6,6 @@ logger = logging.getLogger(__name__)
 
 import numpy as np
 import pandas as pd
-from copy import deepcopy
 from ml.models.train_managers.base_train_manager import BaseTrainManager
 from tqdm import tqdm
 from typing import Tuple
@@ -29,7 +28,7 @@ class NNTrainManager(BaseTrainManager):
         if not data_len:
             data_len = len(self.dataloaders[phase])
         eta = int(elapsed / (i + 1) * (data_len - (i + 1)))
-        progress = f'\r{phase} epoch: [{epoch + 1}][{i + 1}/{data_len}]\t {elapsed}(s) eta:{eta}(s)\t'
+        progress = f'\r{phase} epoch: [{epoch + 1}][{i + 1}/{data_len}]\t eta:{eta}(s)\t'
         progress += '\t'.join([f'{m.name} {m.average_meter.value:.4f}' for m in self.metrics[phase] if m.name == 'loss'])
         logger.debug(progress)
 
@@ -66,10 +65,8 @@ class NNTrainManager(BaseTrainManager):
     def _predict(self, phase) -> Tuple[np.array, np.array]:
         self.check_keys_from_dict([phase], self.dataloaders)
 
-        # ラベルが入れられなかった部分を除くため、小さな負の数を初期値として格納
         pred_list, label_list = np.array([]), np.array([])
         for i, (inputs, labels) in tqdm(enumerate(self.dataloaders[phase]), total=len(self.dataloaders[phase])):
-
             inputs, labels = inputs.to(self.device), labels.numpy().reshape(-1,)
             preds = self.model_manager.predict(inputs)
             if pred_list.size == 0:

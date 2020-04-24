@@ -68,7 +68,6 @@ class CSVDataSet(BaseDataSet):
             logger.debug(f'{phase}: mean {self.x.mean()}\t std {self.x.std()}')
         else:
             df = pd.read_csv(csv_path, header=data_conf.get('header', 'infer'))
-            # TODO yの指定を修正。Manifest側のheaderない問題とうまいこと。
             if phase in ['train', 'val']:
                 self.y = df.iloc[:, -1]
                 self.x = df.iloc[:, :-1].values
@@ -158,13 +157,19 @@ class ManifestDataSet(BaseDataSet):
     def get_labels(self):
         return self.labels
 
-
-class ManifestWaveDataSet(ManifestDataSet):
-    def __init__(self, manifest_path, data_conf, load_func=None, transform=None, label_func=None, phase='train'):
-        super(ManifestWaveDataSet, self).__init__(manifest_path, data_conf, load_func, transform, label_func, phase)
-
     def get_image_size(self):
         return self.get_feature_size()[1:]
 
     def get_n_channels(self):
         return self.get_feature_size()[0]
+
+
+class ManifestWaveDataSet(ManifestDataSet):
+    def __init__(self, manifest_path, data_conf, load_func=None, transform=None, label_func=None, phase='train'):
+        super(ManifestWaveDataSet, self).__init__(manifest_path, data_conf, load_func, transform, label_func, phase)
+
+    def get_seq_len(self):
+        x = self.load_func(self.path_df.iloc[0, :])
+        if self.transform:
+            x = self.transform(x)
+        return x.size(1)

@@ -1,9 +1,9 @@
 
+from typing import List
+
 import torch
 from torch import Tensor
-from typing import List
 from torch.distributions.categorical import Categorical
-from torch.functional import F
 
 
 def loss_args(parser):
@@ -23,6 +23,8 @@ def set_criterion(cfg):
         criterion = torch.nn.BCEWithLogitsLoss(weight=torch.tensor(cfg['loss_weight']))
     elif cfg['loss_func'] == 'kl_div':
         criterion = KLLoss()
+    else:
+        raise NotImplementedError
 
     penalties = []
     if cfg['kl_penalty']:
