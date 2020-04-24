@@ -65,6 +65,7 @@ class BaseExperimentor(metaclass=ABCMeta):
         self.dataset_cls = dataset_cls
         self.data_loader_cls = DATALOADERS[cfg['data_loader']]
         self.train_manager_cls = TRAINMANAGERS[cfg['train_manager']]
+        self.train_manager = None
         self.process_func = process_func
         self.test = cfg['test']
         self.infer = cfg['infer']
@@ -75,22 +76,22 @@ class BaseExperimentor(metaclass=ABCMeta):
         dataloaders = {}
         for phase in phases:
             if not self.process_func:
-                self.process_func = Preprocessor(self.cfg, phase, self.cfg['sample_rate']).preprocess
+                self.process_func = Preprocessor(self.cfg, phase).preprocess
             dataset = self.dataset_cls(self.cfg[f'{phase}_path'], self.cfg, phase, self.load_func, self.process_func,
                                        self.label_func)
             dataloaders[phase] = self.data_loader_cls(dataset, phase, self.cfg)
 
-        train_manager = self.train_manager_cls(self.cfg['class_names'], self.cfg, dataloaders, deepcopy(metrics))
+        self.train_manager = self.train_manager_cls(self.cfg['class_names'], self.cfg, dataloaders, deepcopy(metrics))
         
         if 'val' in phases:
-            metrics, pred_list['val'] = train_manager.train()
+            metrics, pred_list['val'] = self.train_manager.train()
         else:       # This is the case in ['train', 'infer'], ['train', 'test']
-            metrics, _ = train_manager.train(with_validate=False)
+            metrics, _ = self.train_manager.train(with_validate=False)
             
         if 'infer' in phases:
-            pred_list['infer'] = train_manager.infer()
+            pred_list['infer'] = self.train_manager.infer()
         elif 'test' in phases:
-            pred_list['test'], label_list, metrics = train_manager.test(return_metrics=True)
+            pred_list['test'], label_list, metrics = self.train_manager.test(return_metrics=True)
 
         return metrics, pred_list
 

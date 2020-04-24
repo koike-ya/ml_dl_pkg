@@ -114,7 +114,7 @@ class NNTrainManager(BaseTrainManager):
                     else:
                         pred_list = np.vstack((pred_list, predicts))
                     label_list = np.hstack((label_list, labels))
-
+                    
                     # save loss in one batch
                     self.metrics[phase][0].update(loss, predicts, labels.numpy())
 

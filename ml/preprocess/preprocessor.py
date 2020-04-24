@@ -37,9 +37,9 @@ def preprocess_args(parser):
 
 
 class Preprocessor:
-    def __init__(self, cfg, phase, sr):
+    def __init__(self, cfg, phase):
         self.phase = phase
-        self.sr = sr
+        self.sr = cfg['sample_rate']
         self.l_cutoff = cfg['low_cutoff']
         self.h_cutoff = cfg['high_cutoff']
         self.transform = cfg['transform']
@@ -49,7 +49,6 @@ class Preprocessor:
         self.normalize = cfg['scaling']
         self.cfg = cfg
         self.spec_augment = cfg['spec_augment']
-        self.sample_rate = cfg['sample_rate']
         self.device = torch.device('cuda') if cfg['cuda'] and torch.cuda.is_available() else torch.device('cpu')
         if cfg['fe_pretrained']:
             cfg_copy = cfg.copy()
@@ -110,7 +109,7 @@ class Preprocessor:
         elif self.transform == 'scalogram':
             freq_time = cwt(wave, widths=np.arange(1, 101), sr=self.sr)  # channel x freq x time
         elif self.transform == 'logmel':
-            freq_time = LogMel(self.sample_rate, self.window_size, self.window_stride, self.cfg['n_mels'],
+            freq_time = LogMel(self.sr, self.window_size, self.window_stride, self.cfg['n_mels'],
                                self.l_cutoff, self.h_cutoff)(wave.to(torch.float32))  # channel x freq x time
         else:
             raise NotImplementedError
