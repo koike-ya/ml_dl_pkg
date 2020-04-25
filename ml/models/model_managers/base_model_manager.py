@@ -4,7 +4,6 @@ from abc import ABCMeta, abstractmethod
 logger = logging.getLogger(__name__)
 
 import numpy as np
-import torch
 
 from ml.models.ml_models.decision_trees import decision_tree_args
 from ml.models.ml_models.toolbox import ml_model_manager_args
@@ -12,6 +11,7 @@ from ml.models.nn_models.adda import adda_args
 from ml.models.nn_models.cnn import cnn_args
 from ml.models.nn_models.rnn import rnn_args
 from ml.models.nn_models.nn import nn_args
+from ml.models.nn_models.pretrained_models import pretrain_args
 from ml.models.loss import loss_args, set_criterion
 
 
@@ -28,6 +28,7 @@ def model_args(parser):
     parser = nn_args(parser)
     parser = rnn_args(parser)
     parser = cnn_args(parser)
+    parser = pretrain_args(parser)
     parser = adda_args(parser)
     parser = loss_args(parser)
 

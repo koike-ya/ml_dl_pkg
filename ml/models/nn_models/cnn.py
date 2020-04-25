@@ -22,10 +22,10 @@ def cnn_args(parser):
     cnn_parser = parser.add_argument_group("CNN model arguments")
 
     # cnn params
-    cnn_parser.add_argument('--cnn-channel-list', default='8,32', type=type_int_list)
-    cnn_parser.add_argument('--cnn-kernel-sizes', default='4-4,4-4', type=type_int_list_list)
-    cnn_parser.add_argument('--cnn-stride-sizes', default='2-2,2-2', type=type_int_list_list)
-    cnn_parser.add_argument('--cnn-padding-sizes', default='1-1,1-1', type=type_int_list_list)
+    cnn_parser.add_argument('--cnn-channel-list', default='4,8,16', type=type_int_list)
+    cnn_parser.add_argument('--cnn-kernel-sizes', default='4-4,4-4,4-4', type=type_int_list_list)
+    cnn_parser.add_argument('--cnn-stride-sizes', default='2-2,2-2,2-2', type=type_int_list_list)
+    cnn_parser.add_argument('--cnn-padding-sizes', default='1-1,1-1,1-1', type=type_int_list_list)
 
     return parser
 

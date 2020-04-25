@@ -10,6 +10,15 @@ supported_pretrained_models = {'resnet': models.resnet18, 'resnet152': models.re
                                'googlenet': models.googlenet, 'mobilenet': None, 'panns': None, 'resnext_wsl': None}
 
 
+def pretrain_args(parser):
+    pretrain_parser = parser.add_argument_group("Pretrain model arguments")
+
+    # Pretrain params
+    pretrain_parser.add_argument('--pretrained', action='store_true')
+
+    return parser
+
+
 class PretrainedNN(nn.Module):
     def __init__(self, cfg, n_classes):
         super(PretrainedNN, self).__init__()
@@ -33,7 +42,7 @@ class PretrainedNN(nn.Module):
             return torch.hub.load('pytorch/vision:v0.4.2', 'mobilenet_v2', pretrained=True)
         elif cfg['model_type'] == 'resnext_wsl':
             return torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x8d_wsl')
-        return supported_pretrained_models[cfg['model_type']](pretrained=True)
+        return supported_pretrained_models[cfg['model_type']](pretrained=cfg['pretrained'])
 
     def _get_n_last_in_features(self, model):
         if isinstance(list(model.children())[-1], nn.Sequential):

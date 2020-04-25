@@ -3,8 +3,9 @@ from typing import Tuple
 
 import numpy as np
 import torch
-from apex import amp
 from sklearn.exceptions import NotFittedError
+
+from apex import amp
 
 logger = logging.getLogger(__name__)
 
@@ -121,8 +122,7 @@ class NNModelManager(BaseModelManager):
             self.criterion = self._mixup_criterion(lamb)
 
         with torch.set_grad_enabled(phase == 'train'):
-            if phase != 'train':
-                self.model.eval()
+            self.model.train() if phase == 'train' else self.model.eval()
 
             outputs = self.model(inputs)
 
@@ -153,8 +153,7 @@ class NNModelManager(BaseModelManager):
             self.criterion = self._mixup_criterion(lamb)
 
         with torch.set_grad_enabled(phase == 'train'):
-            if phase != 'train':
-                self.model.eval()
+            self.model.train() if phase == 'train' else self.model.eval()
 
             preds = self.model(inputs)
 

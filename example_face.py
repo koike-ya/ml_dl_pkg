@@ -39,7 +39,7 @@ def load_func(row):
 
 def create_manifest(expt_conf, expt_dir):
     data_dir = Path(__file__).resolve().parent / 'input'
-    manifest_df = pd.read_csv(data_dir / 'fer2013' / 'fer2013.csv')
+    manifest_df = pd.read_csv(data_dir / 'fer2013.csv')
 
     train_val_df = manifest_df[manifest_df['Usage'] == 'Training']
     train_df = train_val_df.iloc[:int(len(train_val_df) * 0.7), :]
@@ -127,6 +127,12 @@ def main(expt_conf, expt_dir, hyperparameters):
 
         metrics, pred_dict_list, _ = typical_experiment(expt_conf, load_func, label_func, process_func, dataset_cls,
                                                         groups)
+
+        sub_name = f"uar-{metrics[-1]:.4f}_sub_{'_'.join([str(p).replace('/', '-') for p in best_pattern])}.csv"
+        pd.DataFrame(pred_dict_list['test']).to_csv(expt_dir / f'{sub_name}_prob.csv', index=False, header=None)
+        pd.DataFrame(pred_dict_list['test'].argmax(axis=1)).to_csv(expt_dir / sub_name, index=False, header=None)
+        print(f"Submission file is saved in {expt_dir / sub_name}")
+
     mlflow.end_run()
 
 
@@ -136,7 +142,7 @@ if __name__ == '__main__':
 
     console = logging.StreamHandler()
     console.setFormatter(logging.Formatter("[%(name)s] [%(levelname)s] %(message)s"))
-    console.setLevel(logging.DEBUG)
+    console.setLevel(logging.INFO)
     logging.getLogger("ml").addHandler(console)
 
     if expt_conf['model_type'] == 'cnn':
@@ -165,16 +171,17 @@ if __name__ == '__main__':
         }
     else:
         hyperparameters = {
-            'lr': [1e-4],
-            'batch_size': [16],
+            'lr': [1e-4, 1e-5],
+            'batch_size': [64],
             'epoch_rate': [1.0],
             'sample_balance': ['same'],
         }
 
     hyperparameters['model_type'] = [expt_conf['model_type']]
+    hyperparameters['pretrained'] = [expt_conf['pretrained']]
 
-    expt_conf['expt_id'] = f"{expt_conf['model_type']}"
-    expt_dir = Path(__file__).resolve().parent / 'output' / f"{expt_conf['expt_id']}"
+    expt_conf['expt_id'] = f"{expt_conf['model_type']}_{expt_conf['pretrained']}"
+    expt_dir = Path(__file__).resolve().parent / 'output' / 'example_face' / f"{expt_conf['expt_id']}"
     expt_dir.mkdir(exist_ok=True, parents=True)
     main(expt_conf, expt_dir, hyperparameters)
 

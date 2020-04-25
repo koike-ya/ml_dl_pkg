@@ -146,6 +146,11 @@ def main(expt_conf, expt_dir, hyperparameters):
         metrics, pred_dict_list, _ = typical_experiment(expt_conf, load_func, label_func, process_func, dataset_cls,
                                                         groups)
 
+        sub_name = f"uar-{metrics[-1]:.4f}_sub_{'_'.join([str(p).replace('/', '-') for p in best_pattern])}.csv"
+        pd.DataFrame(pred_dict_list['test']).to_csv(expt_dir / f'{sub_name}_prob.csv', index=False, header=None)
+        pd.DataFrame(pred_dict_list['test'].argmax(axis=1)).to_csv(expt_dir / sub_name, index=False, header=None)
+        print(f"Submission file is saved in {expt_dir / sub_name}")
+
     mlflow.end_run()
 
 
@@ -155,20 +160,24 @@ if __name__ == '__main__':
 
     console = logging.StreamHandler()
     console.setFormatter(logging.Formatter("[%(name)s] [%(levelname)s] %(message)s"))
-    console.setLevel(logging.DEBUG)
+    console.setLevel(logging.INFO)
     logging.getLogger("ml").addHandler(console)
 
     if expt_conf['model_type'] == 'cnn':
         hyperparameters = {
             'model_type': ['cnn'],
-            'window_size': [1.0],
-            'window_stride': [0.5],
+            'window_size': [2.0],
+            'window_stride': [0.2],
             'transform': ['logmel'],
-            'lr': [1e-3, 1e-4, 1e-5],
+            'cnn_channel_list': [[4, 8, 16, 32]],
+            'cnn_kernel_sizes': [[[4, 4]] * 4],
+            'cnn_stride_sizes': [[[2, 2]] * 4],
+            'cnn_padding_sizes': [[[1, 1]] * 4],
+            'lr': [1e-4],
         }
     elif expt_conf['model_type'] == 'cnn_rnn':
         hyperparameters = {
-            'lr': [1e-3, 1e-4, 1e-5],
+            'lr': [1e-4],
             'window_size': [0.5],
             'window_stride': [0.1],
             'transform': ['logmel'],
@@ -184,7 +193,7 @@ if __name__ == '__main__':
             'rnn_n_layers': [1, 2],
             'rnn_hidden_size': [10, 50],
             'transform': [None],
-            'lr': [1e-3, 1e-4, 1e-5],
+            'lr': [1e-4],
         }
     else:
         hyperparameters = {
@@ -198,8 +207,8 @@ if __name__ == '__main__':
 
     hyperparameters['model_type'] = [expt_conf['model_type']]
 
-    expt_conf['expt_id'] = f"{expt_conf['model_type']}"
-    expt_dir = Path(__file__).resolve().parent / 'output' / f"{expt_conf['expt_id']}"
+    expt_conf['expt_id'] = f"{expt_conf['model_type']}_{expt_conf['transform']}"
+    expt_dir = Path(__file__).resolve().parent / 'output' / 'example_eeg' / f"{expt_conf['expt_id']}"
     expt_dir.mkdir(exist_ok=True, parents=True)
     main(expt_conf, expt_dir, hyperparameters)
 
