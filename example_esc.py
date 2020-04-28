@@ -91,7 +91,7 @@ def main(expt_conf, expt_dir, hyperparameters):
     logging.basicConfig(level=logging.DEBUG, format="[%(name)s] [%(levelname)s] %(message)s",
                         filename=expt_dir / 'expt.log')
 
-    expt_conf['class_names'] = list(range(50))
+    expt_conf['class_names'] = list(range(10))
     expt_conf['sample_rate'] = 44010
 
     load_func = set_load_func(44010, expt_conf['sample_rate'])
@@ -197,7 +197,7 @@ if __name__ == '__main__':
         hyperparameters = {
             'lr': [1e-3],
             'window_size': [0.2],
-            'window_stride': [0.1],
+            'window_stride': [0.05],
             'transform': ['logmel'],
             'rnn_type': [expt_conf['rnn_type']],
             'bidirectional': [True],
@@ -226,8 +226,8 @@ if __name__ == '__main__':
     hyperparameters['model_type'] = [expt_conf['model_type']]
 
     expt_conf['expt_id'] = f"{expt_conf['model_type']}_{expt_conf['transform']}"
-    expt_conf['window_size'] = hyperparameters['window_size']
-    expt_conf['window_stride'] = hyperparameters['window_stride']
+    expt_conf['window_size'] = hyperparameters['window_size'][0]
+    expt_conf['window_stride'] = hyperparameters['window_stride'][0]
     expt_dir = Path(__file__).resolve().parent / 'output' / 'example_esc' / f"{expt_conf['expt_id']}"
     expt_dir.mkdir(exist_ok=True, parents=True)
     main(expt_conf, expt_dir, hyperparameters)
