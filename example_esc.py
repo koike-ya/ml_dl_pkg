@@ -13,9 +13,7 @@ import numpy as np
 import pandas as pd
 import torch
 from joblib import Parallel, delayed
-from tqdm import tqdm
 
-from ml.preprocess.preprocessor import Preprocessor
 from ml.src.dataset import ManifestWaveDataSet
 from ml.tasks.base_experiment import typical_train, base_expt_args, typical_experiment
 from ml.utils.utils import dump_dict
@@ -57,6 +55,8 @@ def create_manifest(expt_conf, expt_dir):
     path_df = pd.read_csv(data_dir / 'meta' / 'esc50.csv')
     path_df['filename'] = str(data_dir / 'audio') + '/' + path_df['filename']
     path_df = path_df[path_df['esc10']]
+    labels = sorted(path_df['target'].unique())
+    path_df['target'] = path_df['target'].apply(lambda x: labels.index(x))
 
     train_df = path_df.iloc[:1, :]
     val_df = path_df.iloc[1:, :]
@@ -92,22 +92,23 @@ def main(expt_conf, expt_dir, hyperparameters):
                         filename=expt_dir / 'expt.log')
 
     expt_conf['class_names'] = list(range(10))
-    expt_conf['sample_rate'] = 44010
+    expt_conf['sample_rate'] = 22050
 
-    load_func = set_load_func(44010, expt_conf['sample_rate'])
+    load_func = set_load_func(44100, expt_conf['sample_rate'])
     metrics_names = {'train': ['loss', 'uar'],
                      'val': ['loss', 'uar'],
                      'test': ['loss', 'uar']}
 
     dataset_cls = LoadDataSet
     expt_conf, groups = create_manifest(expt_conf, expt_dir)
-    for phase in ['train', 'val']:
-        process_func = Preprocessor(expt_conf, phase).preprocess
-        dataset = ManifestWaveDataSet(expt_conf[f'{phase}_path'], expt_conf, phase, load_func, process_func, label_func)
-        for idx in tqdm(range(len(dataset))):
-            processed, _ = dataset[idx]
-            path = dataset.path_df.iloc[idx, 0]
-            torch.save(processed, path.replace('.wav', '.pt'))
+    # for phase in ['train', 'val']:
+    #     process_func = Preprocessor(expt_conf, phase).preprocess
+    #     dataset = ManifestWaveDataSet(expt_conf[f'{phase}_path'], expt_conf, phase, load_func, process_func, label_func)
+    #     for idx in tqdm(range(len(dataset))):
+    #         processed, _ = dataset[idx]
+    #         path = dataset.path_df.iloc[idx, 0]
+    #         torch.save(processed, path.replace('.wav', '.pt'))
+    process_func = None
 
     patterns = list(itertools.product(*hyperparameters.values()))
     val_results = pd.DataFrame(np.zeros((len(patterns), len(hyperparameters) + len(metrics_names['val']))),
