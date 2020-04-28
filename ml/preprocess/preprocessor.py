@@ -16,7 +16,7 @@ def preprocess_args(parser):
     prep_parser.add_argument('--window-size', default=4.0, type=float, help='Window size for spectrogram in seconds')
     prep_parser.add_argument('--window-stride', default=2.0, type=float, help='Window stride for spectrogram in seconds')
     prep_parser.add_argument('--window', default='hamming', help='Window type for spectrogram generation')
-    prep_parser.add_argument('--n-mels', default=200, type=int, help='Number of mel filters banks')
+    prep_parser.add_argument('--n-mels', default=64, type=int, help='Number of mel filters banks')
     prep_parser.add_argument('--transform', choices=['spectrogram', 'scalogram', 'logmel'], default=None)
     prep_parser.add_argument('--low-cutoff', default=0.0, type=float, help='High pass filter')
     prep_parser.add_argument('--high-cutoff', default=None, type=float, help='Low pass filter')

@@ -11,8 +11,11 @@ import librosa
 import mlflow
 import numpy as np
 import pandas as pd
+import torch
 from joblib import Parallel, delayed
+from tqdm import tqdm
 
+from ml.preprocess.preprocessor import Preprocessor
 from ml.src.dataset import ManifestWaveDataSet
 from ml.tasks.base_experiment import typical_train, base_expt_args, typical_experiment
 from ml.utils.utils import dump_dict
@@ -31,9 +34,10 @@ def label_func(row):
     return row[2]
 
 
-def set_load_func(sr):
+def set_load_func(orig_sr, re_sr):
     def load_func(row):
-        wave, _ = librosa.load(row[0], sr=sr)
+        wave, _ = librosa.load(row[0], sr=orig_sr)
+        wave = librosa.resample(wave, orig_sr, re_sr, res_type='kaiser_fast')
 
         return wave
 
@@ -52,6 +56,8 @@ def create_manifest(expt_conf, expt_dir):
 
     path_df = pd.read_csv(data_dir / 'meta' / 'esc50.csv')
     path_df['filename'] = str(data_dir / 'audio') + '/' + path_df['filename']
+    path_df = path_df[path_df['esc10']]
+
     train_df = path_df.iloc[:1, :]
     val_df = path_df.iloc[1:, :]
     groups = path_df['fold']
@@ -63,6 +69,17 @@ def create_manifest(expt_conf, expt_dir):
     return expt_conf, groups
 
 
+class LoadDataSet(ManifestWaveDataSet):
+    def __init__(self, manifest_path, data_conf, phase='train', load_func=None, transform=None, label_func=None):
+        super(LoadDataSet, self).__init__(manifest_path, data_conf, phase, load_func, transform, label_func)
+
+    def __getitem__(self, idx):
+        x = torch.load(self.path_df.iloc[idx, 0].replace('.wav', '.pt'))
+        label = self.labels[idx]
+
+        return x, label
+
+
 def main(expt_conf, expt_dir, hyperparameters):
     if expt_conf['expt_id'] == 'timestamp':
         expt_conf['expt_id'] = dt.today().strftime('%Y-%m-%d_%H:%M')
@@ -71,17 +88,22 @@ def main(expt_conf, expt_dir, hyperparameters):
                         filename=expt_dir / 'expt.log')
 
     expt_conf['class_names'] = list(range(50))
-    expt_conf['sample_rate'] = 44100
+    expt_conf['sample_rate'] = 2205
 
-    dataset_cls = ManifestWaveDataSet
-    load_func = set_load_func(expt_conf['sample_rate'])
+    load_func = set_load_func(44010, expt_conf['sample_rate'])
     metrics_names = {'train': ['loss', 'uar'],
                      'val': ['loss', 'uar'],
                      'test': ['loss', 'uar']}
 
-    dataset_cls = ManifestWaveDataSet
+    dataset_cls = LoadDataSet
     expt_conf, groups = create_manifest(expt_conf, expt_dir)
-    process_func = None
+    for phase in ['train', 'val']:
+        process_func = Preprocessor(expt_conf, phase).preprocess
+        dataset = dataset_cls(expt_conf[f'{phase}_path'], expt_conf, phase, load_func, process_func, label_func)
+        for idx in tqdm(range(len(dataset))):
+            processed, _ = dataset[idx]
+            path = dataset.path_df.iloc[idx, 0]
+            torch.save(processed, path.replace('.wav', '.pt'))
 
     patterns = list(itertools.product(*hyperparameters.values()))
     val_results = pd.DataFrame(np.zeros((len(patterns), len(hyperparameters) + len(metrics_names['val']))),
@@ -158,8 +180,8 @@ if __name__ == '__main__':
     if expt_conf['model_type'] == 'cnn':
         hyperparameters = {
             'model_type': ['cnn'],
-            'window_size': [2.0],
-            'window_stride': [0.2],
+            'window_size': [0.6],
+            'window_stride': [0.5],
             'transform': ['logmel'],
             'cnn_channel_list': [[4, 8, 16, 32]],
             'cnn_kernel_sizes': [[[4, 4]] * 4],
@@ -169,7 +191,7 @@ if __name__ == '__main__':
         }
     elif expt_conf['model_type'] == 'cnn_rnn':
         hyperparameters = {
-            'lr': [1e-4],
+            'lr': [1e-3],
             'window_size': [0.2],
             'window_stride': [0.1],
             'transform': ['logmel'],
