@@ -77,7 +77,6 @@ class LoadDataSet(ManifestWaveDataSet):
         try:
             x = torch.load(self.path_df.iloc[idx, 0].replace('.wav', '.pt'))
         except FileNotFoundError as e:
-            print('no')
             return super().__getitem__(idx)
 
         label = self.labels[idx]
