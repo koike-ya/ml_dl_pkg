@@ -92,7 +92,7 @@ def main(expt_conf, expt_dir, hyperparameters):
                         filename=expt_dir / 'expt.log')
 
     expt_conf['class_names'] = list(range(50))
-    expt_conf['sample_rate'] = 2205
+    expt_conf['sample_rate'] = 44010
 
     load_func = set_load_func(44010, expt_conf['sample_rate'])
     metrics_names = {'train': ['loss', 'uar'],
@@ -103,7 +103,7 @@ def main(expt_conf, expt_dir, hyperparameters):
     expt_conf, groups = create_manifest(expt_conf, expt_dir)
     for phase in ['train', 'val']:
         process_func = Preprocessor(expt_conf, phase).preprocess
-        dataset = dataset_cls(expt_conf[f'{phase}_path'], expt_conf, phase, load_func, process_func, label_func)
+        dataset = ManifestWaveDataSet(expt_conf[f'{phase}_path'], expt_conf, phase, load_func, process_func, label_func)
         for idx in tqdm(range(len(dataset))):
             processed, _ = dataset[idx]
             path = dataset.path_df.iloc[idx, 0]
@@ -226,6 +226,8 @@ if __name__ == '__main__':
     hyperparameters['model_type'] = [expt_conf['model_type']]
 
     expt_conf['expt_id'] = f"{expt_conf['model_type']}_{expt_conf['transform']}"
+    expt_conf['window_size'] = hyperparameters['window_size']
+    expt_conf['window_stride'] = hyperparameters['window_stride']
     expt_dir = Path(__file__).resolve().parent / 'output' / 'example_esc' / f"{expt_conf['expt_id']}"
     expt_dir.mkdir(exist_ok=True, parents=True)
     main(expt_conf, expt_dir, hyperparameters)
