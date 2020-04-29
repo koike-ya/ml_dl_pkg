@@ -231,7 +231,7 @@ if __name__ == '__main__':
             'sample_balance': ['same'],
             'window_size': [0.3],
             'window_stride': [0.04],
-            'n_mels': [64],
+            'n_mels': [200],
         }
 
     hyperparameters['model_type'] = [expt_conf['model_type']]
