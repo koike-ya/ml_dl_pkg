@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import torch
 from ml.models.model_managers.base_model_manager import model_args
+from ml.preprocess.augment import spec_augment_args
 from ml.models.model_managers.ml_model_manager import MLModelManager, supported_ml_models
 from ml.models.model_managers.nn_model_manager import NNModelManager, supported_nn_models, supported_pretrained_models
 from sklearn.metrics import confusion_matrix
@@ -82,6 +83,7 @@ def train_manager_args(parser) -> argparse.ArgumentParser:
     logging_parser.add_argument('--log-dir', default='../visualize/tensorboard', help='Location of tensorboard log')
 
     parser = model_args(parser)
+    parser = spec_augment_args(parser)
 
     return parser
 

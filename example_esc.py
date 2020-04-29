@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import torch
 from joblib import Parallel, delayed
+from tqdm import tqdm
 
 from ml.src.dataset import ManifestWaveDataSet
 from ml.tasks.base_experiment import typical_train, base_expt_args, typical_experiment
@@ -58,8 +59,8 @@ def create_manifest(expt_conf, expt_dir):
     labels = sorted(path_df['target'].unique())
     path_df['target'] = path_df['target'].apply(lambda x: labels.index(x))
 
-    train_df = path_df.iloc[:1, :]
-    val_df = path_df.iloc[1:, :]
+    train_df = path_df.iloc[:8, :]
+    val_df = path_df.iloc[8:, :]
     groups = path_df['fold']
 
     for phase in ['train', 'val']:
@@ -77,8 +78,9 @@ class LoadDataSet(ManifestWaveDataSet):
         try:
             x = torch.load(self.path_df.iloc[idx, 0].replace('.wav', '.pt'))
         except FileNotFoundError as e:
+            print(e)
             return super().__getitem__(idx)
-
+        # print(x.size())
         label = self.labels[idx]
 
         return x, label
@@ -101,13 +103,19 @@ def main(expt_conf, expt_dir, hyperparameters):
 
     dataset_cls = LoadDataSet
     expt_conf, groups = create_manifest(expt_conf, expt_dir)
-    # for phase in ['train', 'val']:
-    #     process_func = Preprocessor(expt_conf, phase).preprocess
-    #     dataset = ManifestWaveDataSet(expt_conf[f'{phase}_path'], expt_conf, phase, load_func, process_func, label_func)
-    #     for idx in tqdm(range(len(dataset))):
-    #         processed, _ = dataset[idx]
-    #         path = dataset.path_df.iloc[idx, 0]
-    #         torch.save(processed, path.replace('.wav', '.pt'))
+
+    def parallel_preprocess(dataset, idx):
+        processed, _ = dataset[idx]
+        path = dataset.path_df.iloc[idx, 0]
+        torch.save(processed, path.replace('.wav', '.pt'))
+
+    for phase in tqdm(['train', 'val']):
+        # process_func = Preprocessor(expt_conf, phase).preprocess
+        # dataset = ManifestWaveDataSet(expt_conf[f'{phase}_path'], expt_conf, phase, load_func, process_func, label_func)
+        # Parallel(n_jobs=8, verbose=0)(
+        #     [delayed(parallel_preprocess)(dataset, idx) for idx in range(len(dataset))])
+        print(f'{phase} done')
+
     process_func = None
 
     patterns = list(itertools.product(*hyperparameters.values()))
@@ -179,7 +187,7 @@ if __name__ == '__main__':
 
     console = logging.StreamHandler()
     console.setFormatter(logging.Formatter("[%(name)s] [%(levelname)s] %(message)s"))
-    console.setLevel(logging.DEBUG)
+    console.setLevel(logging.INFO)
     logging.getLogger("ml").addHandler(console)
 
     if expt_conf['model_type'] == 'cnn':
@@ -196,7 +204,7 @@ if __name__ == '__main__':
         }
     elif expt_conf['model_type'] == 'cnn_rnn':
         hyperparameters = {
-            'lr': [1e-3],
+            'lr': [1e-4],
             'window_size': [0.2],
             'window_stride': [0.05],
             'transform': ['logmel'],
@@ -216,12 +224,14 @@ if __name__ == '__main__':
         }
     else:
         hyperparameters = {
-            'lr': [1e-4],
-            'batch_size': [16],
+            'lr': [1e-5],
             'transform': ['logmel'],
             'loss_func': ['ce'],
             'epoch_rate': [1.0],
             'sample_balance': ['same'],
+            'window_size': [0.3],
+            'window_stride': [0.04],
+            'n_mels': [64],
         }
 
     hyperparameters['model_type'] = [expt_conf['model_type']]

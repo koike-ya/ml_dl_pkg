@@ -144,9 +144,9 @@ class Cnn14(nn.Module):
         init_layer(self.fc_audioset)
 
     def feature_extract(self, x):
-        print(x.size())
-        x = self.spectrogram_extractor(x)  # (batch_size, 1, time_steps, freq_bins)
-        x = self.logmel_extractor(x)  # (batch_size, 1, time_steps, mel_bins)
+        # print(x.size())
+        # x = self.spectrogram_extractor(x)  # (batch_size, 1, time_steps, freq_bins)
+        # x = self.logmel_extractor(x)  # (batch_size, 1, time_steps, mel_bins)
         x = x.transpose(1, 3)
         x = self.bn0(x)
         x = x.transpose(1, 3)
