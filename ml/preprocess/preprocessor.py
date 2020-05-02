@@ -111,7 +111,7 @@ class Preprocessor:
         elif self.transform == 'logmel':
             wave = wave[None, :]
             freq_time = LogMel(self.sr, self.window_size, self.window_stride, self.cfg['n_mels'],
-                               self.l_cutoff, self.h_cutoff)(wave.to(torch.float32))  # channel x freq x time
+                               self.l_cutoff, self.h_cutoff, self.device)(wave.to(torch.float32).to(self.device))  # channel x freq x time
         else:
             raise NotImplementedError
 

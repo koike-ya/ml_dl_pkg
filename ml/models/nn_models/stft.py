@@ -352,7 +352,7 @@ class ISTFT(DFTBase):
 class Spectrogram(nn.Module):
     def __init__(self, n_fft=2048, hop_length=None, win_length=None, 
         window='hann', center=True, pad_mode='reflect', power=2.0, 
-        freeze_parameters=True):
+        freeze_parameters=True, device='cpu'):
         """Calculate spectrogram using pytorch. The STFT is implemented with 
         Conv1d. The function has the same output of librosa.core.stft
         """
@@ -362,7 +362,7 @@ class Spectrogram(nn.Module):
 
         self.stft = STFT(n_fft=n_fft, hop_length=hop_length, 
             win_length=win_length, window=window, center=center, 
-            pad_mode=pad_mode, freeze_parameters=True)
+            pad_mode=pad_mode, freeze_parameters=True).to(device)
 
     def forward(self, input):
         """input: (batch_size, 1, time_steps, n_fft // 2 + 1)

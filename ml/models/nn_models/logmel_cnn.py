@@ -110,7 +110,7 @@ class Cnn14(nn.Module):
 
 def construct_logmel_cnn(cfg):
     sample_rate = cfg['sample_rate']
-    in_channels = cfg['n_channels']
+    in_channels = cfg['in_channels']
     classes_num = len(cfg['class_names'])
 
     window_size = cfg['window_size'] * sample_rate
