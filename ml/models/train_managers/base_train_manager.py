@@ -30,6 +30,12 @@ def type_float_list(args) -> Union[List[float], str]:
     return list(map(float, args.split(',')))
 
 
+def type_int_list(args) -> Union[List[float], str]:
+    if args in ['same', None]:
+        return args
+    return list(map(int, args.split(',')))
+
+
 def train_manager_args(parser) -> argparse.ArgumentParser:
 
     train_manager_parser = parser.add_argument_group("Model manager arguments")
@@ -69,6 +75,8 @@ def train_manager_args(parser) -> argparse.ArgumentParser:
     general_param_parser.add_argument('--model-path', help='Path to save model', default='../output/models/sth.pth')
     general_param_parser.add_argument('--checkpoint-path', help='Model weight file to load model',
                                       default=None)
+    general_param_parser.add_argument('--snapshot', default=[], type=type_int_list,
+                                      help='The number of epochs to save weights. Comma separated int is allowed.')
     general_param_parser.add_argument('--task-type', help='Task type. regress or classify',
                                       default='classify', choices=['classify', 'regress'])
     general_param_parser.add_argument('--seed', default=0, type=int, help='Seed to generators')
@@ -177,7 +185,8 @@ class BaseTrainManager(metaclass=ABCMeta):
         if load_best:
             self.model_manager.load_model()
 
-        pred_list, label_list = self._predict(phase=phase)
+        pred_list, label_list = self.predict(phase=phase)
+
         if self.cfg['return_prob']:
             pred_onehot = torch.from_numpy(pred_list)
             pred_list = np.argmax(pred_list, axis=1)
@@ -219,6 +228,6 @@ class BaseTrainManager(metaclass=ABCMeta):
         if load_best:
             self.model_manager.load_model()
 
-        pred_list, _ = self._predict(phase=phase)
+        pred_list, _ = self.predict(phase=phase)
 
         return pred_list

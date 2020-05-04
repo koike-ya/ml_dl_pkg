@@ -113,7 +113,8 @@ class BaseExperimentor(metaclass=ABCMeta):
         else:
             return np.array([m.average_meter.best_score for m in metrics['test']]), pred_list
 
-    def experiment_without_validation(self, metrics: Metrics, infer=False, seed_average=0) -> Tuple[Metrics, np.array]:
+    def experiment_without_validation(self, metrics: Metrics, infer: bool = False, seed_average: int = 0
+                                      ) -> Tuple[Metrics, np.array]:
         if self.infer:
             phases = ['train', 'infer']
         else:
@@ -125,7 +126,8 @@ class BaseExperimentor(metaclass=ABCMeta):
 
         else:
             pred_list = []
-            for seed in range(self.cfg['seed']):
+            for seed in range(seed_average):
+                self.cfg['seed'] = seed
                 metrics, pred = self._experiment(metrics=metrics, phases=phases)
                 pred_list.append(pred)
 

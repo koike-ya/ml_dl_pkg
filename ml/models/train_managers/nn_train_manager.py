@@ -32,7 +32,7 @@ class NNTrainManager(BaseTrainManager):
         progress += '\t'.join([f'{m.name} {m.average_meter.value:.4f}' for m in self.metrics[phase] if m.name == 'loss'])
         logger.debug(progress)
 
-    def _update_by_epoch(self, phase, learning_anneal) -> bool:
+    def _update_by_epoch(self, phase, learning_anneal, epoch) -> bool:
         best_val_flag = False
 
         for metric in self.metrics[phase]:
@@ -44,6 +44,12 @@ class NNTrainManager(BaseTrainManager):
 
             # reset epoch average meter
             metric.average_meter.reset()
+
+        if phase == 'train' and epoch + 1 in self.cfg['snapshot']:
+            orig_model_path = self.cfg['model_path']
+            self.cfg['model_path'] = self.cfg['model_path'].replace('.pth', f'_ep{epoch + 1}.pth')
+            self.model_manager.save_model()
+            self.cfg['model_path'] = orig_model_path
 
         # anneal lr
         if phase == 'train':
@@ -81,6 +87,31 @@ class NNTrainManager(BaseTrainManager):
             pred_list, label_list = self._average_tta(pred_list, label_list)
 
         return pred_list, label_list
+
+    def snapshot_predict(self, phase):
+        snap_pred_list = []
+        for epoch in self.cfg['snapshot']:
+            model_path = self.cfg['model_path']
+            self.cfg['model_path'] = self.cfg['model_path'].replace('.pth', f'_ep{epoch}.pth')
+            self.model_manager.load_model()
+            self.cfg['model_path'] = model_path
+            pred_list, label_list = self._predict(phase=phase)
+            snap_pred_list.append(pred_list)
+
+        ensemble = np.array(snap_pred_list).mean(axis=0)
+
+        print(ensemble)
+        if not self.cfg['return_prob']:
+            ensemble = ensemble.astype(int)
+        print(ensemble)
+        return ensemble, label_list
+
+    def predict(self, phase):
+        if self.cfg['snapshot']:
+            print('snapshot started')
+            return self.snapshot_predict(phase=phase)
+        else:
+            return self._predict(phase=phase)
 
     def train(self, model_manager=None, with_validate=True, only_validate=False) -> Tuple[Metrics, np.array]:
         if model_manager:
@@ -125,7 +156,7 @@ class NNTrainManager(BaseTrainManager):
                 if self.logger:
                     self._record_log(phase, epoch)
 
-                best_val_flag = self._update_by_epoch(phase, self.cfg['learning_anneal'])
+                best_val_flag = self._update_by_epoch(phase, self.cfg['learning_anneal'], epoch)
 
                 if best_val_flag:
                     best_val_pred = pred_list.copy()
