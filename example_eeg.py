@@ -51,7 +51,7 @@ def create_manifest(expt_conf, expt_dir):
     data_dir = Path(__file__).resolve().parent / 'input' / 'eeg'
     path_list = [str(p.resolve()) for p in sorted(list(data_dir.iterdir())) if p.is_file()]
 
-    path_df = pd.DataFrame([path_list])
+    path_df = pd.DataFrame([path_list]).T.sample(n=500).T
     labels = path_df.apply(label_func)
     negatives = labels[labels == 0]
     positives = labels[labels == 1]
@@ -122,7 +122,7 @@ def main(expt_conf, expt_dir, hyperparameters):
         result_pred_list = Parallel(n_jobs=expt_conf['n_parallel'], verbose=0)(
             [delayed(experiment)(pattern, deepcopy(expt_conf)) for pattern in patterns])
 
-    val_results.iloc[:, :len(hyperparameters)] = patterns
+    val_results.iloc[:, :len(hyperparameters)] = [[str(param) for param in p] for p in patterns]
     result_list = np.array([result for result, pred in result_pred_list])
     val_results.iloc[:, len(hyperparameters):] = result_list
     pp.pprint(val_results)
@@ -166,21 +166,21 @@ if __name__ == '__main__':
     if expt_conf['model_type'] == 'cnn':
         hyperparameters = {
             'model_type': ['cnn'],
-            'window_size': [2.0],
-            'window_stride': [0.2],
-            'transform': ['logmel'],
+            'transform': [None],
             'cnn_channel_list': [[4, 8, 16, 32]],
-            'cnn_kernel_sizes': [[[4, 4]] * 4],
-            'cnn_stride_sizes': [[[2, 2]] * 4],
-            'cnn_padding_sizes': [[[1, 1]] * 4],
+            'cnn_kernel_sizes': [[[4]] * 4],
+            'cnn_stride_sizes': [[[2]] * 4],
+            'cnn_padding_sizes': [[[1]] * 4],
             'lr': [1e-4],
         }
     elif expt_conf['model_type'] == 'cnn_rnn':
         hyperparameters = {
             'lr': [1e-4],
-            'window_size': [0.5],
-            'window_stride': [0.1],
-            'transform': ['logmel'],
+            'transform': [None],
+            'cnn_channel_list': [[4, 8, 16, 32]],
+            'cnn_kernel_sizes': [[[4]] * 4],
+            'cnn_stride_sizes': [[[2]] * 4],
+            'cnn_padding_sizes': [[[1]] * 4],
             'rnn_type': [expt_conf['rnn_type']],
             'bidirectional': [True],
             'rnn_n_layers': [1, 2],

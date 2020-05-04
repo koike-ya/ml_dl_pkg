@@ -54,8 +54,9 @@ class CNN(nn.Module):
             )
 
     def forward(self, x):
-        if self.n_dim == 1:
-            x = torch.unsqueeze(x, dim=1)
+        # print(x.size())
+        # if self.n_dim == 1:
+        #     x = torch.unsqueeze(x, dim=1)
         x = self.feature_extractor(x.to(torch.float))
         x = x.view(x.size(0), -1)
 
