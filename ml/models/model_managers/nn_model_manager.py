@@ -42,7 +42,7 @@ class NNModelManager(BaseModelManager):
         self.amp = cfg.get('amp', False)
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer)
-        if torch.cuda.device_count() > 1:
+        if torch.cuda.device_count() > 1 and cfg['model_type'] not in ['rnn', 'cnn_rnn']:
             self.model = torch.nn.DataParallel(self.model)
 
     def _init_model(self, transfer=False):

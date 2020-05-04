@@ -183,8 +183,8 @@ if __name__ == '__main__':
             'transform': ['logmel'],
             'rnn_type': [expt_conf['rnn_type']],
             'bidirectional': [True],
-            'rnn_n_layers': [1],
-            'rnn_hidden_size': [10],
+            'rnn_n_layers': [1, 2],
+            'rnn_hidden_size': [10, 50],
         }
     elif expt_conf['model_type'] == 'rnn':
         hyperparameters = {
