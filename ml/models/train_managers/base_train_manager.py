@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import torch
 from ml.models.model_managers.base_model_manager import model_args
+from ml.preprocess.augment import spec_augment_args
 from ml.models.model_managers.ml_model_manager import MLModelManager, supported_ml_models
 from ml.models.model_managers.nn_model_manager import NNModelManager, supported_nn_models, supported_pretrained_models
 from sklearn.metrics import confusion_matrix
@@ -27,6 +28,12 @@ def type_float_list(args) -> Union[List[float], str]:
     if args in ['same', None]:
         return args
     return list(map(float, args.split(',')))
+
+
+def type_int_list(args) -> Union[List[float], str]:
+    if args in ['same', None]:
+        return args
+    return list(map(int, args.split(',')))
 
 
 def train_manager_args(parser) -> argparse.ArgumentParser:
@@ -68,6 +75,8 @@ def train_manager_args(parser) -> argparse.ArgumentParser:
     general_param_parser.add_argument('--model-path', help='Path to save model', default='../output/models/sth.pth')
     general_param_parser.add_argument('--checkpoint-path', help='Model weight file to load model',
                                       default=None)
+    general_param_parser.add_argument('--snapshot', default=[], type=type_int_list,
+                                      help='The number of epochs to save weights. Comma separated int is allowed.')
     general_param_parser.add_argument('--task-type', help='Task type. regress or classify',
                                       default='classify', choices=['classify', 'regress'])
     general_param_parser.add_argument('--seed', default=0, type=int, help='Seed to generators')
@@ -82,6 +91,7 @@ def train_manager_args(parser) -> argparse.ArgumentParser:
     logging_parser.add_argument('--log-dir', default='../visualize/tensorboard', help='Location of tensorboard log')
 
     parser = model_args(parser)
+    parser = spec_augment_args(parser)
 
     return parser
 
@@ -119,7 +129,7 @@ class BaseTrainManager(metaclass=ABCMeta):
                 if self.cfg['batch_norm']:
                     self.cfg['batch_norm_size'] = list(self.dataloaders.values())[0].get_batch_norm_size()
                 self.cfg['seq_len'] = list(self.dataloaders.values())[0].get_seq_len()
-            elif self.cfg['model_type'] in ['cnn', 'cnn_rnn'] + list(supported_pretrained_models.keys()):
+            elif self.cfg['model_type'] in ['logmel_cnn', 'cnn', 'cnn_rnn'] + list(supported_pretrained_models.keys()):
                 self.cfg['image_size'] = list(self.dataloaders.values())[0].get_image_size()
                 self.cfg['in_channels'] = list(self.dataloaders.values())[0].get_n_channels()
 
@@ -175,7 +185,8 @@ class BaseTrainManager(metaclass=ABCMeta):
         if load_best:
             self.model_manager.load_model()
 
-        pred_list, label_list = self._predict(phase=phase)
+        pred_list, label_list = self.predict(phase=phase)
+
         if self.cfg['return_prob']:
             pred_onehot = torch.from_numpy(pred_list)
             pred_list = np.argmax(pred_list, axis=1)
@@ -217,6 +228,6 @@ class BaseTrainManager(metaclass=ABCMeta):
         if load_best:
             self.model_manager.load_model()
 
-        pred_list, _ = self._predict(phase=phase)
+        pred_list, _ = self.predict(phase=phase)
 
         return pred_list

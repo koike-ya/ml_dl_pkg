@@ -4,7 +4,6 @@ from abc import ABCMeta, abstractmethod
 logger = logging.getLogger(__name__)
 
 import numpy as np
-import torch
 
 from ml.models.ml_models.decision_trees import decision_tree_args
 from ml.models.ml_models.toolbox import ml_model_manager_args
@@ -12,6 +11,8 @@ from ml.models.nn_models.adda import adda_args
 from ml.models.nn_models.cnn import cnn_args
 from ml.models.nn_models.rnn import rnn_args
 from ml.models.nn_models.nn import nn_args
+from ml.models.nn_models.pretrained_models import pretrain_args
+from ml.models.loss import loss_args, set_criterion
 
 
 # from ml.models.adda import adda_args
@@ -27,7 +28,9 @@ def model_args(parser):
     parser = nn_args(parser)
     parser = rnn_args(parser)
     parser = cnn_args(parser)
+    parser = pretrain_args(parser)
     parser = adda_args(parser)
+    parser = loss_args(parser)
 
     # ML系用のパラメータ
     parser = ml_model_manager_args(parser)
@@ -40,7 +43,7 @@ class BaseModelManager(metaclass=ABCMeta):
     def __init__(self, class_labels, cfg, must_contain_keys):
         self.class_labels = class_labels
         self.cfg = self._check_cfg(cfg, must_contain_keys)
-        self.criterion = self._set_criterion()
+        self.criterion = set_criterion(self.cfg)
         self.fitted = False
 
     @staticmethod
@@ -48,16 +51,6 @@ class BaseModelManager(metaclass=ABCMeta):
         for key in must_contain_keys:
             assert key in cfg.keys(), f'{key} must be contained in the model conf'
         return cfg
-
-    def _set_criterion(self):
-        if isinstance(self.cfg['loss_weight'], str):
-            self.cfg['loss_weight'] = [1.0] * len(self.cfg['class_names'])
-        if self.cfg['task_type'] == 'regress':
-            return torch.nn.MSELoss()
-        else:
-            assert len(self.class_labels) == len(self.cfg['loss_weight']), \
-                'loss weight needs to be matched with the number of classes'
-            return torch.nn.BCELoss(weight=torch.tensor(self.cfg['loss_weight']))
 
     def anneal_lr(self, learning_anneal):
         pass

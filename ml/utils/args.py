@@ -36,7 +36,7 @@ def add_preprocess_args(parser):
     return parser
 
 
-def add_nn_model_args(parser):
+def add_nn_model_manager_args(parser):
 
     nn_parser = parser.add_argument_group("Neural nerwork model arguments")
 
@@ -113,7 +113,7 @@ def train_args():
     parser = add_general_args(parser)
     parser = add_hyper_param_args(parser)
     parser = add_preprocess_args(parser)
-    parser = add_nn_model_args(parser)
+    parser = add_nn_model_manager_args(parser)
 
     # Logging of criterion
     parser.add_argument('--silent', dest='silent', action='store_true', help='Turn off progress tracking per iteration')
@@ -167,7 +167,7 @@ def test_args():
     parser = add_general_args(parser)
     parser = add_test_args(parser)
     parser = add_preprocess_args(parser)
-    parser = add_nn_model_args(parser)
+    parser = add_nn_model_manager_args(parser)
     parser = add_hyper_param_args(parser)
     return parser
 

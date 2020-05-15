@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from torch.functional import F
 
-from ml.models.misc import Attention2d, LogMel
+from ml.models.attention import Attention2d
 from ml.models.nn_models.nn_utils import initialize_weights, init_bn
 
 
@@ -63,8 +63,6 @@ class CnnPooling(nn.Module):
                  fmax, classes_num, pooling='attention'):
         super(CnnPooling, self).__init__()
 
-        self.logmel_extractor = LogMel(sample_rate, window_size, hop_size, mel_bins, fmin, fmax)
-
         self.emb = EmbeddingLayers_pooling()
         self.attention = Attention2d(
             512,
@@ -79,7 +77,6 @@ class CnnPooling(nn.Module):
         
     def forward(self, input):
         """(samples_num, feature_maps, time_steps, freq_num)"""
-        x = self.logmel_extractor(input)
         x = x.squeeze(dim=1)
         x = self.emb(x)
 
@@ -91,8 +88,6 @@ class CnnPooling(nn.Module):
         else:
             x = F.max_pool2d(x, kernel_size=x.shape[2:])
             x = self.fc_final(x.view(x.shape[0:2]))
-
-        output = torch.sigmoid(x)
 
         return output
 

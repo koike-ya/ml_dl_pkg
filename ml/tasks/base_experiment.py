@@ -12,10 +12,10 @@ from ml.models.train_managers.base_train_manager import train_manager_args
 from ml.models.train_managers.ml_train_manager import MLTrainManager
 from ml.models.train_managers.multitask_train_manager import MultitaskTrainManager
 from ml.models.train_managers.nn_train_manager import NNTrainManager
+from ml.preprocess.preprocessor import Preprocessor, preprocess_args
 from ml.src.cv_manager import KFoldManager, SUPPORTED_CV
 from ml.src.dataloader import set_dataloader, set_ml_dataloader
 from ml.src.metrics import get_metric_list
-from ml.src.preprocessor import Preprocessor, preprocess_args
 from ml.utils.utils import Metrics
 
 logger = logging.getLogger(__name__)
@@ -65,6 +65,7 @@ class BaseExperimentor(metaclass=ABCMeta):
         self.dataset_cls = dataset_cls
         self.data_loader_cls = DATALOADERS[cfg['data_loader']]
         self.train_manager_cls = TRAINMANAGERS[cfg['train_manager']]
+        self.train_manager = None
         self.process_func = process_func
         self.test = cfg['test']
         self.infer = cfg['infer']
@@ -75,22 +76,22 @@ class BaseExperimentor(metaclass=ABCMeta):
         dataloaders = {}
         for phase in phases:
             if not self.process_func:
-                self.process_func = Preprocessor(self.cfg, phase, self.cfg['sample_rate']).preprocess
+                self.process_func = Preprocessor(self.cfg, phase).preprocess
             dataset = self.dataset_cls(self.cfg[f'{phase}_path'], self.cfg, phase, self.load_func, self.process_func,
                                        self.label_func)
             dataloaders[phase] = self.data_loader_cls(dataset, phase, self.cfg)
 
-        train_manager = self.train_manager_cls(self.cfg['class_names'], self.cfg, dataloaders, deepcopy(metrics))
+        self.train_manager = self.train_manager_cls(self.cfg['class_names'], self.cfg, dataloaders, deepcopy(metrics))
         
         if 'val' in phases:
-            metrics, pred_list['val'] = train_manager.train()
+            metrics, pred_list['val'] = self.train_manager.train()
         else:       # This is the case in ['train', 'infer'], ['train', 'test']
-            metrics, _ = train_manager.train(with_validate=False)
+            metrics, _ = self.train_manager.train(with_validate=False)
             
         if 'infer' in phases:
-            pred_list['infer'] = train_manager.infer()
+            pred_list['infer'] = self.train_manager.infer()
         elif 'test' in phases:
-            pred_list['test'], label_list, metrics = train_manager.test(return_metrics=True)
+            pred_list['test'], label_list, metrics = self.train_manager.test(return_metrics=True)
 
         return metrics, pred_list
 
@@ -112,7 +113,8 @@ class BaseExperimentor(metaclass=ABCMeta):
         else:
             return np.array([m.average_meter.best_score for m in metrics['test']]), pred_list
 
-    def experiment_without_validation(self, metrics: Metrics, infer=False, seed_average=0) -> Tuple[Metrics, np.array]:
+    def experiment_without_validation(self, metrics: Metrics, infer: bool = False, seed_average: int = 0
+                                      ) -> Tuple[Metrics, np.array]:
         if self.infer:
             phases = ['train', 'infer']
         else:
@@ -124,7 +126,8 @@ class BaseExperimentor(metaclass=ABCMeta):
 
         else:
             pred_list = []
-            for seed in range(self.cfg['seed']):
+            for seed in range(seed_average):
+                self.cfg['seed'] = seed
                 metrics, pred = self._experiment(metrics=metrics, phases=phases)
                 pred_list.append(pred)
 

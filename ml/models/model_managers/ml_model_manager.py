@@ -1,5 +1,4 @@
 import numpy as np
-import torch
 
 from ml.models.ml_models.decision_trees import CatBoost, XGBoost, LightGBM, RandomForest
 from ml.models.ml_models.toolbox import KNN, SGDC, SVM, NaiveBayes

@@ -28,14 +28,14 @@ class KerasTrainManager(BaseTrainManager):
             os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
     def _update_by_epoch(self, phase, epoch):
-        for metric in self.metrics:
-            best_flag = metric.average_meter[phase].update_best()
+        for metric in self.metrics[phase]:
+            best_flag = metric.average_meter.update_best()
             if metric.save_model and best_flag and phase == 'val':
                 print("Found better validated model, saving to %s" % self.cfg['model_path'])
                 self.model.save_model()
 
             # reset epoch average meter
-            metric.average_meter[phase].reset()
+            metric.average_meter.reset()
 
         if phase == 'val':
             print(f'epoch {epoch} ended.')
@@ -82,8 +82,8 @@ class KerasTrainManager(BaseTrainManager):
                     metric_values = self.model.fit(inputs.numpy(), labels.numpy(), phase)
 
                     # save loss and metrics in one batch
-                    for metric, value in zip(self.metrics, metric_values):
-                        metric.average_meter[phase].update(value)
+                    for metric, value in zip(self.metrics[phase], metric_values):
+                        metric.average_meter.update(value)
 
                     if not self.cfg['silent']:
                         self._verbose(epoch, phase, i)

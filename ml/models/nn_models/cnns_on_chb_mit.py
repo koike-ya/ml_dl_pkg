@@ -59,7 +59,7 @@ class CHBMITCNN(BaseModelManager):
 
         opt_adam = keras.optimizers.Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
         model.compile(loss='categorical_crossentropy', optimizer=opt_adam,
-                      metrics=['accuracy', tf.keras.metrics.Recall()])
+                      metrics=[tf.keras.metrics.Precision(), tf.keras.metrics.Recall(), 'accuracy'])
         print(model.summary())
         self.model = model
 

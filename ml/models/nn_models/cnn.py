@@ -22,10 +22,10 @@ def cnn_args(parser):
     cnn_parser = parser.add_argument_group("CNN model arguments")
 
     # cnn params
-    cnn_parser.add_argument('--cnn-channel-list', default='8,32', type=type_int_list)
-    cnn_parser.add_argument('--cnn-kernel-sizes', default='4-4,4-4', type=type_int_list_list)
-    cnn_parser.add_argument('--cnn-stride-sizes', default='2-2,2-2', type=type_int_list_list)
-    cnn_parser.add_argument('--cnn-padding-sizes', default='1-1,1-1', type=type_int_list_list)
+    cnn_parser.add_argument('--cnn-channel-list', default='4,8,16', type=type_int_list)
+    cnn_parser.add_argument('--cnn-kernel-sizes', default='4-4,4-4,4-4', type=type_int_list_list)
+    cnn_parser.add_argument('--cnn-stride-sizes', default='2-2,2-2,2-2', type=type_int_list_list)
+    cnn_parser.add_argument('--cnn-padding-sizes', default='1-1,1-1,1-1', type=type_int_list_list)
 
     return parser
 
@@ -37,9 +37,9 @@ class CNN(nn.Module):
         in_features = in_features_dict['n_channels'] * in_features_dict['height'] * in_features_dict['width']
         out_features = in_features // 2
         self.fc = nn.Sequential(
-            nn.Linear(in_features, in_features),
-            nn.ReLU(inplace=True),
-            nn.Dropout(),
+            # nn.Linear(in_features, in_features),
+            # nn.ReLU(inplace=True),
+            # nn.Dropout(),
             nn.Linear(in_features, out_features),
             nn.ReLU(inplace=True),
             nn.Dropout(),
@@ -54,8 +54,9 @@ class CNN(nn.Module):
             )
 
     def forward(self, x):
-        if self.n_dim == 1:
-            x = torch.unsqueeze(x, dim=1)
+        # print(x.size())
+        # if self.n_dim == 1:
+        #     x = torch.unsqueeze(x, dim=1)
         x = self.feature_extractor(x.to(torch.float))
         x = x.view(x.size(0), -1)
 

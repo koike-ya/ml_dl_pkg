@@ -6,7 +6,6 @@ logger = logging.getLogger(__name__)
 
 import numpy as np
 import pandas as pd
-from copy import deepcopy
 from ml.models.train_managers.base_train_manager import BaseTrainManager
 from tqdm import tqdm
 from typing import Tuple
@@ -29,11 +28,11 @@ class NNTrainManager(BaseTrainManager):
         if not data_len:
             data_len = len(self.dataloaders[phase])
         eta = int(elapsed / (i + 1) * (data_len - (i + 1)))
-        progress = f'\r{phase} epoch: [{epoch + 1}][{i + 1}/{data_len}]\t {elapsed}(s) eta:{eta}(s)\t'
+        progress = f'\r{phase} epoch: [{epoch + 1}][{i + 1}/{data_len}]\t eta:{eta}(s)\t'
         progress += '\t'.join([f'{m.name} {m.average_meter.value:.4f}' for m in self.metrics[phase] if m.name == 'loss'])
         logger.debug(progress)
 
-    def _update_by_epoch(self, phase, learning_anneal) -> bool:
+    def _update_by_epoch(self, phase, learning_anneal, epoch) -> bool:
         best_val_flag = False
 
         for metric in self.metrics[phase]:
@@ -46,19 +45,28 @@ class NNTrainManager(BaseTrainManager):
             # reset epoch average meter
             metric.average_meter.reset()
 
+        if phase == 'train' and epoch + 1 in self.cfg['snapshot']:
+            orig_model_path = self.cfg['model_path']
+            self.cfg['model_path'] = self.cfg['model_path'].replace('.pth', f'_ep{epoch + 1}.pth')
+            self.model_manager.save_model()
+            self.cfg['model_path'] = orig_model_path
+
         # anneal lr
         if phase == 'train':
             self.model_manager.anneal_lr(learning_anneal)
 
         return best_val_flag
 
-    def _epoch_verbose(self, epoch, epoch_metrics, phases):
+    def _epoch_verbose(self, epoch, epoch_metrics, phase):
         message = f'epoch {str(epoch + 1).ljust(2)}-> lr: {self.model_manager.get_lr():.6f}\t'
-        for phase in phases:
-            message += f'{phase}: ['
-            message += '\t'.join([f'{m.name}: {m.average_meter.average:.4f}' for m in epoch_metrics[phase]])
-            message += ']\t'
-        logger.info(message)
+        message += f'{phase}: ['
+        message += '\t'.join([f'{m.name}: {m.average_meter.average:.4f}' for m in epoch_metrics[phase]])
+        message += ']\t'
+
+        if phase == 'train':
+            logger.info(message)
+        else:
+            logger.info(message)
 
     def _predict(self, phase) -> Tuple[np.array, np.array]:
         self.check_keys_from_dict([phase], self.dataloaders)
@@ -69,6 +77,8 @@ class NNTrainManager(BaseTrainManager):
             preds = self.model_manager.predict(inputs)
             if pred_list.size == 0:
                 pred_list = preds
+            elif pred_list.ndim == 1:
+                pred_list = np.hstack((pred_list, preds))
             else:
                 pred_list = np.vstack((pred_list, preds))
             label_list = np.hstack((label_list, labels))
@@ -78,12 +88,36 @@ class NNTrainManager(BaseTrainManager):
 
         return pred_list, label_list
 
+    def snapshot_predict(self, phase):
+        snap_pred_list = []
+        for epoch in self.cfg['snapshot']:
+            model_path = self.cfg['model_path']
+            self.cfg['model_path'] = self.cfg['model_path'].replace('.pth', f'_ep{epoch}.pth')
+            self.model_manager.load_model()
+            self.cfg['model_path'] = model_path
+            pred_list, label_list = self._predict(phase=phase)
+            snap_pred_list.append(pred_list)
+
+        ensemble = np.array(snap_pred_list).mean(axis=0)
+
+        print(ensemble)
+        if not self.cfg['return_prob']:
+            ensemble = ensemble.astype(int)
+        print(ensemble)
+        return ensemble, label_list
+
+    def predict(self, phase):
+        if self.cfg['snapshot']:
+            print('snapshot started')
+            return self.snapshot_predict(phase=phase)
+        else:
+            return self._predict(phase=phase)
+
     def train(self, model_manager=None, with_validate=True, only_validate=False) -> Tuple[Metrics, np.array]:
         if model_manager:
             self.model_manager = model_manager
 
         start = time.time()
-        epoch_metrics = {}
         best_val_pred = np.array([])
 
         if with_validate:
@@ -103,13 +137,12 @@ class NNTrainManager(BaseTrainManager):
                     loss, predicts = self.model_manager.fit(inputs.to(self.device), labels.to(self.device), phase)
                     if pred_list.size == 0:
                         pred_list = predicts
+                    elif pred_list.ndim == 1:
+                        pred_list = np.hstack((pred_list, predicts))
                     else:
                         pred_list = np.vstack((pred_list, predicts))
                     label_list = np.hstack((label_list, labels))
-
-                    if not self.cfg['return_prob']:
-                        logger.debug(f'prediction of {phase} info:\n{pd.Series(predicts).describe()}')
-
+                    
                     # save loss in one batch
                     self.metrics[phase][0].update(loss, predicts, labels.numpy())
 
@@ -117,19 +150,18 @@ class NNTrainManager(BaseTrainManager):
 
                 # save metrics in one batch
                 [metric.update(0.0, pred_list, label_list) for metric in self.metrics[phase][1:]]
+
+                self._epoch_verbose(epoch, self.metrics, phase)
+
                 if self.logger:
                     self._record_log(phase, epoch)
 
-                best_val_flag = self._update_by_epoch(phase, self.cfg['learning_anneal'])
-
-                epoch_metrics[phase] = deepcopy(self.metrics[phase])
+                best_val_flag = self._update_by_epoch(phase, self.cfg['learning_anneal'], epoch)
 
                 if best_val_flag:
                     best_val_pred = pred_list.copy()
                     if not self.cfg['return_prob']:
                         logger.debug(f'Best prediction of validation info:\n{pd.Series(best_val_pred).describe()}')
-
-            self._epoch_verbose(epoch, epoch_metrics, phases)
 
         if self.logger:
             self.logger.close()

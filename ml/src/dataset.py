@@ -50,14 +50,14 @@ class SimpleCSVDataset(BaseDataSet):
 
 
 class CSVDataSet(BaseDataSet):
-    def __init__(self, csv_path, data_conf, phase, load_func=None, process_func=None, label_func=None):
+    def __init__(self, csv_path, data_conf, phase, load_func=None, transform=None, label_func=None):
         """
         data_conf: {
             'header': None or True,
             'feature_columns': list of feature columns,
             'label_column': column name to use as label
         }
-        process_func gets np.array inputs, shape is (1, n_features) and puts out processed one
+        transform gets np.array inputs, shape is (1, n_features) and puts out processed one
 
         """
         super(CSVDataSet, self).__init__()
@@ -72,12 +72,12 @@ class CSVDataSet(BaseDataSet):
                 self.y = df.iloc[:, -1]
                 self.x = df.iloc[:, :-1].values
 
-        self.process_func = process_func if process_func else None
+        self.transform = transform
 
     def __getitem__(self, idx):
         # TODO infer時にyとしてList[None]を返す実装
-        if self.process_func:
-            return self.process_func(self.x[idx]), self.y[idx]
+        if self.transform:
+            return self.transform(self.x[idx]), self.y[idx]
 
         if self.phase in ['train', 'val']:
             return self.x[idx], self.y[idx]
@@ -88,8 +88,8 @@ class CSVDataSet(BaseDataSet):
         return self.x.shape[0]
 
     def get_feature_size(self):
-        if self.process_func:
-            return self.process_func(self.x[0]).shape[0]
+        if self.transform:
+            return self.transform(self.x[0]).shape[0]
         else:
             return self.x.shape[1]
 
@@ -108,7 +108,7 @@ class CSVDataSet(BaseDataSet):
 
 class ManifestDataSet(BaseDataSet):
     # TODO 要テスト実装
-    def __init__(self, manifest_path, data_conf, phase='train', load_func=None, process_func=None, label_func=None):
+    def __init__(self, manifest_path, data_conf, phase='train', load_func=None, transform=None, label_func=None):
         """
         data_conf: {
             'load_func': Function to load data from manifest correctly,
@@ -127,15 +127,15 @@ class ManifestDataSet(BaseDataSet):
             self.labels = [-100] * len(self.path_df)
         else:
             self.labels = self._set_labels(data_conf['labels'] if 'labels' in data_conf.keys() else None)
-        self.process_func = process_func if process_func else None
+        self.transform = transform
         self.phase = phase
 
     def __getitem__(self, idx):
         x = self.load_func(self.path_df.iloc[idx, :])
         label = self.labels[idx]
 
-        if self.process_func:
-            return self.process_func(x, label)
+        if self.transform:
+            return self.transform(x), label
 
         return x, label
 
@@ -150,20 +150,26 @@ class ManifestDataSet(BaseDataSet):
 
     def get_feature_size(self):
         x = self.load_func(self.path_df.iloc[0, :])
-        if self.process_func:
-            x, _ = self.process_func(x, 0)
+        if self.transform:
+            x = self.transform(x)
         return x.size()
 
     def get_labels(self):
         return self.labels
-
-
-class ManifestWaveDataSet(ManifestDataSet):
-    def __init__(self, manifest_path, data_conf, load_func=None, process_func=None, label_func=None, phase='train'):
-        super(ManifestWaveDataSet, self).__init__(manifest_path, data_conf, load_func, process_func, label_func, phase)
 
     def get_image_size(self):
         return self.get_feature_size()[1:]
 
     def get_n_channels(self):
         return self.get_feature_size()[0]
+
+
+class ManifestWaveDataSet(ManifestDataSet):
+    def __init__(self, manifest_path, data_conf, load_func=None, transform=None, label_func=None, phase='train'):
+        super(ManifestWaveDataSet, self).__init__(manifest_path, data_conf, load_func, transform, label_func, phase)
+
+    def get_seq_len(self):
+        x = self.load_func(self.path_df.iloc[0, :])
+        if self.transform:
+            x = self.transform(x)
+        return x.size(1)

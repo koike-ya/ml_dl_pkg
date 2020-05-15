@@ -2,42 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ml.models.nn_models.nn_utils import initialize_weights, init_bn
-from ml.models.nn_models.stft import Spectrogram, LogmelFilterBank
-
-
-class LogMel(nn.Module):
-    def __init__(self, sample_rate, window_size, hop_size, mel_bins, fmin, fmax):
-        super(LogMel, self).__init__()
-
-        window = 'hann'
-        center = True
-        pad_mode = 'reflect'
-        ref = 1.0
-        amin = 1e-10
-        top_db = None
-
-        self.bn0 = nn.BatchNorm2d(mel_bins)
-        # Spectrogram extractor
-        self.spectrogram_extractor = Spectrogram(n_fft=window_size, hop_length=hop_size,
-            win_length=window_size, window=window, center=center, pad_mode=pad_mode,
-            freeze_parameters=True)
-
-        # Logmel feature extractor
-        self.logmel_extractor = LogmelFilterBank(sr=sample_rate, n_fft=window_size,
-            n_mels=mel_bins, fmin=fmin, fmax=fmax, ref=ref, amin=amin, top_db=top_db,
-            freeze_parameters=True)
-
-        init_bn(self.bn0)
-
-    def forward(self, input):
-        """Input: (batch_size, data_length)"""
-        x = self.spectrogram_extractor(input)  # (batch_size, 1, time_steps, freq_bins)
-        x = self.logmel_extractor(x)  # (batch_size, 1, time_steps, mel_bins)
-        x = x.transpose(1, 3)
-        x = self.bn0(x)
-        x = x.transpose(1, 3)
-        return x
+from ml.models.nn_models.nn_utils import initialize_weights
 
 
 class Attention2d(nn.Module):

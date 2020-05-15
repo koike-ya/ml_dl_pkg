@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from sklearn.exceptions import NotFittedError
 
-# from apex import amp
+from apex import amp
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class NNModelManager(BaseModelManager):
         self.amp = cfg.get('amp', False)
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer)
-        if torch.cuda.device_count() > 1:
+        if torch.cuda.device_count() > 1 and cfg['model_type'] not in ['rnn', 'cnn_rnn']:
             self.model = torch.nn.DataParallel(self.model)
 
     def _init_model(self, transfer=False):
@@ -122,6 +122,8 @@ class NNModelManager(BaseModelManager):
             self.criterion = self._mixup_criterion(lamb)
 
         with torch.set_grad_enabled(phase == 'train'):
+            self.model.train() if phase == 'train' else self.model.eval()
+
             outputs = self.model(inputs)
 
             y_onehot = torch.zeros(labels.size(0), len(self.class_labels))
@@ -151,6 +153,8 @@ class NNModelManager(BaseModelManager):
             self.criterion = self._mixup_criterion(lamb)
 
         with torch.set_grad_enabled(phase == 'train'):
+            self.model.train() if phase == 'train' else self.model.eval()
+
             preds = self.model(inputs)
 
             if hasattr(self, 'predictor'):
