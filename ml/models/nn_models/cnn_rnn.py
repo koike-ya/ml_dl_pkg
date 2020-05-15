@@ -9,7 +9,7 @@ class DeepSpeech(RNNClassifier):
     def __init__(self, conv, input_size, out_time_feature, batch_size, rnn_type=nn.LSTM, labels="abc", eeg_conf=None,
                  rnn_hidden_size=768, n_layers=5, bidirectional=True, is_inference_softmax=True, output_size=2):
         super(DeepSpeech, self).__init__(batch_size, input_size=input_size, out_time_feature=out_time_feature,
-                                         rnn_type=nn.LSTM, rnn_hidden_size=rnn_hidden_size, n_layers=n_layers,
+                                         rnn_type=rnn_type, rnn_hidden_size=rnn_hidden_size, n_layers=n_layers,
                                          bidirectional=bidirectional, is_inference_softmax=is_inference_softmax,
                                          output_size=output_size, batch_norm_size=input_size)
 

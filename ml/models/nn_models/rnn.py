@@ -151,11 +151,12 @@ class RNNClassifier(nn.Module):
                           sequence_wise=sequence_wise)
             rnns.append(('%d' % (x + 1), rnn))
         self.rnns = nn.Sequential(OrderedDict(rnns))
-
         self.fc = nn.Sequential(
             nn.BatchNorm1d(rnn_hidden_size * out_time_feature),
+            # nn.BatchNorm1d(26500),
             # nn.BatchNorm1d(rnn_hidden_size),
             initialize_weights(nn.Linear(rnn_hidden_size * out_time_feature, output_size, bias=False))
+            # initialize_weights(nn.Linear(26500, output_size, bias=False))
             # initialize_weights(nn.Linear(rnn_hidden_size, output_size, bias=False))
         )
         self.classify = True if output_size != 1 else False
