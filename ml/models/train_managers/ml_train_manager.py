@@ -12,7 +12,7 @@ class MLTrainManager(BaseTrainManager):
     def __init__(self, class_labels, cfg, dataloaders, metrics):
         super().__init__(class_labels, cfg, dataloaders, metrics)
     
-    def _predict(self, phase) -> Tuple[np.array, np.array]:
+    def predict(self, phase) -> Tuple[np.array, np.array]:
         inputs = np.vstack(tuple([x.numpy() for x, _ in self.dataloaders[phase]]))
         label_list = np.hstack(tuple([y for _, y in self.dataloaders[phase]]))
 
