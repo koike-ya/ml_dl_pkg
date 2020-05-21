@@ -54,6 +54,7 @@ class Preprocessor:
             cfg_copy = cfg.copy()
             cfg_copy['model_type'] = cfg['fe_pretrained']
             self.feature_extractor = PretrainedNN(cfg_copy, len(cfg['class_names']))
+        self.resample_rate = 10
 
     def preprocess(self, wave):
 
@@ -62,6 +63,9 @@ class Preprocessor:
 
         if self.cfg['remove_power_noise']:
             wave = remove_power_noise(wave, self.sr)
+
+        # wave = scipy.signal.decimate(wave, self.resample_rate)
+        # self.sr = wave.shape[1] / 10
 
         n_channel = wave.shape[0]
 
@@ -88,7 +92,7 @@ class Preprocessor:
             #     wave[i] = shift(wave[i], self.sr * 5)
             #     wave[i] = stretch(wave[i], rate=0.3)
             #     wave[i] = shift_pitch(wave[i], rate=0.3)
-        y = torch.from_numpy(wave).float()
+        y = torch.from_numpy(wave.copy()).float()
         if self.transform:
             y = self.transform_(y)    # channel x freq x time
 
