@@ -94,14 +94,14 @@ def main(expt_conf, expt_dir, hyperparameters):
                         filename=expt_dir / 'expt.log')
 
     expt_conf['class_names'] = list(range(10))
-    expt_conf['sample_rate'] = 22050
+    expt_conf['sample_rate'] = 11025
 
     load_func = set_load_func(44100, expt_conf['sample_rate'])
     metrics_names = {'train': ['loss', 'uar'],
                      'val': ['loss', 'uar'],
                      'test': ['loss', 'uar']}
 
-    dataset_cls = LoadDataSet
+    dataset_cls = ManifestWaveDataSet
     expt_conf, groups = create_manifest(expt_conf, expt_dir)
 
     def parallel_preprocess(dataset, idx):
@@ -222,6 +222,14 @@ if __name__ == '__main__':
             'transform': [None],
             'lr': [1e-4],
         }
+    elif expt_conf['model_type'] == '1dcnn':
+        hyperparameters = {
+            'cnn_channel_list': [[32, 64, 'M']],
+            'cnn_kernel_sizes': [[[1, 64], [1, 16], [1, 64]]],
+            'cnn_stride_sizes': [[[1, 2], [1, 2], [1, 64]]],
+            'transform': [None],
+            'lr': [1e-4],
+        }
     else:
         hyperparameters = {
             'lr': [1e-5],
@@ -237,8 +245,8 @@ if __name__ == '__main__':
     hyperparameters['model_type'] = [expt_conf['model_type']]
 
     expt_conf['expt_id'] = f"{expt_conf['model_type']}_{expt_conf['transform']}"
-    expt_conf['window_size'] = hyperparameters['window_size'][0]
-    expt_conf['window_stride'] = hyperparameters['window_stride'][0]
+    # expt_conf['window_size'] = hyperparameters['window_size'][0]
+    # expt_conf['window_stride'] = hyperparameters['window_stride'][0]
     expt_dir = Path(__file__).resolve().parent / 'output' / 'example_esc' / f"{expt_conf['expt_id']}"
     expt_dir.mkdir(exist_ok=True, parents=True)
     main(expt_conf, expt_dir, hyperparameters)

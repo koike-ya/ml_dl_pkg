@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 from ml.models.model_managers.base_model_manager import BaseModelManager
 from ml.models.nn_models.rnn import construct_rnn
 from ml.models.nn_models.cnn_rnn import construct_cnn_rnn
+from ml.models.nn_models.cnn_1d import construct_1dcnn
 from ml.models.nn_models.cnn import construct_cnn
 from ml.models.nn_models.logmel_cnn import construct_logmel_cnn
 from ml.models.nn_models.nn import construct_nn
@@ -22,7 +23,7 @@ from ml.models.nn_models.nn_utils import get_param_size
 from ml.models.nn_models.pretrained_models import construct_pretrained, supported_pretrained_models
 
 
-supported_nn_models = ['nn', 'cnn', 'rnn', 'cnn_rnn', 'logmel_cnn', 'attention_cnn', 'panns', '1dcnn_rnn']
+supported_nn_models = ['nn', 'cnn', 'rnn', 'cnn_rnn', 'logmel_cnn', 'attention_cnn', 'panns', '1dcnn']
 
 
 class NNModelManager(BaseModelManager):
@@ -67,6 +68,8 @@ class NNModelManager(BaseModelManager):
             model = construct_attention_cnn(self.cfg)
         elif self.cfg['model_type'] == 'multitask_panns':
             model = construct_multitask_panns(self.cfg)
+        elif self.cfg['model_type'] == '1dcnn':
+            model = construct_1dcnn(self.cfg)
         else:
             raise NotImplementedError('model_type should be either rnn or cnn, nn would be implemented in the future.')
 
