@@ -149,8 +149,8 @@ def main(expt_conf, expt_dir, hyperparameters):
         result_pred_list = Parallel(n_jobs=expt_conf['n_parallel'], verbose=0)(
             [delayed(experiment)(pattern, deepcopy(expt_conf)) for pattern in patterns])
 
-    val_results.iloc[:, :len(hyperparameters)] = patterns
-    result_list = np.array([result for result, pred in result_pred_list])
+    val_results.iloc[:, :len(hyperparameters)] = [[str(param) for param in p] for p in patterns]
+    result_list = [result for result, pred in result_pred_list]
     val_results.iloc[:, len(hyperparameters):] = result_list
     pp.pprint(val_results)
     pp.pprint(val_results.iloc[:, len(hyperparameters):].describe())

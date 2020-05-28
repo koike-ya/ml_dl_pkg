@@ -61,6 +61,11 @@ class CNN1d(nn.Module):
         x = self.fc(x)
         return self.predictor(x)
 
+    def get_1dconv_responce(self, x):
+        x = torch.Tensor(x).unsqueeze(dim=0).unsqueeze(dim=1).unsqueeze(dim=1)
+        x = self.cnn_1d(x.to(torch.float))
+        return x.transpose(1, 2)
+
 
 def construct_1dcnn(cfg):
     layer_info = []
