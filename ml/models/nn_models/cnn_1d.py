@@ -24,19 +24,26 @@ class CNN1d(nn.Module):
                 nn.Softmax(dim=-1)
             )
 
+    def _conv_batchnorm_relu(self, in_channel, out_channel, kernel, stride=(1, 1)):
+        return nn.Sequential(
+            nn.Conv2d(in_channel, out_channel, kernel, stride),
+            nn.BatchNorm2d(out_channel),
+            nn.ReLU(inplace=True)
+        )
+
     def _construct_cnn_2d(self, in_features_dict):
         layers = nn.Sequential(
-            nn.Conv2d(1, 32, (8, 8), (1, 1)),
-            nn.Conv2d(32, 32, (8, 8), (1, 1)),
+            self._conv_batchnorm_relu(1, 32, (8, 8)),
+            self._conv_batchnorm_relu(32, 32, (8, 8)),
             nn.MaxPool2d((5, 3), (5, 3)),
-            nn.Conv2d(32, 64, (1, 4), (1, 1)),
-            nn.Conv2d(64, 64, (1, 4), (1, 1)),
+            self._conv_batchnorm_relu(32, 64, (1, 4)),
+            self._conv_batchnorm_relu(64, 64, (1, 4)),
             nn.MaxPool2d((1, 2), (1, 2)),
-            nn.Conv2d(64, 128, (1, 2), (1, 1)),
-            nn.Conv2d(128, 128, (1, 2), (1, 1)),
+            self._conv_batchnorm_relu(64, 128, (1, 2)),
+            self._conv_batchnorm_relu(128, 128, (1, 2)),
             nn.MaxPool2d((1, 2), (1, 2)),
-            nn.Conv2d(128, 256, (1, 2), (1, 1)),
-            nn.Conv2d(256, 256, (1, 2), (1, 1)),
+            self._conv_batchnorm_relu(128, 256, (1, 2)),
+            self._conv_batchnorm_relu(256, 256, (1, 2)),
             nn.MaxPool2d((1, 2), (1, 2)),
         )
         # TODO debug and determine
