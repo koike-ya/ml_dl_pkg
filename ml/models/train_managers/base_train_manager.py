@@ -155,6 +155,7 @@ class BaseTrainManager(metaclass=ABCMeta):
         return device
 
     def _init_logger(self) -> TensorBoardLogger:
+        print(self.cfg['tensorboard'])
         if self.cfg['tensorboard']:
             return TensorBoardLogger(self.cfg['log_id'], self.cfg['log_dir'])
 
