@@ -100,15 +100,13 @@ class NNTrainManager(BaseTrainManager):
 
         ensemble = np.array(snap_pred_list).mean(axis=0)
 
-        print(ensemble)
         if not self.cfg['return_prob']:
             ensemble = ensemble.astype(int)
-        print(ensemble)
+
         return ensemble, label_list
 
     def predict(self, phase):
         if self.cfg['snapshot']:
-            print('snapshot started')
             return self.snapshot_predict(phase=phase)
         else:
             return self._predict(phase=phase)
@@ -170,35 +168,3 @@ class NNTrainManager(BaseTrainManager):
             self.model_manager.save_model()
 
         return self.metrics, best_val_pred
-
-    def retrain(self):
-        phase = 'retrain'
-        self.model_manager.load_model()
-
-        for metric in self.metrics:
-            metric.add_average_meter(phase_name=phase)
-            metric.add_average_meter(phase_name=f'{phase}_test')
-
-            start = time.time()
-
-        for epoch in range(self.cfg['retrain_epochs']):
-            for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
-
-                loss, predicts = self.model_manager.fit(inputs.to(self.device), labels.to(self.device), 'train')
-
-                # save loss and metrics in one batch
-                for metric in self.metrics[phase]:
-                    metric.update(loss, predicts, labels.numpy())
-
-                if not self.cfg['silent']:
-                    self._verbose(epoch, phase, i, elapsed=int(time.time() - start))
-
-            if self.logger:
-                self._record_log(phase, epoch)
-
-            self._update_by_epoch(phase, epoch, self.cfg['learning_anneal'])
-
-        # selfのmetricsのretrain_testが更新される
-        self.test(return_metrics=True, load_best=False, phase='retrain_test')
-
-        return self.metrics

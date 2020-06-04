@@ -90,9 +90,25 @@ def train_manager_args(parser) -> argparse.ArgumentParser:
     logging_parser.add_argument('--tensorboard', dest='tensorboard', action='store_true', help='Turn on tensorboard graphing')
     logging_parser.add_argument('--log-dir', default='../visualize/tensorboard', help='Location of tensorboard log')
 
+    parser = acgan_train_manager_args(parser)
     parser = model_args(parser)
     parser = spec_augment_args(parser)
 
+    return parser
+
+
+def acgan_train_manager_args(parser):
+    acgan_train_manager_parser = parser.add_argument_group("acgan_train_manager model arguments")
+
+    # acgan_train_manager params
+    acgan_train_manager_parser.add_argument("--gan-epochs", type=int, default=200, help="number of epochs of training")
+    acgan_train_manager_parser.add_argument("--gan-batch-size", type=int, default=64, help="size of the batches")
+    acgan_train_manager_parser.add_argument("--gan-lr", type=float, default=0.0002, help="adam: learning rate")
+    acgan_train_manager_parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
+    acgan_train_manager_parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
+    acgan_train_manager_parser.add_argument("--gan-latent_dim", type=int, default=100, help="dimensionality of the latent space")
+    acgan_train_manager_parser.add_argument("--img_size", type=int, default=200, help="size of each image dimension")
+    acgan_train_manager_parser.add_argument("--sample_interval", type=int, default=400, help="interval between image sampling")
     return parser
 
 
