@@ -32,7 +32,8 @@ class ACGANModelManager(BaseModelManager):
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer)
         if torch.cuda.device_count() > 1:
-            self.model = torch.nn.DataParallel(self.model)
+            self.generator = torch.nn.DataParallel(self.generator)
+            self.discriminator = torch.nn.DataParallel(self.discriminator)
 
     def _init_model(self):
         # Initialize generator and discriminator
@@ -52,9 +53,9 @@ class ACGANModelManager(BaseModelManager):
 
     def train(self, valid, batch_size, fake, real_imgs, labels):
         g_loss, gen_imgs, gen_labels = self.train_generator(valid, batch_size)
-        d_loss, d_acc = self.train_discriminator(valid, fake, real_imgs, labels, gen_imgs, gen_labels)
+        d_real_loss, d_fake_loss, d_acc = self.train_discriminator(valid, fake, real_imgs, labels, gen_imgs, gen_labels)
 
-        return g_loss, d_loss, d_acc
+        return g_loss, d_real_loss, d_fake_loss, d_acc
 
     def train_generator(self, valid, batch_size):
         self.optimizer_G.zero_grad()
@@ -96,7 +97,7 @@ class ACGANModelManager(BaseModelManager):
         d_loss.backward()
         self.optimizer_D.step()
 
-        return d_loss, d_acc
+        return d_real_loss, d_fake_loss, d_acc
 
     def sample_image(self, n_row, batches_done):
         """Saves a grid of generated digits ranging from 0 to n_classes"""
@@ -106,4 +107,4 @@ class ACGANModelManager(BaseModelManager):
         labels = np.array([num for _ in range(n_row) for num in range(n_row)])
         labels = torch.LongTensor(labels).to(self.device)
         gen_imgs = self.generator(z, labels)
-        save_image(gen_imgs.data, "/home/tomoya/workspace/research/dcase2020/output/gan/%d.png" % batches_done, nrow=n_row, normalize=True)
+        save_image(gen_imgs.data, "output/gan/%d.png" % batches_done, nrow=n_row, normalize=True)

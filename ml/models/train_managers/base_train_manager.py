@@ -108,7 +108,7 @@ def acgan_train_manager_args(parser):
     acgan_train_manager_parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
     acgan_train_manager_parser.add_argument("--gan-latent_dim", type=int, default=100, help="dimensionality of the latent space")
     acgan_train_manager_parser.add_argument("--img_size", type=int, default=200, help="size of each image dimension")
-    acgan_train_manager_parser.add_argument("--sample_interval", type=int, default=400, help="interval between image sampling")
+    acgan_train_manager_parser.add_argument("--sample_interval", type=int, default=500, help="interval between image sampling")
     return parser
 
 
@@ -128,7 +128,7 @@ class BaseTrainManager(metaclass=ABCMeta):
         self.device = self._init_device()
         self.model_manager = self._init_model_manager()
         self._init_seed()
-        self.logger = self._init_logger()
+        self.tensor_board_logger = self._init_logger()
         self.metrics = metrics
         Path(self.cfg['model_path']).parent.mkdir(exist_ok=True, parents=True)
 
@@ -179,7 +179,7 @@ class BaseTrainManager(metaclass=ABCMeta):
 
         for metric in self.metrics[phase]:
             values[f'{phase}_{metric.name}_mean'] = metric.average_meter.average
-        self.logger.update(epoch, values)
+        self.tensor_board_logger.update(epoch, values)
 
     def _predict(self, phase) -> Tuple[np.array, np.array]:
         raise NotImplementedError

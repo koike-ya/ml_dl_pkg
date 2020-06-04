@@ -39,12 +39,17 @@ class ACGANTrainManager(BaseTrainManager):
                 real_imgs = imgs.type(torch.FloatTensor).to(self.device)
                 labels = labels.type(torch.LongTensor).to(self.device)
 
-                g_loss, d_loss, d_acc = self.model_manager.train(valid, batch_size, fake, real_imgs, labels)
+                g_loss, d_real_loss, d_fake_loss, d_acc = self.model_manager.train(valid, batch_size, fake, real_imgs, labels)
 
-                print(
-                    "[Epoch %d/%d] [Batch %d/%d] [D loss: %f, acc: %d%%] [G loss: %f]"
-                    % (epoch, self.cfg['epochs'], i, len(self.dataloaders['train']), d_loss.item(), 100 * d_acc, g_loss.item())
+                logger.debug(
+                    "[Epoch %d/%d] [Batch %d/%d] [D real: %f, D fake: %f, acc: %d%%] [G loss: %f]"
+                    % (epoch, self.cfg['gan_epochs'], i, len(self.dataloaders['train']), d_real_loss.item(), d_fake_loss.item(), 100 * d_acc, g_loss.item())
                 )
+
+                n_iterations = epoch * len(self.dataloaders['train']) + i + 1
+                self.tensor_board_logger.update(n_iterations, {metric: locals()[metric] for metric in
+                                                               ['g_loss', 'd_real_loss', 'd_fake_loss', 'd_acc']})
+
                 batches_done = epoch * len(self.dataloaders['train']) + i
                 if batches_done % self.cfg['sample_interval'] == 0:
                     self.model_manager.sample_image(n_row=10, batches_done=batches_done)
