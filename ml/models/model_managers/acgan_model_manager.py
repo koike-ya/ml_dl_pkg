@@ -70,6 +70,7 @@ class ACGANModelManager(BaseModelManager):
         # Loss measures generator's ability to fool the discriminator
         validity, pred_label = self.discriminator(gen_imgs)
         g_loss = 0.5 * (self.adversarial_loss(validity, valid) + self.auxiliary_loss(pred_label, gen_labels))
+        g_loss *= self.cfg['gen_weight']
         g_loss.backward()
         self.optimizer_G.step()
 

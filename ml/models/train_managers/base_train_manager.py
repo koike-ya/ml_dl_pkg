@@ -104,6 +104,7 @@ def acgan_train_manager_args(parser):
     acgan_train_manager_parser.add_argument("--gan-epochs", type=int, default=200, help="number of epochs of training")
     acgan_train_manager_parser.add_argument("--gan-batch-size", type=int, default=64, help="size of the batches")
     acgan_train_manager_parser.add_argument("--gan-lr", type=float, default=0.0002, help="adam: learning rate")
+    acgan_train_manager_parser.add_argument("--gen-weight", type=float, default=1.0, help="generator weight of learning")
     acgan_train_manager_parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
     acgan_train_manager_parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
     acgan_train_manager_parser.add_argument("--gan-latent_dim", type=int, default=100, help="dimensionality of the latent space")
