@@ -1,7 +1,7 @@
-import numpy as np
-import librosa
 import math
 
+import librosa
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -186,12 +186,12 @@ class STFT(DFTBase):
         self.conv_imag = nn.Conv1d(in_channels=1, out_channels=out_channels, kernel_size=n_fft, stride=hop_length,
                                    padding=0, dilation=1, groups=1, bias=False)
 
-        self.conv_real.weight.data = torch.Tensor(
-            np.real(self.W[:, 0 : out_channels] * fft_window[:, None]).T)[:, None, :]
+        self.conv_real.weight.data = torch.from_numpy(
+            np.real(self.W[:, 0 : out_channels] * fft_window[:, None]).T).to(torch.float32)[:, None, :]
         # (n_fft // 2 + 1, 1, n_fft)
 
-        self.conv_imag.weight.data = torch.Tensor(
-            np.imag(self.W[:, 0 : out_channels] * fft_window[:, None]).T)[:, None, :]
+        self.conv_imag.weight.data = torch.from_numpy(
+            np.imag(self.W[:, 0 : out_channels] * fft_window[:, None]).T).to(torch.float32)[:, None, :]
         # (n_fft // 2 + 1, 1, n_fft)
 
         if freeze_parameters:
@@ -199,15 +199,13 @@ class STFT(DFTBase):
                 param.requires_grad = False
 
     def forward(self, input):
-        """input: (batch_size, data_length)
+        """input: (1, data_length)
 
         Returns:
-          real: (batch_size, n_fft // 2 + 1, time_steps)
-          imag: (batch_size, n_fft // 2 + 1, time_steps)
+          real: (n_fft // 2 + 1, time_steps)
+          imag: (n_fft // 2 + 1, time_steps)
         """
-        if input.dim() == 3:
-            input = input.squeeze(dim=1)
-        x = input[:, None, :]   # (batch_size, channels_num, data_length)
+        x = input[:, None, :]
 
         if self.center:
             x = F.pad(x, pad=(self.n_fft // 2, self.n_fft // 2), mode=self.pad_mode)
@@ -354,7 +352,7 @@ class ISTFT(DFTBase):
 class Spectrogram(nn.Module):
     def __init__(self, n_fft=2048, hop_length=None, win_length=None, 
         window='hann', center=True, pad_mode='reflect', power=2.0, 
-        freeze_parameters=True):
+        freeze_parameters=True, device='cpu'):
         """Calculate spectrogram using pytorch. The STFT is implemented with 
         Conv1d. The function has the same output of librosa.core.stft
         """
@@ -364,7 +362,7 @@ class Spectrogram(nn.Module):
 
         self.stft = STFT(n_fft=n_fft, hop_length=hop_length, 
             win_length=win_length, window=window, center=center, 
-            pad_mode=pad_mode, freeze_parameters=True)
+            pad_mode=pad_mode, freeze_parameters=True).to(device)
 
     def forward(self, input):
         """input: (batch_size, 1, time_steps, n_fft // 2 + 1)

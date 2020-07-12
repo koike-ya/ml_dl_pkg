@@ -4,15 +4,16 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
-from ml.models.bonn_rnn import BonnRNN
-from ml.models.cnns_on_chb_mit import CHBMITCNN
-from ml.models.model_manager import BaseModelManager
+from ml.models.train_managers.train_manager import BaseTrainManager
 from tqdm import tqdm
 
+from ml.models.nn_models.bonn_rnn import BonnRNN
+from ml.models.nn_models.cnns_on_chb_mit import CHBMITCNN
 
-class KerasModelManager(BaseModelManager):
+
+class KerasTrainManager(BaseTrainManager):
     def __init__(self, class_labels, cfg, dataloaders, metrics):
-        super(KerasModelManager, self).__init__(class_labels, cfg, dataloaders, metrics)
+        super(KerasTrainManager, self).__init__(class_labels, cfg, dataloaders, metrics)
         os.environ["CUDA_VISIBLE_DEVICES"] = "0"
         Path(self.cfg['model_path']).parent.mkdir(exist_ok=True, parents=True)
 
@@ -27,14 +28,14 @@ class KerasModelManager(BaseModelManager):
             os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
     def _update_by_epoch(self, phase, epoch):
-        for metric in self.metrics:
-            best_flag = metric.average_meter[phase].update_best()
+        for metric in self.metrics[phase]:
+            best_flag = metric.average_meter.update_best()
             if metric.save_model and best_flag and phase == 'val':
                 print("Found better validated model, saving to %s" % self.cfg['model_path'])
                 self.model.save_model()
 
             # reset epoch average meter
-            metric.average_meter[phase].reset()
+            metric.average_meter.reset()
 
         if phase == 'val':
             print(f'epoch {epoch} ended.')
@@ -81,8 +82,8 @@ class KerasModelManager(BaseModelManager):
                     metric_values = self.model.fit(inputs.numpy(), labels.numpy(), phase)
 
                     # save loss and metrics in one batch
-                    for metric, value in zip(self.metrics, metric_values):
-                        metric.average_meter[phase].update(value)
+                    for metric, value in zip(self.metrics[phase], metric_values):
+                        metric.average_meter.update(value)
 
                     if not self.cfg['silent']:
                         self._verbose(epoch, phase, i)

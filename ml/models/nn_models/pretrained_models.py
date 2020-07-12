@@ -1,13 +1,22 @@
 import torch
 import torch.nn as nn
 from torchvision import models
-from ml.models.panns_cnn14 import construct_panns
 
+from ml.models.nn_models.panns_cnn14 import construct_panns
 
 supported_pretrained_models = {'resnet': models.resnet18, 'resnet152': models.resnet152, 'alexnet': models.alexnet,# 'densenet': models.densenet121,
                                'wideresnet': models.wide_resnet50_2, 'resnext': models.resnext50_32x4d,
                                'resnext101': models.resnext101_32x8d, 'vgg19': models.vgg19, 'vgg16': models.vgg16,
                                'googlenet': models.googlenet, 'mobilenet': None, 'panns': None, 'resnext_wsl': None}
+
+
+def pretrain_args(parser):
+    pretrain_parser = parser.add_argument_group("Pretrain model arguments")
+
+    # Pretrain params
+    pretrain_parser.add_argument('--pretrained', action='store_true')
+
+    return parser
 
 
 class PretrainedNN(nn.Module):
@@ -33,7 +42,7 @@ class PretrainedNN(nn.Module):
             return torch.hub.load('pytorch/vision:v0.4.2', 'mobilenet_v2', pretrained=True)
         elif cfg['model_type'] == 'resnext_wsl':
             return torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x8d_wsl')
-        return supported_pretrained_models[cfg['model_type']](pretrained=True)
+        return supported_pretrained_models[cfg['model_type']](pretrained=cfg['pretrained'])
 
     def _get_n_last_in_features(self, model):
         if isinstance(list(model.children())[-1], nn.Sequential):
@@ -45,6 +54,8 @@ class PretrainedNN(nn.Module):
             return list(model.children())[-1].in_features
 
     def forward(self, x):
+        if x.size(1) == 1:
+            x = torch.cat([x] * 3, 1)
         x = self.feature_extractor(x)
         x = x.reshape(x.size(0), -1)
         if self.feature_extract:

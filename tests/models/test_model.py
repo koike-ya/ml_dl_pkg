@@ -5,9 +5,9 @@ import numpy as np
 import torch
 
 from ml.config import TEST_PATH
-from ml.models.base_model import BaseModel
-from ml.models.ml_model import MLModel
-from ml.models.nn_model import NNModel
+from ml.models.model_managers.base_model_manager import BaseModelManager
+from ml.models.model_managers.ml_model_manager import MLModel
+from ml.models.model_managers.nn_model_manager import NNModelManager
 
 
 class TestModel(TestCase):
@@ -46,7 +46,7 @@ class TestModel(TestCase):
             rnn_conf['rnn_type'] = rnn_type
             test_pattern.append({
                 'description': f'RNN_{rnn_type}の{test_method}',
-                'model_cls': NNModel,
+                'model_cls': NNModelManager,
                 'model_conf': {**rnn_conf},
             })
 
@@ -62,13 +62,13 @@ class TestModel(TestCase):
         return test_pattern
 
     def test___init__(self):
-        model = NNModel(self.class_labels, self.base_rnn_conf)
+        model = NNModelManager(self.class_labels, self.base_rnn_conf)
         self.assertEqual(self.class_labels, model.class_labels)
         with self.assertRaises(TypeError):
-            model = BaseModel(self.class_labels, self.base_cfg)
+            model = BaseModelManager(self.class_labels, self.base_cfg)
 
     def test_model_args(self):
-        model = NNModel(self.class_labels, self.base_cfg)
+        model = NNModelManager(self.class_labels, self.base_cfg)
 
     def test__init_model(self):
         # TODO CNNとdeepspeechのテスト
@@ -77,7 +77,7 @@ class TestModel(TestCase):
         for test_case in test_pattern:
             with self.subTest(test_case['description']):
                 model = test_case['model_cls'](self.class_labels, test_case['model_conf'])
-                self.assertIsInstance(model, BaseModel)
+                self.assertIsInstance(model, BaseModelManager)
 
     def test_fit(self):
         # TODO CNNとdeepspeechのテスト

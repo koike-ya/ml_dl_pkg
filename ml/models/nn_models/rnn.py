@@ -4,10 +4,8 @@ from collections import OrderedDict
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from ml.models.cnn import construct_cnn
-
+from ml.models.nn_models.nn_utils import initialize_weights
 
 supported_rnns = {
     'lstm': nn.LSTM,
@@ -15,20 +13,6 @@ supported_rnns = {
     'gru': nn.GRU
 }
 supported_rnns_inv = dict((v, k) for k, v in supported_rnns.items())
-
-
-def initialize_weights(model):
-    if type(model) in [nn.Linear]:
-        nn.init.xavier_uniform_(model.weight)
-        if model.bias:
-            nn.init.zeros_(model.bias)
-    elif type(model) in [nn.LSTM, nn.RNN, nn.GRU]:
-        nn.init.orthogonal_(model.weight_hh_l0)
-        nn.init.xavier_uniform_(model.weight_ih_l0)
-        nn.init.zeros_(model.bias_hh_l0)
-        nn.init.zeros_(model.bias_ih_l0)
-
-    return model
 
 
 def rnn_args(parser):
@@ -44,22 +28,12 @@ def rnn_args(parser):
     rnn_parser.add_argument('--no-bidirectional', dest='bidirectional', action='store_false', default=True,
                             help='Turn off bi-directional RNNs, introduces lookahead convolution')
     rnn_parser.add_argument('--inference-softmax', dest='is_inference_softmax', action='store_true',
-                            help='Turn off inference softmax')
+                            help='Turn on inference softmax')
     rnn_parser.add_argument('--batch-normalization', dest='batch_norm', action='store_true',
                             default=False, help='Batch normalization or not')
     rnn_parser.add_argument('--sequence-wise', dest='sequence_wise', action='store_true',
                             default=False, help='sequence-wise batch normalization or not')
     return parser
-
-
-def construct_cnn_rnn(cfg, construct_cnn_func, output_size, device, n_dim):
-    conv, conv_out_ftrs = construct_cnn_func(cfg, use_as_extractor=True, n_dim=n_dim)
-    input_size = conv_out_ftrs['n_channels'] * conv_out_ftrs['width']
-    return DeepSpeech(conv.to(device), input_size, out_time_feature=conv_out_ftrs['height'], batch_size=cfg['batch_size'],
-                      rnn_type=supported_rnns[cfg['rnn_type']], labels="abc", eeg_conf=None,
-                      rnn_hidden_size=cfg['rnn_hidden_size'], n_layers=cfg['rnn_n_layers'],
-                      bidirectional=cfg['bidirectional'], output_size=output_size,
-                      is_inference_softmax=cfg.get('is_inference_softmax', True))
 
 
 def construct_rnn(cfg, output_size):
@@ -76,6 +50,9 @@ def construct_rnn(cfg, output_size):
     }
     :return:
     """
+    if len(cfg['input_size']) == 2:
+        cfg['input_size'] = cfg['input_size'][0]
+
     return RNNClassifier(cfg['batch_size'], cfg['input_size'], out_time_feature=cfg['seq_len'],
                          rnn_type=supported_rnns[cfg['rnn_type']], output_size=output_size,
                          rnn_hidden_size=cfg['rnn_hidden_size'], n_layers=cfg['rnn_n_layers'],
@@ -163,7 +140,7 @@ class InferenceBatchSoftmax(nn.Module):
 
 class RNNClassifier(nn.Module):
     def __init__(self, batch_size, input_size, out_time_feature, output_size, batch_norm_size=None, sequence_wise=False,
-                 rnn_type=nn.LSTM, rnn_hidden_size=768, n_layers=5, bidirectional=True, is_inference_softmax=True):
+                 rnn_type=nn.LSTM, rnn_hidden_size=768, n_layers=5, bidirectional=True, is_inference_softmax=False):
         super(RNNClassifier, self).__init__()
 
         rnns = []
@@ -177,11 +154,12 @@ class RNNClassifier(nn.Module):
                           sequence_wise=sequence_wise)
             rnns.append(('%d' % (x + 1), rnn))
         self.rnns = nn.Sequential(OrderedDict(rnns))
-
         self.fc = nn.Sequential(
             nn.BatchNorm1d(rnn_hidden_size * out_time_feature),
+            # nn.BatchNorm1d(26500),
             # nn.BatchNorm1d(rnn_hidden_size),
             initialize_weights(nn.Linear(rnn_hidden_size * out_time_feature, output_size, bias=False))
+            # initialize_weights(nn.Linear(26500, output_size, bias=False))
             # initialize_weights(nn.Linear(rnn_hidden_size, output_size, bias=False))
         )
         self.classify = True if output_size != 1 else False
@@ -212,15 +190,10 @@ class RNNClassifier(nn.Module):
 
         return x
 
-    def change_last_layer(self, n_classes):
-        self.fc[1] = initialize_weights(nn.Linear(self.fc[1].in_features, n_classes, bias=False))
-        # print(self.fc[1].in_features)
-        # self.fc[1] = nn.Linear(self.fc[1].in_features, n_classes, bias=False)
-
 
 class DeepSpeech(RNNClassifier):
     def __init__(self, conv, input_size, out_time_feature, batch_size, rnn_type=nn.LSTM, labels="abc", eeg_conf=None,
-                 rnn_hidden_size=768, n_layers=5, bidirectional=True, is_inference_softmax=True, output_size=2):
+                 rnn_hidden_size=768, n_layers=5, bidirectional=True, is_inference_softmax=False, output_size=2):
         super(DeepSpeech, self).__init__(batch_size, input_size=input_size, out_time_feature=out_time_feature,
                                          rnn_type=nn.LSTM, rnn_hidden_size=rnn_hidden_size, n_layers=n_layers,
                                          bidirectional=bidirectional, is_inference_softmax=is_inference_softmax,
@@ -236,13 +209,15 @@ class DeepSpeech(RNNClassifier):
         print(f'Number of parameters\tconv: {get_param_size(self.conv)}\trnn: {get_param_size(super())}')
 
     def forward(self, x):
-        x = self.conv(x.to(torch.float))    # batch x channel x time x freq
+        x = self.conv(x.to(torch.float))    # batch x channel x freq x time
 
-        if len(x.size()) == 4:      # batch x channel x time_feature x freq_feature
-            # Collapse feature dimension   batch x feature x time
-            x = x.transpose(2, 3)
-            sizes = x.size()
-            x = x.reshape(sizes[0], sizes[1] * sizes[2], sizes[3])
-
+        sizes = x.size()    # batch x channel x freq_feature x time_feature
+        if len(sizes) == 4:
+            x = x.view(sizes[0], sizes[1] * sizes[2], sizes[3])  # Collapse feature dimension   batch x feature x time
         x = super().forward(x)
         return x
+
+    def change_last_layer(self, n_classes):
+        self.fc[1] = initialize_weights(nn.Linear(self.fc[1].in_features, n_classes, bias=False))
+        # print(self.fc[1].in_features)
+        # self.fc[1] = nn.Linear(self.fc[1].in_features, n_classes, bias=False)

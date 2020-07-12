@@ -3,13 +3,14 @@ To boost baseline model construction and incremental hypothesis testing speed.
 
 You can use this library for both machine learning and deep learning tasks only with changing some argments.
 
+# Requirements
+- cuda >= 10.0
 
 # Setup Environment
 
 ```
-conda create -n ml_dl_pkg python=3.6
+conda create -n ml_dl_pkg python=3.7
 source activate ml_dl_pkg
-cd ml_dl_pkg
 ```
 
 ### For mac user

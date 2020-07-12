@@ -1,14 +1,12 @@
-from collections import OrderedDict
 from copy import deepcopy
 from pathlib import Path
 from typing import List
 
 import numpy as np
 import pandas as pd
-import torch
-from ml.models.model_manager import model_manager_args, BaseModelManager
-from ml.src.metrics import Metric
+from ml.models.train_managers.train_manager import train_manager_args, BaseTrainManager
 
+from ml.src.metrics import Metric
 
 PHASES = ['train', 'val', 'test']
 
@@ -21,7 +19,7 @@ def train_manager_args(parser):
     train_parser.add_argument('--test', action='store_true', help='Do testing, You should be specify k-fold with 1.')
     train_parser.add_argument('--infer', action='store_true', help='Do inference with test_path data,')
     train_parser.add_argument('--manifest-path', help='data file for training', default='input/train.csv')
-    parser = model_manager_args(parser)
+    parser = train_manager_args(parser)
 
     return parser
 
@@ -37,8 +35,8 @@ class TrainManager:
         self.metrics = metrics
         self.manifest_df = pd.read_csv(train_conf['manifest_path'], header=None).sample(frac=1)
 
-    def _init_model_manager(self, dataloaders):
-        return BaseModelManager(self.train_conf['class_names'], self.train_conf, dataloaders, deepcopy(self.metrics))
+    def _init_train_manager(self, dataloaders):
+        return BaseTrainManager(self.train_conf['class_names'], self.train_conf, dataloaders, deepcopy(self.metrics))
 
     def _normal_cv(self, fold_count, k):
         all_labels = self.manifest_df.apply(self.label_func, axis=1)
@@ -75,12 +73,12 @@ class TrainManager:
             if self.train_conf['loss_weight'] == 'balanced':
                 self.train_conf['loss_weight'] = dataloaders['train'].get_label_balance()
 
-        model_manager = self._init_model_manager(dataloaders)
+        train_manager = self._init_train_manager(dataloaders)
 
-        model_manager.train(model)
-        _, _, metrics = model_manager.test(return_metrics=True)
+        train_manager.train(model)
+        _, _, metrics = train_manager.test(return_metrics=True)
 
-        return metrics, model_manager
+        return metrics, train_manager
 
     def _update_data_paths(self, fold_count: int, k: int):
         # fold_count...k-foldのうちでいくつ目か
@@ -111,7 +109,7 @@ class TrainManager:
         for i in range(self.train_conf['k_fold']):
             self._update_data_paths(i, self.train_conf['k_fold'])
 
-            result_metrics, model_manager = self._train_test()
+            result_metrics, train_manager = self._train_test()
 
             print(f'Fold {i + 1} ended.')
             for phase in ['val', 'test']:
@@ -130,19 +128,19 @@ class TrainManager:
         # 新しく作成したマニフェストファイルは削除
         [Path(self.train_conf[f'{phase}_path']).unlink() for phase in PHASES]
 
-        return model_manager, val_cv_metrics, test_cv_metrics
+        return train_manager, val_cv_metrics, test_cv_metrics
 
-    def test(self, model_manager=None) -> List[Metric]:
-        if not model_manager:
+    def test(self, train_manager=None) -> List[Metric]:
+        if not train_manager:
             # dataset, dataloaderの作成
             dataloaders = {}
             dataset = self.dataset_cls(self.train_conf[f'test_path'], self.train_conf,
                                        load_func=self.load_func, label_func=self.label_func)
             dataloaders['test'] = self.set_dataloader_func(dataset, 'test', self.train_conf)
 
-            model_manager = self._init_model_manager(dataloaders)
+            train_manager = self._init_train_manager(dataloaders)
 
-        return model_manager.test(return_metrics=True)
+        return train_manager.test(return_metrics=True)
 
     def train_test(self):
         return self._train_test_cv()
@@ -156,5 +154,5 @@ class TrainManager:
         dataloaders[phase] = self.set_dataloader_func(dataset, phase, self.train_conf)
 
         # modelManagerをインスタンス化、inferの実行
-        model_manager = self._init_model_manager(dataloaders)
-        return model_manager.infer()
+        train_manager = self._init_train_manager(dataloaders)
+        return train_manager.infer()

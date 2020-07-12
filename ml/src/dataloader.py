@@ -6,11 +6,11 @@ from torch.utils.data.sampler import WeightedRandomSampler
 
 
 def set_dataloader(dataset, phase, cfg, shuffle=False):
-    if phase in ['test', 'infer']:
+    if phase != 'train':
         dataloader = WrapperDataLoader(dataset, batch_size=cfg['batch_size'], num_workers=cfg['n_jobs'],
-                                       pin_memory=True, sampler=None, shuffle=False, drop_last=False)
+                                       pin_memory=False, sampler=None, shuffle=False, drop_last=False)
     else:
-        if sum(cfg['sample_balance']) != 0.0:
+        if cfg['sample_balance']:
             if cfg['task_type'] == 'classify':
                 weights = make_weights_for_balanced_classes(dataset.get_labels(), cfg['sample_balance'])
             else:
@@ -19,7 +19,7 @@ def set_dataloader(dataset, phase, cfg, shuffle=False):
         else:
             sampler = None
         dataloader = WrapperDataLoader(dataset, batch_size=cfg['batch_size'], num_workers=cfg['n_jobs'],
-                                       pin_memory=True, sampler=sampler, drop_last=True, shuffle=shuffle)
+                                       pin_memory=False, sampler=sampler, drop_last=True, shuffle=shuffle)
     return dataloader
 
 
@@ -51,7 +51,7 @@ class WrapperDataLoader(DataLoader):
         super(WrapperDataLoader, self).__init__(*args, **kwargs)
 
     def get_input_size(self):
-        self.dataset.get_feature_size()
+        return self.dataset.get_feature_size()
 
     def get_image_size(self):
         return self.dataset.get_image_size()
@@ -59,11 +59,18 @@ class WrapperDataLoader(DataLoader):
     def get_n_channels(self):
         return self.dataset.get_n_channels()
 
+    def get_seq_len(self):
+        return self.dataset.get_seq_len()
+
 
 def make_weights_for_balanced_classes(labels, sample_balance):
     labels = np.array(labels, dtype=int)
     class_count = pd.Series(labels).value_counts().values
     label_kind = list(set(labels))
     weight_per_class = sum(class_count) / torch.Tensor(class_count)
-    weights = [weight_per_class[label_kind.index(label)] * sample_balance[label_kind.index(label)] for label in labels]
+    if sample_balance == 'same':
+        weights = [torch.Tensor([1.0])] * len(labels)
+    else:
+        weights = [weight_per_class[label_kind.index(label)] * sample_balance[label_kind.index(label)] for label in labels]
+
     return weights

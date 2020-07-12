@@ -1,12 +1,13 @@
+from pathlib import Path
+
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
-from pathlib import Path
-from ml.models.pretrained_models import construct_pretrained
-from ml.models.panns_cnn14 import construct_panns
-from ml.src.signal_processor import istft
+
+from ml.models.nn_models.panns_cnn14 import construct_panns
+from ml.models.nn_models.pretrained_models import construct_pretrained
 
 
 class GradCAM:

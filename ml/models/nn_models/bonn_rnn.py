@@ -2,41 +2,28 @@ import torch
 
 seed = 0
 torch.manual_seed(seed)
-import math
-import numpy as np
 torch.cuda.manual_seed_all(seed)
 import random
 random.seed(seed)
 import tensorflow as tf
-from ml.models.base_model import BaseModel
-import torch.nn as nn
-from torchvision import models
-
+from ml.models.model_managers.base_model_manager import BaseModelManager
 
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"   # see issue #152
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 import numpy as np
-import keras
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import LSTM
-from keras.layers import Dropout
-from keras.layers import Flatten, TimeDistributed, GlobalMaxPooling1D, GlobalAveragePooling1D
-from keras.preprocessing import sequence
-from keras.utils import np_utils
-from keras import metrics
-from keras import backend
-
-from ml.models.nn_model import NNModel
+from keras.layers import TimeDistributed, GlobalAveragePooling1D
 
 
 # Reference:
 # https://github.com/ramyh/Epileptic-Seizure-Detection/blob/master/SeizureDetection_3Classes_NoisyWhite_SNR%2B20.ipynb
 
 
-class BonnRNN(BaseModel):
+class BonnRNN(BaseModelManager):
     def __init__(self, model_path, cfg):
         super(BonnRNN, self).__init__(cfg['class_names'], cfg, [])
         self.model_path = model_path
@@ -71,7 +58,8 @@ class BonnRNN(BaseModel):
         model.add(GlobalAveragePooling1D())
         # model.add(Flatten())
         model.add(Dense(2, activation='softmax'))
-        model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy', tf.keras.metrics.Recall()])
+        model.compile(loss='categorical_crossentropy', optimizer='adam',
+                      metrics=[tf.keras.metrics.Precision(), tf.keras.metrics.Recall(), 'accuracy'])
 
         self.model = model
 
