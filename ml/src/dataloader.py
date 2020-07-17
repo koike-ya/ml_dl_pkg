@@ -11,7 +11,7 @@ def set_dataloader(dataset, phase, cfg, shuffle=False):
                                        pin_memory=False, sampler=None, shuffle=False, drop_last=False)
     else:
         if cfg['sample_balance']:
-            if cfg['task_type'] == 'classify':
+            if cfg['task_type'].value == 'classify':
                 weights = make_weights_for_balanced_classes(dataset.get_labels(), cfg['sample_balance'])
             else:
                 weights = [torch.Tensor([1.0])] * len(dataset.get_labels())
@@ -29,7 +29,7 @@ def set_ml_dataloader(dataset, phase, cfg, shuffle=False):
                                   pin_memory=True, sampler=None, shuffle=False, drop_last=False)
     else:
         if sum(cfg['sample_balance']) != 0.0:
-            if cfg['task_type'] == 'classify':
+            if cfg['task_type'].value == 'classify':
                 weights = make_weights_for_balanced_classes(dataset.get_labels(), cfg['sample_balance'])
             else:
                 weights = [torch.Tensor([1.0])] * len(dataset.get_labels())

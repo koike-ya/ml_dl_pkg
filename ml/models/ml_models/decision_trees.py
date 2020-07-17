@@ -58,7 +58,7 @@ class RandomForest(BaseMLPredictor):
 
 class XGBoost(BaseMLPredictor):
     def __init__(self, class_labels, cfg):
-        self.classify = cfg['task_type'] == 'classify'
+        self.classify = cfg['task_type'].value == 'classify'
         params = dict(
             learning_rate=cfg['lr'],
             n_estimators=cfg['n_estimators'],
@@ -94,7 +94,7 @@ class XGBoost(BaseMLPredictor):
 class CatBoost(BaseMLPredictor):
     def __init__(self, class_labels, cfg):
         # TODO visualizationも試す
-        self.classify = cfg['task_type'] == 'classify'
+        self.classify = cfg['task_type'].value == 'classify'
 
         params = dict(
             iterations=cfg['n_estimators'],

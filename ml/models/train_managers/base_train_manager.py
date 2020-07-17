@@ -96,15 +96,32 @@ def train_manager_args(parser) -> argparse.ArgumentParser:
     return parser
 
 
-from ml.utils.enums import TrainManager, DataLoader, ModelType, TaskType
+from ml.utils.enums import ModelType, TaskType
 from ml.preprocess.augment import SpecAugConfig
 from ml.models.model_managers.base_model_manager import ModelConfig
-from omegaconf import MISSING
 from dataclasses import dataclass, field
 
 
 @dataclass
-class TrainConfig(ModelConfig):
+class SGDConfig:
+    momentum: float = 0.9
+
+
+@dataclass
+class AdamConfig:
+    eps: float = 1e-8  # Adam eps
+    betas: tuple = (0.9, 0.999)  # Adam betas
+
+
+@dataclass
+class OptimConfig(SGDConfig, AdamConfig):
+    lr: float = 1e-3  # Initial learning rate
+    learning_anneal: float = 1.1  # Annealing applied to learning rate after each epoch
+    weight_decay: float = 1e-5  # Initial Weight Decay
+
+
+@dataclass
+class TrainConfig(ModelConfig, OptimConfig):
     batch_size: int = 32        # Batch size for training
     epoch_rate: float = 1.0     # Data rate to to use in one epoch
     n_jobs: int = 4             # Number of workers used in data-loading
@@ -121,6 +138,8 @@ class TrainConfig(ModelConfig):
     seed: int = 0  # Seed for generators
     amp: bool = True  # Mixed precision training
     model_cfg: ModelConfig = ModelConfig()
+    # TODO refactor
+    optimizer: str = 'adam'
 
 
 @dataclass
@@ -133,7 +152,15 @@ class ExtendedTrainConfig(TrainConfig):
 
 
 @dataclass
-class TrainManagerConfig(TrainConfig):   # Model manager arguments
+class TensorboardConfig:
+    log_id: str = 'results'         # Identifier for tensorboard run
+    tensorboard: bool = False       # Turn on tensorboard graphing
+    log_dir: str = '../visualize/tensorboard'   # Location of tensorboard log
+
+
+
+@dataclass
+class TrainManagerConfig(ExtendedTrainConfig, TensorboardConfig):   # Model manager arguments
     train_path: str = 'input/train.csv'      # Data file for training
     val_path: str = 'input/val.csv'  # Data file for validation
     test_path: str = 'input/test.csv'  # Data file for testing
@@ -141,13 +168,6 @@ class TrainManagerConfig(TrainConfig):   # Model manager arguments
     model_type: ModelType = ModelType.cnn
     gpu_id: int = 0  # ID of GPU to use
     transfer: bool = False  # TODO modify this or remove this feature # Transfer learning from model_path
-
-
-@dataclass
-class TensorboardConfig(TrainConfig):
-    log_id: str = 'results'         # Identifier for tensorboard run
-    tensorboard: bool = False       # Turn on tensorboard graphing
-    log_dir: str = '../visualize/tensorboard'   # Location of tensorboard log
 
 
 @contextmanager
@@ -178,19 +198,22 @@ class BaseTrainManager(metaclass=ABCMeta):
     def _init_model_manager(self) -> Union[NNModelManager, MLModelManager]:
         self.cfg['input_size'] = list(self.dataloaders.values())[0].get_input_size()
 
-        if self.cfg['model_type'] in supported_nn_models + list(supported_pretrained_models.keys()):
-            if self.cfg['model_type'] in ['rnn']:
+        if self.cfg['model_type'].value in supported_nn_models + list(supported_pretrained_models.keys()):
+            if self.cfg['model_type'].value in ['rnn']:
                 if self.cfg['batch_norm']:
                     self.cfg['batch_norm_size'] = list(self.dataloaders.values())[0].get_batch_norm_size()
                 self.cfg['seq_len'] = list(self.dataloaders.values())[0].get_seq_len()
-            elif self.cfg['model_type'] in ['logmel_cnn', 'cnn', 'cnn_rnn'] + list(supported_pretrained_models.keys()):
+            elif self.cfg['model_type'].value in ['logmel_cnn', 'cnn', 'cnn_rnn'] + list(supported_pretrained_models.keys()):
                 self.cfg['image_size'] = list(self.dataloaders.values())[0].get_image_size()
                 self.cfg['in_channels'] = list(self.dataloaders.values())[0].get_n_channels()
 
             return NNModelManager(self.class_labels, self.cfg)
 
-        elif self.cfg['model_type'] in supported_ml_models:
+        elif self.cfg['model_type'].value in supported_ml_models:
             return MLModelManager(self.class_labels, self.cfg)
+
+        else:
+            raise NotImplementedError
         
     def _init_seed(self) -> None:
         # Set seeds for determinism
@@ -200,7 +223,7 @@ class BaseTrainManager(metaclass=ABCMeta):
         random.seed(self.cfg['seed'])
 
     def _init_device(self) -> torch.device:
-        if self.cfg['cuda'] and self.cfg['model_type'] in supported_nn_models + list(supported_pretrained_models.keys()):
+        if self.cfg['cuda'] and self.cfg['model_type'].value in supported_nn_models + list(supported_pretrained_models.keys()):
             device = torch.device("cuda")
             torch.cuda.set_device(self.cfg['gpu_id'])
         else:
@@ -249,7 +272,7 @@ class BaseTrainManager(metaclass=ABCMeta):
 
         for metric in self.metrics['test']:
             if metric.name == 'loss':
-                if self.cfg['task_type'] == 'classify':
+                if self.cfg['task_type'].value == 'classify':
                     y_onehot = torch.zeros(label_list.shape[0], len(self.class_labels))
                     y_onehot = y_onehot.scatter_(1, torch.from_numpy(label_list).view(-1, 1).type(torch.LongTensor), 1)
                     if not self.cfg['return_prob']:
@@ -266,7 +289,7 @@ class BaseTrainManager(metaclass=ABCMeta):
             logger.info(f"{phase} {metric.name}: {metric.average_meter.value :.4f}")
             metric.average_meter.update_best()
 
-        if self.cfg['task_type'] == 'classify':
+        if self.cfg['task_type'].value == 'classify':
             confusion_matrix_ = confusion_matrix(label_list, pred_list,
                                                  labels=list(range(len(self.class_labels))))
             logger.info(f'Confusion matrix: \n{confusion_matrix_}')

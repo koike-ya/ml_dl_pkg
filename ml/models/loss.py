@@ -1,6 +1,3 @@
-
-from typing import List
-
 import torch
 from torch import Tensor
 from torch.distributions.categorical import Categorical
@@ -14,7 +11,7 @@ def loss_args(parser):
     return parser
 
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List
 from ml.utils.enums import LossType
 
@@ -27,13 +24,14 @@ class LossConfig:    # RNN model arguments
 
 
 def set_criterion(cfg):
-    if isinstance(cfg['loss_weight'], str):
+    if sum(cfg['loss_weight']) == 0:
         cfg['loss_weight'] = [1.0] * len(cfg['class_names'])
-    if cfg['task_type'] == 'regress' or cfg['loss_func'] == 'mse':
+
+    if cfg['task_type'].value == 'regress' or cfg['loss_func'] == 'mse':
         criterion = torch.nn.MSELoss()
-    elif cfg['loss_func'] == 'ce':
+    elif cfg['loss_func'].value == 'ce':
         criterion = torch.nn.BCEWithLogitsLoss(weight=torch.tensor(cfg['loss_weight']))
-    elif cfg['loss_func'] == 'kl_div':
+    elif cfg['loss_func'].value == 'kl_div':
         criterion = KLLoss()
     else:
         raise NotImplementedError
@@ -53,10 +51,10 @@ class LossManager(torch.nn.Module):
         self.criterion = criterion
         self.penalties = penalties
 
-    def forward(self, input: Tensor, target: Tensor) -> Tensor:
-        loss = self.criterion(input, target)
+    def forward(self, predict: Tensor, target: Tensor) -> Tensor:
+        loss = self.criterion(predict, target)
         for penalty in self.penalties:
-            loss += penalty['weight'] * penalty['func'](input, target)
+            loss += penalty['weight'] * penalty['func'](predict, target)
 
         return loss
 

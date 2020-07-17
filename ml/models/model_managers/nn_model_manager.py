@@ -3,9 +3,8 @@ from typing import Tuple
 
 import numpy as np
 import torch
-from sklearn.exceptions import NotFittedError
-
 from apex import amp
+from sklearn.exceptions import NotFittedError
 
 logger = logging.getLogger(__name__)
 
@@ -49,23 +48,23 @@ class NNModelManager(BaseModelManager):
         if transfer:
             orig_classes = self.class_labels
             self.class_labels = self.cfg['prev_classes']
-        if self.cfg['model_type'] in supported_pretrained_models.keys():
+        if self.cfg['model_type'].value in supported_pretrained_models.keys():
             model = construct_pretrained(self.cfg, len(self.class_labels))
-        elif self.cfg['model_type'] == 'nn':
+        elif self.cfg['model_type'].value == 'nn':
             model = construct_nn(self.cfg)
-        elif self.cfg['model_type'] == 'rnn':
+        elif self.cfg['model_type'].value == 'rnn':
             model = construct_rnn(self.cfg, len(self.class_labels))
-        elif self.cfg['model_type'] == 'cnn_rnn':
+        elif self.cfg['model_type'].value == 'cnn_rnn':
             model = construct_cnn_rnn(self.cfg, construct_cnn, len(self.class_labels), self.device)
-        elif self.cfg['model_type'] == 'cnn':
+        elif self.cfg['model_type'].value == 'cnn':
             model = construct_cnn(self.cfg, use_as_extractor=False)
-        elif self.cfg['model_type'] == 'logmel_cnn':
+        elif self.cfg['model_type'].value == 'logmel_cnn':
             model = construct_logmel_cnn(self.cfg)
-        elif self.cfg['model_type'] == 'panns':
+        elif self.cfg['model_type'].value == 'panns':
             model = construct_panns(self.cfg)
-        elif self.cfg['model_type'] == 'attention_cnn':
+        elif self.cfg['model_type'].value == 'attention_cnn':
             model = construct_attention_cnn(self.cfg)
-        elif self.cfg['model_type'] == 'multitask_panns':
+        elif self.cfg['model_type'].value == 'multitask_panns':
             model = construct_multitask_panns(self.cfg)
         else:
             raise NotImplementedError('model_type should be either rnn or cnn, nn would be implemented in the future.')
@@ -188,7 +187,7 @@ class NNModelManager(BaseModelManager):
     def fit(self, inputs, labels, phase) -> Tuple[float, np.ndarray]:
         self.fitted = True
         self.optimizer.zero_grad()
-        if self.cfg['task_type'] == 'classify':
+        if self.cfg['task_type'].value == 'classify':
             return self._fit_classify(inputs, labels, phase)
         else:
             return self._fit_regress(inputs, labels, phase)
@@ -219,7 +218,7 @@ class NNModelManager(BaseModelManager):
             self.model.eval()
             preds = self.model(inputs)
 
-            if self.cfg['task_type'] == 'classify':
+            if self.cfg['task_type'].value == 'classify':
                 if hasattr(self, 'predictor'):
                     # TODO classifierも別ファイルに重みを保存しておいて、train_managerで読み込み
                     preds = torch.from_numpy(self.predictor.predict(preds.detach()))

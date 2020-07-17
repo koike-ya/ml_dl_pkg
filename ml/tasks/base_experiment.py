@@ -44,11 +44,10 @@ def base_expt_args(parser):
 
 
 from ml.src.cv_manager import SupportedCV
-from ml.utils.enums import TrainManager, DataLoader
+from ml.utils.enums import TrainManagerType, DataLoaderType
 from ml.models.train_managers.base_train_manager import TrainManagerConfig
 from ml.preprocess.preprocessor import TransConfig
-from omegaconf import MISSING
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -60,8 +59,9 @@ class BaseExptConfig(TrainManagerConfig, TransConfig):
     n_splits: int = 0               # Number of splits on cv
     infer: bool = False             # Whether training with train+devel dataset after hyperparameter tuning
     test: bool = False  # Whether training with train+devel dataset after hyperparameter tuning
-    # train_manager: TrainManager = TrainManager.nn
-    # data_loader: DataLoader = DataLoader.normal
+    data_loader: DataLoaderType = DataLoaderType.normal
+    train_manager: TrainManagerType = TrainManagerType.nn
+
     # train_manager_cfg: TrainManagerConfig = TrainManagerConfig()
     # transformer_cfg: TransConfig = TransConfig()
 
@@ -86,8 +86,8 @@ class BaseExperimentor(metaclass=ABCMeta):
         self.load_func = load_func
         self.label_func = label_func
         self.dataset_cls = dataset_cls
-        self.data_loader_cls = DATALOADERS[cfg['data_loader']]
-        self.train_manager_cls = TRAINMANAGERS[cfg['train_manager']]
+        self.data_loader_cls = DATALOADERS[cfg['data_loader'].value]
+        self.train_manager_cls = TRAINMANAGERS[cfg['train_manager'].value]
         self.train_manager = None
         self.process_func = process_func
         self.test = cfg['test']
@@ -238,7 +238,7 @@ class CrossValidator(BaseExperimentor):
 
 
 def typical_train(expt_conf, load_func, label_func, process_func, dataset_cls, groups, metrics_names=None):
-    if expt_conf['cv_name']:
+    if expt_conf['cv_name'] and expt_conf['cv_name'].value:
         experimentor = CrossValidator(expt_conf, load_func, label_func, process_func, dataset_cls, expt_conf['cv_name'],
                                       expt_conf['n_splits'], groups)
     else:
@@ -260,7 +260,7 @@ def typical_train(expt_conf, load_func, label_func, process_func, dataset_cls, g
 
 def typical_experiment(expt_conf, load_func, label_func, process_func, dataset_cls, groups, metrics_names=None):
     infer = 'infer_path' in expt_conf.keys()
-    if expt_conf['cv_name']:
+    if expt_conf['cv_name'].value:
         experimentor = CrossValidator(expt_conf, load_func, label_func, process_func, dataset_cls, expt_conf['cv_name'],
                                       expt_conf['n_splits'], groups)
     else:

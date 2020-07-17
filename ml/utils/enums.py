@@ -9,6 +9,7 @@ class SpectrogramWindow(Enum):
 
 
 class TimeFrequencyFeature(Enum):
+    none = ''
     spectrogram = 'spectrogram'
     logmel = 'logmel'
     scalogram = 'scalogram'
@@ -41,7 +42,26 @@ class NNType(Enum):
     cnn1d_rnn: str = 'cnn1d_rnn'
 
 
+class PretrainedType(Enum):
+    # TODO delete none
+    none: str = ''
+    resnet: str = 'resnet'
+    resnet152: str = 'resnet152'
+    alexnet: str = 'alexnet'
+    densenet: str = 'densenet'
+    wideresnet: str = 'wideresnet'
+    resnext: str = 'resnext'
+    resnext101: str = 'resnext101'
+    vgg16: str = 'vgg16'
+    vgg19: str = 'vgg19'
+    googlenet: str = 'googlenet'
+    mobilenet: str = 'mobilenet'
+    panns: str = 'panns'
+    resnext_wsl: str = 'resnext_wsl'
+
+
 class ModelType(Enum):
+    # TODO refactor below
     nn: str = 'nn'
     cnn: str = 'cnn'
     rnn: str = 'rnn'
@@ -59,6 +79,20 @@ class ModelType(Enum):
     svm: str = 'svm'
     rf: str = 'rf'
     nb: str = 'nb'
+
+    none: str = ''
+    resnet: str = 'resnet'
+    resnet152: str = 'resnet152'
+    alexnet: str = 'alexnet'
+    densenet: str = 'densenet'
+    wideresnet: str = 'wideresnet'
+    resnext: str = 'resnext'
+    resnext101: str = 'resnext101'
+    vgg16: str = 'vgg16'
+    vgg19: str = 'vgg19'
+    googlenet: str = 'googlenet'
+    mobilenet: str = 'mobilenet'
+    resnext_wsl: str = 'resnext_wsl'
 
 
 class RNNType(Enum):
@@ -78,12 +112,12 @@ class SVMKernelType(Enum):
     rbf = 'rbf'
 
 
-class TrainManager(Enum):
+class TrainManagerType(Enum):
     nn = 'nn'
     multitask = 'multitask'
     ml = 'ml'
 
 
-class DataLoader(Enum):
+class DataLoaderType(Enum):
     normal = 'normal'
     ml = 'ml'

@@ -20,9 +20,7 @@ def pretrain_args(parser):
 
 
 
-from dataclasses import dataclass, field
-from typing import List
-from ml.utils.enums import RNNType
+from dataclasses import dataclass
 
 
 @dataclass
@@ -49,11 +47,11 @@ class PretrainedNN(nn.Module):
             )
 
     def _set_model(self, cfg):
-        if cfg['model_type'] == 'mobilenet':
+        if cfg['model_type'].value == 'mobilenet':
             return torch.hub.load('pytorch/vision:v0.4.2', 'mobilenet_v2', pretrained=True)
-        elif cfg['model_type'] == 'resnext_wsl':
+        elif cfg['model_type'].value == 'resnext_wsl':
             return torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x8d_wsl')
-        return supported_pretrained_models[cfg['model_type']](pretrained=cfg['pretrained'])
+        return supported_pretrained_models[cfg['model_type'].value](pretrained=cfg['pretrained'])
 
     def _get_n_last_in_features(self, model):
         if isinstance(list(model.children())[-1], nn.Sequential):
@@ -67,6 +65,7 @@ class PretrainedNN(nn.Module):
     def forward(self, x):
         if x.size(1) == 1:
             x = torch.cat([x] * 3, 1)
+        # x = x.half()
         x = self.feature_extractor(x)
         x = x.reshape(x.size(0), -1)
         if self.feature_extract:
