@@ -36,6 +36,27 @@ def preprocess_args(parser):
     return parser
 
 
+from dataclasses import dataclass
+from ml.utils.enums import SpectrogramWindow, TimeFrequencyFeature
+from omegaconf import MISSING
+@dataclass
+class TransConfig:
+    no_scaling: bool = True     # scaling
+    augment: bool = False       # Use random tempo and gain perturbations.
+    sample_rate: float = 500.0  # The sample rate for the data/model features
+    window_size: float = 4.0    # Window size for spectrogram in seconds
+    window_stride: float = 2.0  # Window stride for spectrogram in seconds
+    window: SpectrogramWindow = SpectrogramWindow.hamming   # Window type for spectrogram generation
+    n_mels: int = 64            # Number of mel filters banks
+    transform: TimeFrequencyFeature = MISSING
+    low_cutoff: float = 0.0  # High pass filter
+    high_cutoff: float = 0.0  # Low pass filter
+
+
+class Transformer:    # TODO make transformer.py
+    pass
+
+
 class Preprocessor:
     def __init__(self, cfg, phase):
         self.phase = phase

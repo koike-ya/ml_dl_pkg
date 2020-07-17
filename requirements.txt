@@ -7,8 +7,8 @@ torchvision==0.4.1
 glibc
 tqdm
 librosa
+numba==0.48
 tensorboardX
-tensorflow-gpu
 keras
 tensorboard
 lightgbm
@@ -19,3 +19,4 @@ xlrd
 seaborn
 opencv-python
 mlflow
+hydra-core==1.0.0rc1

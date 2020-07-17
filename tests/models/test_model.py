@@ -4,7 +4,7 @@ from unittest import TestCase
 import numpy as np
 import torch
 
-from ml.config import TEST_PATH
+from ml.utils.config import TEST_PATH
 from ml.models.model_managers.base_model_manager import BaseModelManager
 from ml.models.model_managers.ml_model_manager import MLModel
 from ml.models.model_managers.nn_model_manager import NNModelManager

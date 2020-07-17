@@ -10,6 +10,13 @@ def spec_augment_args(parser):
     return parser
 
 
+from dataclasses import dataclass
+@dataclass
+class SpecAugConfig:
+    time_drop_rate: float = 0.0
+    freq_drop_rate: float = 0.0
+
+
 class DropStripes(nn.Module):
     def __init__(self, dim, drop_rate, stripes_num):
         """Drop stripes.

@@ -14,6 +14,18 @@ def loss_args(parser):
     return parser
 
 
+from dataclasses import dataclass, field
+from typing import List
+from ml.utils.enums import LossType
+
+
+@dataclass
+class LossConfig:    # RNN model arguments
+    loss_func: LossType = LossType.ce
+    kl_penalty: float = 0.0      # Weight of KL regularization term
+    entropy_penalty: float = 0.0      # Weight of entropy regularization term
+
+
 def set_criterion(cfg):
     if isinstance(cfg['loss_weight'], str):
         cfg['loss_weight'] = [1.0] * len(cfg['class_names'])

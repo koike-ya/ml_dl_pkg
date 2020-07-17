@@ -36,6 +36,24 @@ def rnn_args(parser):
     return parser
 
 
+from dataclasses import dataclass, field
+from typing import List
+from ml.utils.enums import RNNType
+
+
+@dataclass
+class RNNConfig:    # RNN model arguments
+    # TODO remove "rnn_"
+    rnn_type: RNNType = RNNType.gru     # Type of the RNN. rnn|gru|lstm|deepspeech are supported
+    rnn_hidden_size: int = 100      # Hidden size of RNNs
+    rnn_n_layers: int = 1  # Number of RNN layers
+    max_norm: int = 400     # Norm cutoff to prevent explosion of gradients
+    # TODO change to bidirectional = True
+    no_bidirectional: bool = False      # Turn off bi-directional RNNs, introduces lookahead convolution
+    # TODO change to bn
+    batch_normalization: bool = False   # Batch normalization or not
+
+
 def construct_rnn(cfg, output_size):
     """
 

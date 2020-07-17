@@ -39,6 +39,30 @@ def model_args(parser):
     return parser
 
 
+from dataclasses import dataclass, field
+from ml.models.nn_models.nn import NNConfig
+from ml.models.nn_models.rnn import RNNConfig
+from ml.models.nn_models.cnn import CNNConfig
+from ml.models.nn_models.pretrained_models import PretrainedConfig
+from ml.models.ml_models.toolbox import MlModelManagerConfig
+from ml.models.ml_models.decision_trees import DecisionTreeConfig
+from ml.models.loss import LossConfig
+
+@dataclass
+class ModelConfig(NNConfig, RNNConfig, CNNConfig, PretrainedConfig, LossConfig, MlModelManagerConfig, DecisionTreeConfig):      # ML/DL model arguments
+# class ModelConfig:  # ML/DL model arguments
+    early_stopping: bool = False        # Early stopping with validation data
+    return_prob: bool = False     # Returns probability, not predicted labels
+    nn_config: NNConfig = NNConfig()
+    rnn_config: RNNConfig = RNNConfig()
+    cnn_config: CNNConfig = CNNConfig()
+    pretrained_config: PretrainedConfig = PretrainedConfig()
+    loss_config: LossConfig = LossConfig()
+
+    ml_model_manager_config: MlModelManagerConfig = MlModelManagerConfig()
+    decision_tree_config: DecisionTreeConfig = DecisionTreeConfig()
+
+
 class BaseModelManager(metaclass=ABCMeta):
     def __init__(self, class_labels, cfg, must_contain_keys):
         self.class_labels = class_labels

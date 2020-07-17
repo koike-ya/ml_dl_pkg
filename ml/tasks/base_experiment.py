@@ -43,6 +43,29 @@ def base_expt_args(parser):
     return parser
 
 
+from ml.src.cv_manager import SupportedCV
+from ml.utils.enums import TrainManager, DataLoader
+from ml.models.train_managers.base_train_manager import TrainManagerConfig
+from ml.preprocess.preprocessor import TransConfig
+from omegaconf import MISSING
+from dataclasses import dataclass, field
+
+
+@dataclass
+class BaseExptConfig(TrainManagerConfig, TransConfig):
+    expt_id: str = 'timestamp'      # Data file for training
+    manifest_path: str = 'input/train.csv'  # Manifest file for training
+    n_seed_average: int = 0         # Seed averaging
+    cv_name: SupportedCV = SupportedCV.none     # CV options
+    n_splits: int = 0               # Number of splits on cv
+    infer: bool = False             # Whether training with train+devel dataset after hyperparameter tuning
+    test: bool = False  # Whether training with train+devel dataset after hyperparameter tuning
+    # train_manager: TrainManager = TrainManager.nn
+    # data_loader: DataLoader = DataLoader.normal
+    # train_manager_cfg: TrainManagerConfig = TrainManagerConfig()
+    # transformer_cfg: TransConfig = TransConfig()
+
+
 def get_metrics(phases, task_type, train_manager='normal'):
     metrics = {}
     for phase in phases:

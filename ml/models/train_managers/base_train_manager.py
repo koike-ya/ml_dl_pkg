@@ -96,6 +96,60 @@ def train_manager_args(parser) -> argparse.ArgumentParser:
     return parser
 
 
+from ml.utils.enums import TrainManager, DataLoader, ModelType, TaskType
+from ml.preprocess.augment import SpecAugConfig
+from ml.models.model_managers.base_model_manager import ModelConfig
+from omegaconf import MISSING
+from dataclasses import dataclass, field
+
+
+@dataclass
+class TrainConfig(ModelConfig):
+    batch_size: int = 32        # Batch size for training
+    epoch_rate: float = 1.0     # Data rate to to use in one epoch
+    n_jobs: int = 4             # Number of workers used in data-loading
+    # TODO below
+    loss_weight: List[float] = field(default_factory=lambda: [])   # The weights of all class about loss
+    # TODO below
+    sample_balance: List[float] = field(default_factory=lambda: [])  # Sampling label balance from dataset
+    epochs: int = 70  # Number of Training Epochs
+    model_path: str = '../output/models/sth.pth'    # Path to save model
+    checkpoint_path: str = ''  # Model weight file to load model
+    task_type: TaskType = TaskType.classify
+    cuda: bool = True  # Use cuda to train a model
+    finetune: bool = False  # Fine-tune the model from checkpoint "continue_from"
+    seed: int = 0  # Seed for generators
+    amp: bool = True  # Mixed precision training
+    model_cfg: ModelConfig = ModelConfig()
+
+
+@dataclass
+class ExtendedTrainConfig(TrainConfig):
+    tta: int = 0        # Number of test time augmentation ensemble
+    mixup_alpha: float = 0.0    # Beta distirbution alpha for mixup
+    snapshot: List[int] = field(default_factory=lambda: [])    # The number of epochs to save weights. Comma separated int is allowed
+    cache: bool = False         # Make cache after preprocessing or not
+    spec_augment: SpecAugConfig = SpecAugConfig()
+
+
+@dataclass
+class TrainManagerConfig(TrainConfig):   # Model manager arguments
+    train_path: str = 'input/train.csv'      # Data file for training
+    val_path: str = 'input/val.csv'  # Data file for validation
+    test_path: str = 'input/test.csv'  # Data file for testing
+
+    model_type: ModelType = ModelType.cnn
+    gpu_id: int = 0  # ID of GPU to use
+    transfer: bool = False  # TODO modify this or remove this feature # Transfer learning from model_path
+
+
+@dataclass
+class TensorboardConfig(TrainConfig):
+    log_id: str = 'results'         # Identifier for tensorboard run
+    tensorboard: bool = False       # Turn on tensorboard graphing
+    log_dir: str = '../visualize/tensorboard'   # Location of tensorboard log
+
+
 @contextmanager
 def simple_timer(label) -> None:
     start = time.time()

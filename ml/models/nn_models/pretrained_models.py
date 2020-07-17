@@ -19,6 +19,17 @@ def pretrain_args(parser):
     return parser
 
 
+
+from dataclasses import dataclass, field
+from typing import List
+from ml.utils.enums import RNNType
+
+
+@dataclass
+class PretrainedConfig:    # RNN model arguments
+    pretrained: bool = False
+
+
 class PretrainedNN(nn.Module):
     def __init__(self, cfg, n_classes):
         super(PretrainedNN, self).__init__()

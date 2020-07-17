@@ -22,6 +22,16 @@ def nn_args(parser):
     return parser
 
 
+from dataclasses import dataclass, field
+from typing import List
+
+
+@dataclass
+class NNConfig:
+    # TODO remove "nn_"
+    nn_hidden_nodes: List[int] = field(default_factory=lambda: [256, 1028, 200])        # Early stopping with validation data
+
+
 class NN(nn.Module):
     def __init__(self, hidden_nodes, in_features, n_classes=2):
         super(NN, self).__init__()

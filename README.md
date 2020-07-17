@@ -8,19 +8,25 @@ You can use this library for both machine learning and deep learning tasks only 
 
 # Setup Environment
 
+## Docker
+To use the image with a GPU you'll need to have [nvidia-docker](https://github.com/NVIDIA/nvidia-docker) installed.
+```
+sudo docker run -ti --gpus all -v `pwd`/data:/workspace/data -p 8888:8888 --net=host --ipc=host pelada/ml_pkg:latest # Enters with /bin/bash, mounting the /data drive in the container
+```
+
+## From source
+
 ```
 conda create -n ml_dl_pkg python=3.7
 source activate ml_dl_pkg
 ```
 
-### For mac user
-Please install xgboost from source
+Only for mac user, Please install xgboost from source
 ```
 https://xgboost.readthedocs.io/en/latest/build.html#building-on-osx
-
 ```
 
-## Apex(for GPU users)
+### Apex(for GPU users)
 ref: https://github.com/NVIDIA/apex
 ```
 cd ../
@@ -29,12 +35,12 @@ pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cud
 cd ../ml_dl_pkg
 ```
 
-## For CPU users
+For CPU users,
 ```
-mkdir --parent apex/amp 
+mkdir -p apex/amp 
 ```
 
-## Finish
+Lastly,
 ```
 pip install -r requirements.txt
 python setup.py install
