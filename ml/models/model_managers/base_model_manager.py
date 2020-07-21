@@ -5,76 +5,49 @@ logger = logging.getLogger(__name__)
 
 import numpy as np
 
-from ml.models.ml_models.decision_trees import decision_tree_args
-from ml.models.ml_models.toolbox import ml_model_manager_args
-from ml.models.nn_models.adda import adda_args
-from ml.models.nn_models.cnn import cnn_args
-from ml.models.nn_models.rnn import rnn_args
-from ml.models.nn_models.nn import nn_args
-from ml.models.nn_models.pretrained_models import pretrain_args
-from ml.models.loss import loss_args, set_criterion
-
-
-# from ml.models.adda import adda_args
-
-
-def model_args(parser):
-    model_parser = parser.add_argument_group("Model arguments")
-    # cnn|xgboost|knn|catboost|sgdc will be supported
-
-    model_parser = parser.add_argument_group("ML/DL model arguments")
-    model_parser.add_argument('--early-stopping', help='Early stopping with validation data', action='store_true')
-    model_parser.add_argument('--return-prob', help='Returns probability', action='store_true')
-    parser = nn_args(parser)
-    parser = rnn_args(parser)
-    parser = cnn_args(parser)
-    parser = pretrain_args(parser)
-    parser = adda_args(parser)
-    parser = loss_args(parser)
-
-    # ML系用のパラメータ
-    parser = ml_model_manager_args(parser)
-    parser = decision_tree_args(parser)
-
-    return parser
+from ml.models.loss import set_criterion
 
 
 from dataclasses import dataclass, field
-from ml.models.nn_models.nn import NNConfig
-from ml.models.nn_models.rnn import RNNConfig
-from ml.models.nn_models.cnn import CNNConfig
-from ml.models.nn_models.pretrained_models import PretrainedConfig
-from ml.models.ml_models.toolbox import MlModelManagerConfig
-from ml.models.ml_models.decision_trees import DecisionTreeConfig
 from ml.models.loss import LossConfig
+from typing import List, Any
+from omegaconf import MISSING
+from ml.utils.enums import TaskType, ModelType
+from ml.preprocess.augment import SpecAugConfig
+
 
 @dataclass
-class ModelConfig(NNConfig, RNNConfig, CNNConfig, PretrainedConfig, LossConfig, MlModelManagerConfig, DecisionTreeConfig):      # ML/DL model arguments
-# class ModelConfig:  # ML/DL model arguments
+class ModelConfig:  # ML/DL model arguments
+    model_name: str = ''
+    model_path: str = '../output/models/sth.pth'    # Path to save model
     early_stopping: bool = False        # Early stopping with validation data
     return_prob: bool = False     # Returns probability, not predicted labels
-    nn_config: NNConfig = NNConfig()
-    rnn_config: RNNConfig = RNNConfig()
-    cnn_config: CNNConfig = CNNConfig()
-    pretrained_config: PretrainedConfig = PretrainedConfig()
     loss_config: LossConfig = LossConfig()
 
-    ml_model_manager_config: MlModelManagerConfig = MlModelManagerConfig()
-    decision_tree_config: DecisionTreeConfig = DecisionTreeConfig()
+    input_size: List[int] = field(default_factory=lambda: [])
+
+    # TODO train_managerと共有したままなのか、継承によって消すのか
+    class_names: List[str] = field(default_factory=lambda: ['0', '1'])
+    task_type: TaskType = TaskType.classify
+    cuda: bool = True  # Use cuda to train a model
+    transfer: bool = False  # TODO modify this or remove this feature # Transfer learning from model_path
+    model_type: ModelType = ModelType.cnn
+
+    optim: Any = MISSING
+
+
+@dataclass
+class ExtendedModelConfig(ModelConfig):
+    mixup_alpha: float = 0.0    # Beta distirbution alpha for mixup
+    spec_augment: SpecAugConfig = SpecAugConfig()
 
 
 class BaseModelManager(metaclass=ABCMeta):
-    def __init__(self, class_labels, cfg, must_contain_keys):
+    def __init__(self, class_labels, cfg):
         self.class_labels = class_labels
-        self.cfg = self._check_cfg(cfg, must_contain_keys)
-        self.criterion = set_criterion(self.cfg)
+        self.cfg = cfg
+        self.criterion = set_criterion(self.cfg.loss_config, self.cfg.task_type.value, self.cfg.class_names)
         self.fitted = False
-
-    @staticmethod
-    def _check_cfg(cfg, must_contain_keys):
-        for key in must_contain_keys:
-            assert key in cfg.keys(), f'{key} must be contained in the model conf'
-        return cfg
 
     def anneal_lr(self, learning_anneal):
         pass

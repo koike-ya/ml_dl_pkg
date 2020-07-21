@@ -11,7 +11,7 @@ def loss_args(parser):
     return parser
 
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 from ml.utils.enums import LossType
 
@@ -19,28 +19,29 @@ from ml.utils.enums import LossType
 @dataclass
 class LossConfig:    # RNN model arguments
     loss_func: LossType = LossType.ce
+    loss_weight: List[float] = field(default_factory=lambda: [])  # The weights of all class about loss
     kl_penalty: float = 0.0      # Weight of KL regularization term
     entropy_penalty: float = 0.0      # Weight of entropy regularization term
 
 
-def set_criterion(cfg):
-    if sum(cfg['loss_weight']) == 0:
-        cfg['loss_weight'] = [1.0] * len(cfg['class_names'])
+def set_criterion(cfg, task_type, class_names):
+    if sum(cfg.loss_weight) == 0:
+        cfg.loss_weight = [1.0] * len(class_names)
 
-    if cfg['task_type'].value == 'regress' or cfg['loss_func'] == 'mse':
+    if task_type == 'regress' or cfg.loss_func == 'mse':
         criterion = torch.nn.MSELoss()
-    elif cfg['loss_func'].value == 'ce':
-        criterion = torch.nn.BCEWithLogitsLoss(weight=torch.tensor(cfg['loss_weight']))
-    elif cfg['loss_func'].value == 'kl_div':
+    elif cfg.loss_func.value == 'ce':
+        criterion = torch.nn.BCEWithLogitsLoss(weight=torch.tensor(cfg.loss_weight))
+    elif cfg.loss_func.value == 'kl_div':
         criterion = KLLoss()
     else:
         raise NotImplementedError
 
     penalties = []
-    if cfg['kl_penalty']:
-        penalties.append({'weight': cfg['kl_penalty'], 'func': KLLoss(batch_wise=True)})
-    if cfg['entropy_penalty']:
-        penalties.append({'weight': cfg['entropy_penalty'], 'func': EntropyLoss()})
+    if cfg.kl_penalty:
+        penalties.append({'weight': cfg.kl_penalty, 'func': KLLoss(batch_wise=True)})
+    if cfg.entropy_penalty:
+        penalties.append({'weight': cfg.entropy_penalty, 'func': EntropyLoss()})
 
     return LossManager(criterion, penalties)
 

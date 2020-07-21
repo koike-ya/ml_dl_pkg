@@ -10,21 +10,13 @@ supported_pretrained_models = {'resnet': models.resnet18, 'resnet152': models.re
                                'googlenet': models.googlenet, 'mobilenet': None, 'panns': None, 'resnext_wsl': None}
 
 
-def pretrain_args(parser):
-    pretrain_parser = parser.add_argument_group("Pretrain model arguments")
-
-    # Pretrain params
-    pretrain_parser.add_argument('--pretrained', action='store_true')
-
-    return parser
-
-
-
 from dataclasses import dataclass
+from ml.utils.nn_config import NNModelConfig
 
 
 @dataclass
-class PretrainedConfig:    # RNN model arguments
+class PretrainedConfig(NNModelConfig):    # RNN model arguments
+    model_name: str = ''
     pretrained: bool = False
 
 
@@ -39,7 +31,6 @@ class PretrainedNN(nn.Module):
         if cfg['model_type'] == 'mobilenet':
             self.n_in_features *= 20
         self.predictor = nn.Linear(self.n_in_features, n_classes)
-        self.batch_size = cfg['batch_size']
         if n_classes >= 2:
             self.predictor = nn.Sequential(
                 self.predictor,

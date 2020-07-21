@@ -8,7 +8,6 @@ import mlflow
 import numpy as np
 import pandas as pd
 
-from ml.models.train_managers.base_train_manager import train_manager_args
 from ml.models.train_managers.ml_train_manager import MLTrainManager
 from ml.models.train_managers.multitask_train_manager import MultitaskTrainManager
 from ml.models.train_managers.nn_train_manager import NNTrainManager
@@ -45,13 +44,14 @@ def base_expt_args(parser):
 
 from ml.src.cv_manager import SupportedCV
 from ml.utils.enums import TrainManagerType, DataLoaderType
-from ml.models.train_managers.base_train_manager import TrainManagerConfig
+from ml.models.train_managers.base_train_manager import TrainConfig
 from ml.preprocess.preprocessor import TransConfig
+from ml.src.dataloader import DataConfig
 from dataclasses import dataclass
 
 
 @dataclass
-class BaseExptConfig(TrainManagerConfig, TransConfig):
+class BaseExptConfig:
     expt_id: str = 'timestamp'      # Data file for training
     manifest_path: str = 'input/train.csv'  # Manifest file for training
     n_seed_average: int = 0         # Seed averaging
@@ -62,8 +62,9 @@ class BaseExptConfig(TrainManagerConfig, TransConfig):
     data_loader: DataLoaderType = DataLoaderType.normal
     train_manager: TrainManagerType = TrainManagerType.nn
 
-    # train_manager_cfg: TrainManagerConfig = TrainManagerConfig()
-    # transformer_cfg: TransConfig = TransConfig()
+    train: TrainConfig = TrainConfig()
+    data: DataConfig = DataConfig()
+    transformer: TransConfig = TransConfig()
 
 
 def get_metrics(phases, task_type, train_manager='normal'):
@@ -99,12 +100,13 @@ class BaseExperimentor(metaclass=ABCMeta):
         dataloaders = {}
         for phase in phases:
             if not self.process_func:
-                self.process_func = Preprocessor(self.cfg, phase).preprocess
-            dataset = self.dataset_cls(self.cfg[f'{phase}_path'], self.cfg, phase, self.load_func, self.process_func,
-                                       self.label_func)
-            dataloaders[phase] = self.data_loader_cls(dataset, phase, self.cfg)
+                self.process_func = Preprocessor(self.cfg.transformer, phase).preprocess
+            dataset = self.dataset_cls(self.cfg.train[f'{phase}_path'], self.cfg.train, phase, self.load_func,
+                                       self.process_func, self.label_func)
+            dataloaders[phase] = self.data_loader_cls(dataset, phase, self.cfg.data)
 
-        self.train_manager = self.train_manager_cls(self.cfg['class_names'], self.cfg, dataloaders, deepcopy(metrics))
+        self.train_manager = self.train_manager_cls(self.cfg.train['class_names'], self.cfg.train, dataloaders,
+                                                    deepcopy(metrics))
         
         if 'val' in phases:
             metrics, pred_list['val'] = self.train_manager.train()
@@ -171,8 +173,8 @@ class CrossValidator(BaseExperimentor):
     def _save_path(self, df_x, train_idx, val_idx, temp_dir):
         df_x.iloc[train_idx, :].to_csv(f'{temp_dir}/train_manifest.csv', header=None, index=False)
         df_x.iloc[val_idx, :].to_csv(f'{temp_dir}/val_manifest.csv', header=None, index=False)
-        self.cfg[f'train_path'] = f'{temp_dir}/train_manifest.csv'
-        self.cfg[f'val_path'] = f'{temp_dir}/val_manifest.csv'
+        self.cfg.train[f'train_path'] = f'{temp_dir}/train_manifest.csv'
+        self.cfg.train[f'val_path'] = f'{temp_dir}/val_manifest.csv'
 
     def _set_metrics_df(self, metrics_df, result_list: List[float]):
         metrics_df = pd.concat([metrics_df.T, pd.Series(result_list)], axis=1).T
@@ -183,8 +185,8 @@ class CrossValidator(BaseExperimentor):
         pred_list = []
         metric_df = pd.DataFrame()
 
-        df_x = pd.concat([pd.read_csv(self.orig_cfg[f'train_path'], header=None),
-                          pd.read_csv(self.orig_cfg[f'val_path'], header=None)])
+        df_x = pd.concat([pd.read_csv(self.orig_cfg.train.train_path, header=None),
+                          pd.read_csv(self.orig_cfg.train.val_path, header=None)])
         y = df_x.apply(lambda x: self.label_func(x), axis=1)
         logger.info(y.value_counts())
         
@@ -201,8 +203,8 @@ class CrossValidator(BaseExperimentor):
 
         metrics_df.columns = [m.name for m in metrics['val']]
         logger.debug(f'Cross validation metrics:\n{metrics_df}')
-        self.cfg['train_path'] = self.orig_cfg['train_path']
-        self.cfg['val_path'] = self.orig_cfg['val_path']
+        self.cfg.train.train_path = self.orig_cfg.train.train_path
+        self.cfg.train.val_path = self.orig_cfg.train.val_path
 
         return metrics_df.mean(axis=0).values, pred_list
 
@@ -210,8 +212,8 @@ class CrossValidator(BaseExperimentor):
         pred_list = []
         metrics_df = pd.DataFrame()
 
-        df_x = pd.concat([pd.read_csv(self.orig_cfg[f'train_path'], header=None),
-                          pd.read_csv(self.orig_cfg[f'val_path'], header=None)])
+        df_x = pd.concat([pd.read_csv(self.orig_cfg.train.train_path, header=None),
+                          pd.read_csv(self.orig_cfg.train.val_path, header=None)])
         y = df_x.apply(lambda x: self.label_func(x), axis=1)
         logger.info(y.value_counts())
 
@@ -228,8 +230,8 @@ class CrossValidator(BaseExperimentor):
 
         metrics_df.columns = [m.name for m in metrics['val' if self.infer else 'test']]
         logger.debug(f'Cross validation metrics:\n{metrics_df}')
-        self.cfg['train_path'] = self.orig_cfg['train_path']
-        self.cfg['val_path'] = self.orig_cfg['val_path']
+        self.cfg.train.train_path = self.orig_cfg.train.train_path
+        self.cfg.train.val_path = self.orig_cfg.train.val_path
 
         return metrics_df.mean(axis=0).values, pred_list
 
@@ -247,7 +249,7 @@ def typical_train(expt_conf, load_func, label_func, process_func, dataset_cls, g
     phases = ['train', 'val']
 
     if not metrics_names:
-        metrics = get_metrics(phases, expt_conf['task_type'], expt_conf['train_manager'])
+        metrics = get_metrics(phases, expt_conf.train.task_type.value, expt_conf['train_manager'])
     else:
         metrics = {p: get_metric_list(metrics_names[p]) for p in phases}
 
@@ -269,7 +271,7 @@ def typical_experiment(expt_conf, load_func, label_func, process_func, dataset_c
     phases = ['train', 'val', 'infer'] if infer else ['train', 'val', 'test']
 
     if not metrics_names:
-        metrics = get_metrics(phases, expt_conf['task_type'], expt_conf['train_manager'])
+        metrics = get_metrics(phases, expt_conf.train.task_type.value, expt_conf['train_manager'])
     else:
         metrics = {p: get_metric_list(metrics_names[p]) for p in phases}
 

@@ -1,4 +1,3 @@
-import argparse
 import logging
 import random
 import time
@@ -11,144 +10,25 @@ logger = logging.getLogger(__name__)
 import numpy as np
 import pandas as pd
 import torch
-from ml.models.model_managers.base_model_manager import model_args
-from ml.preprocess.augment import spec_augment_args
-from ml.models.model_managers.ml_model_manager import MLModelManager, supported_ml_models
-from ml.models.model_managers.nn_model_manager import NNModelManager, supported_nn_models, supported_pretrained_models
+from ml.models.model_managers.ml_model_manager import MLModelManager
+from ml.models.model_managers.nn_model_manager import NNModelManager
 from sklearn.metrics import confusion_matrix
 from ml.utils.logger import TensorBoardLogger
 from typing import Tuple, List, Union
 from ml.utils.utils import Metrics
 
 
-supported_models = supported_ml_models + supported_nn_models + list(supported_pretrained_models.keys())
-
-
-def type_float_list(args) -> Union[List[float], str]:
-    if args in ['same', None]:
-        return args
-    return list(map(float, args.split(',')))
-
-
-def type_int_list(args) -> Union[List[float], str]:
-    if args in ['same', None]:
-        return args
-    return list(map(int, args.split(',')))
-
-
-def train_manager_args(parser) -> argparse.ArgumentParser:
-
-    train_manager_parser = parser.add_argument_group("Model manager arguments")
-    train_manager_parser.add_argument('--train-path', help='data file for training', default='input/train.csv')
-    train_manager_parser.add_argument('--val-path', help='data file for validation', default='input/val.csv')
-    train_manager_parser.add_argument('--test-path', help='data file for testing', default='input/test.csv')
-
-    train_manager_parser.add_argument('--model-type', default='cnn', choices=supported_models)
-    train_manager_parser.add_argument('--gpu-id', default=0, type=int, help='ID of GPU to use')
-    train_manager_parser.add_argument('--transfer', action='store_true', help='Transfer learning from model_path')
-
-    # optimizer params
-    optim_param_parser = parser.add_argument_group("Optimizer parameter arguments for learning")
-    optim_param_parser.add_argument('--optimizer', default='adam', help='Type of optimizer. ',
-                                    choices=['sgd', 'adam', 'rmsprop'])
-    optim_param_parser.add_argument('--lr', '--learning-rate', default=1e-3, type=float, help='initial learning rate')
-    optim_param_parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
-    optim_param_parser.add_argument('--weight-decay', default=0.0, type=float, help='weight-decay')
-    optim_param_parser.add_argument('--learning-anneal', default=1.01, type=float,
-                                    help='Annealing applied to learning rate every epoch')
-
-    hyper_param_parser = parser.add_argument_group("Hyper parameter arguments for learning")
-    hyper_param_parser.add_argument('--batch-size', default=32, type=int, help='Batch size for training')
-    hyper_param_parser.add_argument('--epoch-rate', default=1.0, type=float, help='Data rate to to use in one epoch')
-    hyper_param_parser.add_argument('--n-jobs', default=4, type=int, help='Number of workers used in data-loading')
-    hyper_param_parser.add_argument('--loss-weight', default='same', type=type_float_list,
-                                    help='The weights of all class about loss')
-    hyper_param_parser.add_argument('--sample-balance', default=None, type=type_float_list,
-                                    help='Sampling label balance from dataset.')
-    hyper_param_parser.add_argument('--epochs', default=20, type=int, help='Number of training epochs')
-    hyper_param_parser.add_argument('--tta', default=0, type=int, help='Number of test time augmentation ensemble')
-    hyper_param_parser.add_argument('--mixup-alpha', default=0.0, type=float, help='Beta distirbution alpha for mixup.')
-    hyper_param_parser.add_argument('--retrain-epochs', default=5, type=int, help='Number of training epochs')
-
-    # General parameters for training
-    general_param_parser = parser.add_argument_group("General parameters for training")
-    general_param_parser.add_argument('--model-path', help='Path to save model', default='../output/models/sth.pth')
-    general_param_parser.add_argument('--checkpoint-path', help='Model weight file to load model',
-                                      default=None)
-    general_param_parser.add_argument('--snapshot', default=[], type=type_int_list,
-                                      help='The number of epochs to save weights. Comma separated int is allowed.')
-    general_param_parser.add_argument('--task-type', help='Task type. regress or classify',
-                                      default='classify', choices=['classify', 'regress'])
-    general_param_parser.add_argument('--seed', default=0, type=int, help='Seed to generators')
-    general_param_parser.add_argument('--cuda', action='store_true', help='Use cuda to train model')
-    general_param_parser.add_argument('--amp', dest='amp', action='store_true', help='Mixed precision training')
-    general_param_parser.add_argument('--cache', action='store_true', help='Make cache after preprocessing or not')
-
-    # Logging of criterion
-    logging_parser = parser.add_argument_group("Logging parameters")
-    logging_parser.add_argument('--log-id', default='results', help='Identifier for tensorboard run')
-    logging_parser.add_argument('--tensorboard', dest='tensorboard', action='store_true', help='Turn on tensorboard graphing')
-    logging_parser.add_argument('--log-dir', default='../visualize/tensorboard', help='Location of tensorboard log')
-
-    parser = model_args(parser)
-    parser = spec_augment_args(parser)
-
-    return parser
-
-
-from ml.utils.enums import ModelType, TaskType
-from ml.preprocess.augment import SpecAugConfig
-from ml.models.model_managers.base_model_manager import ModelConfig
+from ml.utils.enums import TaskType
+from ml.models.model_managers.base_model_manager import ExtendedModelConfig, ModelConfig
 from dataclasses import dataclass, field
-
-
-@dataclass
-class SGDConfig:
-    momentum: float = 0.9
-
-
-@dataclass
-class AdamConfig:
-    eps: float = 1e-8  # Adam eps
-    betas: tuple = (0.9, 0.999)  # Adam betas
-
-
-@dataclass
-class OptimConfig(SGDConfig, AdamConfig):
-    lr: float = 1e-3  # Initial learning rate
-    learning_anneal: float = 1.1  # Annealing applied to learning rate after each epoch
-    weight_decay: float = 1e-5  # Initial Weight Decay
-
-
-@dataclass
-class TrainConfig(ModelConfig, OptimConfig):
-    batch_size: int = 32        # Batch size for training
-    epoch_rate: float = 1.0     # Data rate to to use in one epoch
-    n_jobs: int = 4             # Number of workers used in data-loading
-    # TODO below
-    loss_weight: List[float] = field(default_factory=lambda: [])   # The weights of all class about loss
-    # TODO below
-    sample_balance: List[float] = field(default_factory=lambda: [])  # Sampling label balance from dataset
-    epochs: int = 70  # Number of Training Epochs
-    model_path: str = '../output/models/sth.pth'    # Path to save model
-    checkpoint_path: str = ''  # Model weight file to load model
-    task_type: TaskType = TaskType.classify
-    cuda: bool = True  # Use cuda to train a model
-    finetune: bool = False  # Fine-tune the model from checkpoint "continue_from"
-    seed: int = 0  # Seed for generators
-    amp: bool = True  # Mixed precision training
-    model_cfg: ModelConfig = ModelConfig()
-    # TODO refactor
-    optimizer: str = 'adam'
-
-
-@dataclass
-class ExtendedTrainConfig(TrainConfig):
-    tta: int = 0        # Number of test time augmentation ensemble
-    mixup_alpha: float = 0.0    # Beta distirbution alpha for mixup
-    snapshot: List[int] = field(default_factory=lambda: [])    # The number of epochs to save weights. Comma separated int is allowed
-    cache: bool = False         # Make cache after preprocessing or not
-    spec_augment: SpecAugConfig = SpecAugConfig()
+from omegaconf import OmegaConf
+from ml.models.nn_models.nn import NNConfig
+from ml.models.nn_models.rnn import RNNConfig
+from ml.models.nn_models.cnn import CNNConfig
+from ml.models.nn_models.pretrained_models import PretrainedConfig
+from ml.models.ml_models.toolbox import MlModelManagerConfig
+from ml.models.ml_models.decision_trees import DecisionTreeConfig
+from ml.utils.enums import NNType, PretrainedType, ModelType
 
 
 @dataclass
@@ -158,16 +38,29 @@ class TensorboardConfig:
     log_dir: str = '../visualize/tensorboard'   # Location of tensorboard log
 
 
-
 @dataclass
-class TrainManagerConfig(ExtendedTrainConfig, TensorboardConfig):   # Model manager arguments
-    train_path: str = 'input/train.csv'      # Data file for training
+class TrainConfig(TensorboardConfig):
+    epochs: int = 70  # Number of Training Epochs
+    checkpoint_path: str = ''  # Model weight file to load model
+    task_type: TaskType = TaskType.classify
+    cuda: bool = True  # Use cuda to train a model
+    finetune: bool = False  # Fine-tune the model from checkpoint "continue_from"
+    seed: int = 0  # Seed for generators
+    amp: bool = True  # Mixed precision training
+    model_type: ModelType = ModelType.cnn
+    model: ModelConfig = ExtendedModelConfig()
+    class_names: List[str] = field(default_factory=lambda: ['0', '1'])
+
+    train_path: str = 'input/train.csv'  # Data file for training
     val_path: str = 'input/val.csv'  # Data file for validation
     test_path: str = 'input/test.csv'  # Data file for testing
 
-    model_type: ModelType = ModelType.cnn
     gpu_id: int = 0  # ID of GPU to use
-    transfer: bool = False  # TODO modify this or remove this feature # Transfer learning from model_path
+
+    tta: int = 0  # Number of test time augmentation ensemble
+    snapshot: List[int] = field(
+        default_factory=lambda: [])  # The number of epochs to save weights. Comma separated int is allowed
+    cache: bool = False  # Make cache after preprocessing or not
 
 
 @contextmanager
@@ -182,35 +75,35 @@ class BaseTrainManager(metaclass=ABCMeta):
     def __init__(self, class_labels, cfg, dataloaders, metrics):
         self.class_labels = class_labels
         self.cfg = cfg
+        self.cfg.model.class_names = self.cfg.class_names
+        self.cfg.model.task_type = self.cfg.task_type
+        self.cfg.model.cuda = self.cfg.cuda
+        self.cfg.model.model_type = self.cfg.model_type
+
         self.dataloaders = dataloaders
         self.device = self._init_device()
         self.model_manager = self._init_model_manager()
         self._init_seed()
         self.logger = self._init_logger()
         self.metrics = metrics
-        Path(self.cfg['model_path']).parent.mkdir(exist_ok=True, parents=True)
-
-    @staticmethod
-    def check_keys_from_dict(must_contain_keys, dic) -> None:
-        for key in must_contain_keys:
-            assert key in dic.keys(), f'{key} must be in {str(dic)}'
+        Path(self.cfg.model.model_path).parent.mkdir(exist_ok=True, parents=True)
 
     def _init_model_manager(self) -> Union[NNModelManager, MLModelManager]:
-        self.cfg['input_size'] = list(self.dataloaders.values())[0].get_input_size()
+        self.cfg.model.input_size = list(list(self.dataloaders.values())[0].get_input_size())
 
-        if self.cfg['model_type'].value in supported_nn_models + list(supported_pretrained_models.keys()):
-            if self.cfg['model_type'].value in ['rnn']:
-                if self.cfg['batch_norm']:
-                    self.cfg['batch_norm_size'] = list(self.dataloaders.values())[0].get_batch_norm_size()
-                self.cfg['seq_len'] = list(self.dataloaders.values())[0].get_seq_len()
-            elif self.cfg['model_type'].value in ['logmel_cnn', 'cnn', 'cnn_rnn'] + list(supported_pretrained_models.keys()):
-                self.cfg['image_size'] = list(self.dataloaders.values())[0].get_image_size()
-                self.cfg['in_channels'] = list(self.dataloaders.values())[0].get_n_channels()
+        if OmegaConf.get_type(self.cfg.model) in [NNConfig, CNNConfig, RNNConfig, PretrainedConfig]:
+            if OmegaConf.get_type(self.cfg.model) in [RNNConfig]:
+                if self.cfg.model.batch_norm:
+                    self.cfg.model.batch_norm_size = list(self.dataloaders.values())[0].get_batch_norm_size()
+                self.cfg.seq_len = list(self.dataloaders.values())[0].get_seq_len()
+            elif OmegaConf.get_type(self.cfg.model) in [NNConfig, CNNConfig, PretrainedConfig]:
+                self.cfg.model.image_size = list(list(self.dataloaders.values())[0].get_image_size())
+                self.cfg.model.in_channels = list(self.dataloaders.values())[0].get_n_channels()
 
-            return NNModelManager(self.class_labels, self.cfg)
+            return NNModelManager(self.class_labels, self.cfg.model)
 
-        elif self.cfg['model_type'].value in supported_ml_models:
-            return MLModelManager(self.class_labels, self.cfg)
+        elif OmegaConf.get_type(self.cfg.model) in [MlModelManagerConfig, DecisionTreeConfig]:
+            return MLModelManager(self.class_labels, self.cfg.model)
 
         else:
             raise NotImplementedError
@@ -223,7 +116,7 @@ class BaseTrainManager(metaclass=ABCMeta):
         random.seed(self.cfg['seed'])
 
     def _init_device(self) -> torch.device:
-        if self.cfg['cuda'] and self.cfg['model_type'].value in supported_nn_models + list(supported_pretrained_models.keys()):
+        if self.cfg.cuda and self.cfg.model_type.value in [name.value for name in list(NNType) + list(PretrainedType)]:
             device = torch.device("cuda")
             torch.cuda.set_device(self.cfg['gpu_id'])
         else:
@@ -264,7 +157,7 @@ class BaseTrainManager(metaclass=ABCMeta):
 
         pred_list, label_list = self.predict(phase=phase)
 
-        if self.cfg['return_prob']:
+        if self.cfg.model.return_prob:
             pred_onehot = torch.from_numpy(pred_list)
             pred_list = np.argmax(pred_list, axis=1)
 
@@ -275,7 +168,7 @@ class BaseTrainManager(metaclass=ABCMeta):
                 if self.cfg['task_type'].value == 'classify':
                     y_onehot = torch.zeros(label_list.shape[0], len(self.class_labels))
                     y_onehot = y_onehot.scatter_(1, torch.from_numpy(label_list).view(-1, 1).type(torch.LongTensor), 1)
-                    if not self.cfg['return_prob']:
+                    if not self.cfg.model.return_prob:
                         pred_onehot = torch.zeros(pred_list.shape[0], len(self.class_labels))
                         pred_onehot = pred_onehot.scatter_(1, torch.from_numpy(pred_list).view(-1, 1).type(torch.LongTensor), 1)
                     loss_value = self.model_manager.criterion(pred_onehot.to(self.device), y_onehot.to(self.device)).item()
@@ -295,7 +188,7 @@ class BaseTrainManager(metaclass=ABCMeta):
             logger.info(f'Confusion matrix: \n{confusion_matrix_}')
 
         if return_metrics:
-            if self.cfg['return_prob']:
+            if self.cfg.model.return_prob:
                 return pred_onehot.numpy(), label_list, self.metrics
             else:
                 return pred_list, label_list, self.metrics

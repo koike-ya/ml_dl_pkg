@@ -9,7 +9,6 @@ import torch
 from copy import deepcopy
 from ml.models.model_managers.multitask_nn_model_manager import MultitaskNNModelManager
 from ml.models.train_managers.nn_train_manager import NNTrainManager
-from ml.models.train_managers.base_train_manager import train_manager_args
 from tqdm import tqdm
 from typing import List, Tuple
 from ml.utils.utils import Metrics

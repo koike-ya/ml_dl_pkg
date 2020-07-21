@@ -32,15 +32,16 @@ def cnn_args(parser):
 
 from dataclasses import dataclass, field
 from typing import List
+from ml.utils.nn_config import NNModelConfig
 
 
 @dataclass
-class CNNConfig:    # CNN model arguments
+class CNNConfig(NNModelConfig):    # CNN model arguments
     # TODO remove "cnn_"
-    cnn_channel_list: List = field(default_factory=lambda: [4, 8, 16])
-    cnn_kernel_sizes: List = field(default_factory=lambda: [(4, 4), (4, 4), (4, 4)])
-    cnn_stride_sizes: List = field(default_factory=lambda: [(2, 2), (2, 2), (2, 2)])
-    cnn_padding_sizes: List = field(default_factory=lambda: [(1, 1), (1, 1), (1, 1)])
+    channel_list: List = field(default_factory=lambda: [4, 8, 16])
+    kernel_sizes: List = field(default_factory=lambda: [(4, 4), (4, 4), (4, 4)])
+    stride_sizes: List = field(default_factory=lambda: [(2, 2), (2, 2), (2, 2)])
+    padding_sizes: List = field(default_factory=lambda: [(1, 1), (1, 1), (1, 1)])
 
 
 class CNN(nn.Module):

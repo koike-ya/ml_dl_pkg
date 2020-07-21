@@ -12,37 +12,15 @@ supported_rnns = {
     'rnn': nn.RNN,
     'gru': nn.GRU
 }
-supported_rnns_inv = dict((v, k) for k, v in supported_rnns.items())
 
 
-def rnn_args(parser):
-    rnn_parser = parser.add_argument_group("RNN model arguments")
-
-    # RNN params
-    rnn_parser.add_argument('--rnn-type', default='gru',
-                            help='Type of the RNN. rnn|gru|lstm|deepspeech are supported')
-    rnn_parser.add_argument('--rnn-hidden-size', default=100, type=int, help='Hidden size of RNNs')
-    rnn_parser.add_argument('--rnn-n-layers', default=1, type=int, help='Number of RNN layers')
-    rnn_parser.add_argument('--max-norm', default=400, type=int,
-                            help='Norm cutoff to prevent explosion of gradients')
-    rnn_parser.add_argument('--no-bidirectional', dest='bidirectional', action='store_false', default=True,
-                            help='Turn off bi-directional RNNs, introduces lookahead convolution')
-    rnn_parser.add_argument('--inference-softmax', dest='is_inference_softmax', action='store_true',
-                            help='Turn on inference softmax')
-    rnn_parser.add_argument('--batch-normalization', dest='batch_norm', action='store_true',
-                            default=False, help='Batch normalization or not')
-    rnn_parser.add_argument('--sequence-wise', dest='sequence_wise', action='store_true',
-                            default=False, help='sequence-wise batch normalization or not')
-    return parser
-
-
-from dataclasses import dataclass, field
-from typing import List
+from dataclasses import dataclass
 from ml.utils.enums import RNNType
+from ml.utils.nn_config import NNModelConfig
 
 
 @dataclass
-class RNNConfig:    # RNN model arguments
+class RNNConfig(NNModelConfig):    # RNN model arguments
     # TODO remove "rnn_"
     rnn_type: RNNType = RNNType.gru     # Type of the RNN. rnn|gru|lstm|deepspeech are supported
     rnn_hidden_size: int = 100      # Hidden size of RNNs

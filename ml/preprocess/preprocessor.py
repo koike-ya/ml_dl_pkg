@@ -41,6 +41,7 @@ from ml.utils.enums import SpectrogramWindow, TimeFrequencyFeature, PretrainedTy
 from omegaconf import MISSING
 @dataclass
 class TransConfig:
+    cuda: bool = True
     scaling: bool = False     # scaling
     augment: bool = False       # Use random tempo and gain perturbations.
     sample_rate: float = 500.0  # The sample rate for the data/model features

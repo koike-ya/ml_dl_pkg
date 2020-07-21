@@ -61,16 +61,7 @@ class PretrainedType(Enum):
 
 
 class ModelType(Enum):
-    # TODO refactor below
-    nn: str = 'nn'
-    cnn: str = 'cnn'
-    rnn: str = 'rnn'
-    cnn_rnn: str = 'cnn_rnn'
-    logmel_cnn: str = 'logmel_cnn'
-    attention_cnn: str = 'attention_cnn'
-    panns: str = 'panns'
-    cnn1d_rnn: str = 'cnn1d_rnn'
-
+    # TODO separate
     xgboost: str = 'xgboost'
     knn: str = 'knn'
     catboost: str = 'catboost'
@@ -80,7 +71,15 @@ class ModelType(Enum):
     rf: str = 'rf'
     nb: str = 'nb'
 
-    none: str = ''
+    nn: str = 'nn'
+    cnn: str = 'cnn'
+    rnn: str = 'rnn'
+    cnn_rnn: str = 'cnn_rnn'
+    logmel_cnn: str = 'logmel_cnn'
+    attention_cnn: str = 'attention_cnn'
+    panns: str = 'panns'
+    cnn1d_rnn: str = 'cnn1d_rnn'
+
     resnet: str = 'resnet'
     resnet152: str = 'resnet152'
     alexnet: str = 'alexnet'

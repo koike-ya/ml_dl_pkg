@@ -24,10 +24,11 @@ def nn_args(parser):
 
 from dataclasses import dataclass, field
 from typing import List
+from ml.utils.nn_config import NNModelConfig
 
 
 @dataclass
-class NNConfig:
+class NNConfig(NNModelConfig):
     # TODO remove "nn_"
     nn_hidden_nodes: List[int] = field(default_factory=lambda: [256, 1028, 200])        # Early stopping with validation data
 

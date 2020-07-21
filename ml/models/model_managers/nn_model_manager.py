@@ -21,13 +21,13 @@ from ml.models.nn_models.nn_utils import get_param_size
 from ml.models.nn_models.pretrained_models import construct_pretrained, supported_pretrained_models
 
 
-supported_nn_models = ['nn', 'cnn', 'rnn', 'cnn_rnn', 'logmel_cnn', 'attention_cnn', 'panns', '1dcnn_rnn']
+from omegaconf import OmegaConf
+from ml.utils.nn_config import SGDConfig, AdamConfig
 
 
 class NNModelManager(BaseModelManager):
     def __init__(self, class_labels, cfg):
-        must_contain_keys = ['lr', 'weight_decay', 'momentum', 'learning_anneal']
-        super().__init__(class_labels, cfg, must_contain_keys)
+        super().__init__(class_labels, cfg)
         self.device = torch.device('cuda' if cfg['cuda'] else 'cpu')
         self.model = self._init_model(transfer=cfg['transfer']).to(self.device)
         self.mixup_alpha = cfg['mixup_alpha']
@@ -90,15 +90,12 @@ class NNModelManager(BaseModelManager):
             return self._orig_criterion
 
     def _set_optimizer(self):
-        supported_optimizers = {
-            'adam': torch.optim.Adam(self.model.parameters(), lr=self.cfg['lr'],
-                                     weight_decay=self.cfg['weight_decay']),
-            'rmsprop': torch.optim.RMSprop(self.model.parameters(), lr=self.cfg['lr'],
-                                           weight_decay=self.cfg['weight_decay'], momentum=self.cfg['momentum']),
-            'sgd': torch.optim.SGD(self.model.parameters(), lr=self.cfg['lr'], weight_decay=self.cfg['weight_decay'],
-                                   momentum=self.cfg['momentum'], nesterov=True)
-        }
-        return supported_optimizers[self.cfg['optimizer']]
+        if OmegaConf.get_type(self.cfg.optim) == AdamConfig:
+            return torch.optim.Adam(self.model.parameters(), lr=self.cfg.optim.lr,
+                                    weight_decay=self.cfg.optim.weight_decay)
+        elif OmegaConf.get_type(self.cfg.optim) == SGDConfig:
+            return torch.optim.SGD(self.model.parameters(), lr=self.cfg.optim.lr, momentum=self.cfg.optim.momentum,
+                                   weight_decay=self.cfg.optim.weight_decay, nesterov=True)
 
     def _mixup_data(self, inputs, labels, phase):
         # To be sure lamb is under 1.0 if phase == 'train' and equals 1.0 if phase != 'train'
@@ -139,7 +136,7 @@ class NNModelManager(BaseModelManager):
                     loss.backward(retain_graph=True)
                 self.optimizer.step()
 
-            if self.cfg['return_prob']:
+            if self.cfg.return_prob:
                 preds = outputs.detach()
             else:
                 _, preds = torch.max(outputs, 1)
@@ -193,7 +190,7 @@ class NNModelManager(BaseModelManager):
             return self._fit_regress(inputs, labels, phase)
 
     def save_model(self):
-        torch.save(self.model.state_dict(), self.cfg['model_path'])
+        torch.save(self.model.state_dict(), self.cfg.model_path)
 
     def load_model(self, model=None):
         if model:
@@ -223,7 +220,7 @@ class NNModelManager(BaseModelManager):
                     # TODO classifierも別ファイルに重みを保存しておいて、train_managerで読み込み
                     preds = torch.from_numpy(self.predictor.predict(preds.detach()))
 
-                if not self.cfg['return_prob']:
+                if not self.cfg.return_prob:
                     _, preds = torch.max(preds, 1)
 
         return preds.cpu().numpy()
