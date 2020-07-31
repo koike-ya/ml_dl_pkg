@@ -14,7 +14,7 @@ from ml.tasks.base_experiment import BaseExptConfig
 from ml.utils.nn_config import SGDConfig, AdamConfig
 
 nn_model_list = [('nn', NNConfig), ('cnn', CNNConfig), ('rnn', RNNConfig), ('cnn_rnn', CNNRNNConfig)]
-nn_model_list.extend([(model_name, CNNConfig) for model_name in ['cnn_rnn', 'logmel_cnn', 'attention_cnn', 'panns', '1dcnn_rnn']])
+nn_model_list.extend([(model_name, CNNConfig) for model_name in ['logmel_cnn', 'attention_cnn', 'panns', '1dcnn_rnn']])
 pretrained_models = ['resnet', 'resnet152', 'alexnet', 'wideresnet', 'resnext', 'resnext101', 'vgg19', 'vgg16',
                      'googlenet', 'mobilenet', 'panns', 'resnext_wsl']
 pretrained_model_list = [(model_name, PretrainedConfig) for model_name in pretrained_models]

@@ -25,6 +25,7 @@ from omegaconf import OmegaConf
 from ml.models.nn_models.nn import NNConfig
 from ml.models.nn_models.rnn import RNNConfig
 from ml.models.nn_models.cnn import CNNConfig
+from ml.models.nn_models.cnn_rnn import CNNRNNConfig
 from ml.models.nn_models.pretrained_models import PretrainedConfig
 from ml.models.ml_models.toolbox import MlModelManagerConfig
 from ml.models.ml_models.decision_trees import DecisionTreeConfig
@@ -91,12 +92,12 @@ class BaseTrainManager(metaclass=ABCMeta):
     def _init_model_manager(self) -> Union[NNModelManager, MLModelManager]:
         self.cfg.model.input_size = list(list(self.dataloaders.values())[0].get_input_size())
 
-        if OmegaConf.get_type(self.cfg.model) in [NNConfig, CNNConfig, RNNConfig, PretrainedConfig]:
+        if OmegaConf.get_type(self.cfg.model) in [NNConfig, CNNConfig, RNNConfig, CNNRNNConfig, PretrainedConfig]:
             if OmegaConf.get_type(self.cfg.model) in [RNNConfig]:
-                if self.cfg.model.batch_norm:
+                if self.cfg.model.batch_norm_size:
                     self.cfg.model.batch_norm_size = list(self.dataloaders.values())[0].get_batch_norm_size()
-                self.cfg.seq_len = list(self.dataloaders.values())[0].get_seq_len()
-            elif OmegaConf.get_type(self.cfg.model) in [NNConfig, CNNConfig, PretrainedConfig]:
+                self.cfg.model.seq_len = list(self.dataloaders.values())[0].get_seq_len()
+            if OmegaConf.get_type(self.cfg.model) in [NNConfig, CNNConfig, CNNRNNConfig, PretrainedConfig]:
                 self.cfg.model.image_size = list(list(self.dataloaders.values())[0].get_image_size())
                 self.cfg.model.in_channels = list(self.dataloaders.values())[0].get_n_channels()
 

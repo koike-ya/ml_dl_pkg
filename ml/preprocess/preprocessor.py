@@ -38,7 +38,8 @@ def preprocess_args(parser):
 
 from dataclasses import dataclass
 from ml.utils.enums import SpectrogramWindow, TimeFrequencyFeature, PretrainedType
-from omegaconf import MISSING
+
+
 @dataclass
 class TransConfig:
     cuda: bool = True
@@ -49,7 +50,7 @@ class TransConfig:
     window_stride: float = 2.0  # Window stride for spectrogram in seconds
     window: SpectrogramWindow = SpectrogramWindow.hamming   # Window type for spectrogram generation
     n_mels: int = 64            # Number of mel filters banks
-    transform: TimeFrequencyFeature = MISSING
+    transform: TimeFrequencyFeature = TimeFrequencyFeature.none
     low_cutoff: float = 0.0  # High pass filter
     high_cutoff: float = 0.0  # Low pass filter
     # TODO refactor below

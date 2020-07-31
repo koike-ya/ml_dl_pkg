@@ -148,14 +148,14 @@ class CNNMaker:
 
 def construct_cnn(cfg, use_as_extractor=False):
     layer_info = []
-    n_dim = len(cfg['cnn_kernel_sizes'][0])
-    for layer in range(len(cfg['cnn_channel_list'])):
+    n_dim = len(cfg.kernel_sizes[0])
+    for layer in range(len(cfg.channel_list)):
         layer_info.append((
-            cfg['cnn_channel_list'][layer],
-            cfg['cnn_kernel_sizes'][layer],
-            cfg['cnn_stride_sizes'][layer],
-            cfg['cnn_padding_sizes'][layer],
+            cfg.channel_list[layer],
+            list(cfg.kernel_sizes[layer]),
+            list(cfg.stride_sizes[layer]),
+            list(cfg.padding_sizes[layer]),
         ))
-    cnn_maker = CNNMaker(in_channels=cfg['in_channels'], image_size=cfg['image_size'], cfg=layer_info, n_dim=n_dim,
-                         n_classes=len(cfg['class_names']), use_as_extractor=use_as_extractor)
+    cnn_maker = CNNMaker(in_channels=cfg.in_channels, image_size=cfg.image_size, cfg=layer_info, n_dim=n_dim,
+                         n_classes=len(cfg.class_names), use_as_extractor=use_as_extractor)
     return cnn_maker.construct_cnn()
