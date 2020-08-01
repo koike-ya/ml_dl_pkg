@@ -2,52 +2,30 @@ import logging
 import tempfile
 from abc import ABCMeta
 from copy import deepcopy
+from dataclasses import dataclass
 from typing import Tuple, Dict, List
 
 import mlflow
 import numpy as np
 import pandas as pd
 
+from ml.models.train_managers.base_train_manager import TrainConfig
 from ml.models.train_managers.ml_train_manager import MLTrainManager
 from ml.models.train_managers.multitask_train_manager import MultitaskTrainManager
 from ml.models.train_managers.nn_train_manager import NNTrainManager
-from ml.preprocess.preprocessor import Preprocessor, preprocess_args
-from ml.src.cv_manager import KFoldManager, SUPPORTED_CV
+from ml.preprocess.transforms import Transform, TransConfig
+from ml.src.cv_manager import KFoldManager
+from ml.src.cv_manager import SupportedCV
+from ml.src.dataloader import DataConfig
 from ml.src.dataloader import set_dataloader, set_ml_dataloader
 from ml.src.metrics import get_metric_list
+from ml.utils.enums import TrainManagerType, DataLoaderType
 from ml.utils.utils import Metrics
 
 logger = logging.getLogger(__name__)
 
 DATALOADERS = {'normal': set_dataloader, 'ml': set_ml_dataloader}
 TRAINMANAGERS = {'nn': NNTrainManager, 'multitask': MultitaskTrainManager, 'ml': MLTrainManager}
-
-
-def base_expt_args(parser):
-    parser = train_manager_args(parser)
-    parser = preprocess_args(parser)
-    expt_parser = parser.add_argument_group("Experiment arguments")
-    expt_parser.add_argument('--expt-id', help='data file for training', default='timestamp')
-    expt_parser.add_argument('--n-seed-average', type=int, help='Seed averaging', default=0)
-    expt_parser.add_argument('--cv-name', choices=SUPPORTED_CV, default=None)
-    expt_parser.add_argument('--n-splits', type=int, help='Number of split on cv', default=0)
-    expt_parser.add_argument('--infer', action='store_true',
-                             help='Whether training with train+devel dataset after hyperparameter tuning')
-    expt_parser.add_argument('--test', action='store_true',
-                             help='Whether training with train+devel dataset after hyperparameter tuning')
-    expt_parser.add_argument('--train-manager', choices=TRAINMANAGERS.keys(), default='nn')
-    expt_parser.add_argument('--data-loader', choices=DATALOADERS.keys(), default='normal')
-    expt_parser.add_argument('--manifest-path', help='data file for training', default='input/train.csv')
-
-    return parser
-
-
-from ml.src.cv_manager import SupportedCV
-from ml.utils.enums import TrainManagerType, DataLoaderType
-from ml.models.train_managers.base_train_manager import TrainConfig
-from ml.preprocess.preprocessor import TransConfig
-from ml.src.dataloader import DataConfig
-from dataclasses import dataclass
 
 
 @dataclass
@@ -99,8 +77,8 @@ class BaseExperimentor(metaclass=ABCMeta):
 
         dataloaders = {}
         for phase in phases:
-            if not self.process_func:
-                self.process_func = Preprocessor(self.cfg.transformer, phase).preprocess
+            if isinstance(self.process_func, list):
+                self.process_func = Transform(self.cfg.transformer, phase, self.process_func)
             dataset = self.dataset_cls(self.cfg.train[f'{phase}_path'], self.cfg.train, phase, self.load_func,
                                        self.process_func, self.label_func)
             dataloaders[phase] = self.data_loader_cls(dataset, phase, self.cfg.data)
