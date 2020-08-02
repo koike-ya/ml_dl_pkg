@@ -44,7 +44,7 @@ def set_load_func(orig_sr, re_sr):
 
 
 def create_manifest(cfg, expt_dir):
-    data_dir = Path(utils.get_original_cwd()).resolve().parents[1] / 'input' / 'ESC-50-master'
+    data_dir = Path(utils.to_absolute_path('input')) / 'ESC-50-master'
 
     path_df = pd.read_csv(data_dir / 'meta' / 'esc50.csv')
     path_df['filename'] = str(data_dir / 'audio') + '/' + path_df['filename']
@@ -190,7 +190,7 @@ def hydra_main(cfg: ExampleEscConfig):
     }
 
     cfg.expt_id = f'{OmegaConf.get_type(cfg.train.model_type)}'
-    expt_dir = Path(utils.get_original_cwd()).resolve().parents[1] / 'output' / 'example_face' / f'{cfg.expt_id}'
+    expt_dir = Path(utils.to_absolute_path('output')) / 'example_face' / f'{cfg.expt_id}'
     expt_dir.mkdir(exist_ok=True, parents=True)
     main(cfg, expt_dir, hyperparameters)
 
