@@ -11,6 +11,7 @@ import hydra
 import mlflow
 import numpy as np
 import pandas as pd
+from hydra import utils
 from joblib import Parallel, delayed
 from omegaconf import OmegaConf
 
@@ -51,7 +52,7 @@ def set_load_func(sr, one_audio_sec):
 
 
 def create_manifest(cfg, expt_dir):
-    data_dir = Path(__file__).resolve().parents[1] / 'input' / 'eeg'
+    data_dir = Path(utils.get_original_cwd()).resolve().parents[1] / 'input' / 'eeg'
     path_list = [str(p.resolve()) for p in sorted(list(data_dir.iterdir())) if p.is_file()]
 
     path_df = pd.DataFrame([path_list]).T.sample(n=500).T
@@ -218,7 +219,7 @@ def hydra_main(cfg: ExampleEEGConfig):
         }
 
     cfg.expt_id = f'{OmegaConf.get_type(cfg.train.model_type)}'
-    expt_dir = Path(__file__).resolve().parents[1] / 'output' / 'example_face' / f'{cfg.expt_id}'
+    expt_dir = Path(utils.get_original_cwd()).resolve().parents[1] / 'output' / 'example_face' / f'{cfg.expt_id}'
     expt_dir.mkdir(exist_ok=True, parents=True)
     main(cfg, expt_dir, hyperparameters)
 

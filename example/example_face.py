@@ -11,6 +11,7 @@ import hydra
 import mlflow
 import numpy as np
 import pandas as pd
+from hydra import utils
 from joblib import Parallel, delayed
 from omegaconf import OmegaConf
 
@@ -41,7 +42,7 @@ def load_func(row):
 
 
 def create_manifest(expt_conf, expt_dir):
-    data_dir = Path(__file__).resolve().parents[1] / 'input'
+    data_dir = Path(utils.get_original_cwd()).resolve().parents[1] / 'input'
     manifest_df = pd.read_csv(data_dir / 'fer2013.csv')
 
     train_val_df = manifest_df[manifest_df['Usage'] == 'Training']
@@ -191,7 +192,7 @@ def hydra_main(cfg: ExampleFaceConfig):
         }
 
     cfg.expt_id = f'{OmegaConf.get_type(cfg.train.model_type)}_{cfg.train.model.pretrained}'
-    expt_dir = Path(__file__).resolve().parents[1] / 'output' / 'example_face' / f'{cfg.expt_id}'
+    expt_dir = Path(utils.get_original_cwd()).resolve().parents[1] / 'output' / 'example_face' / f'{cfg.expt_id}'
     expt_dir.mkdir(exist_ok=True, parents=True)
     main(cfg, expt_dir, hyperparameters)
 
