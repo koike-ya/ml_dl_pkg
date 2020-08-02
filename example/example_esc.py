@@ -52,8 +52,9 @@ def create_manifest(cfg, expt_dir):
     labels = sorted(path_df['target'].unique())
     path_df['target'] = path_df['target'].apply(lambda x: labels.index(x))
 
-    train_df = path_df.iloc[:8, :]
-    val_df = path_df.iloc[8:, :]
+    meaningless_some_rows = 8   # Train and validation are again split on CV
+    train_df = path_df.iloc[:meaningless_some_rows, :]
+    val_df = path_df.iloc[meaningless_some_rows:, :]
     groups = path_df['fold']
 
     for phase in ['train', 'val']:
@@ -182,12 +183,11 @@ def hydra_main(cfg: ExampleEscConfig):
     logging.getLogger("ml").addHandler(console)
 
     hyperparameters = {
-        'train.model.optim.lr': [1e-4],
+        'train.model.optim.lr': [cfg.train.model.optim.lr],
         'transformer.transform': ['logmel'],
         'train.model.loss_config.loss_func': ['ce'],
         'data.sample_balance': ['same'],
-        'transformer.n_mels': [200],
-        'train.model.n_mels': [200],
+        'transformer.n_mels': [cfg.transformer.n_mels],
     }
 
     cfg.expt_id = f'{OmegaConf.get_type(cfg.train.model_type)}'
