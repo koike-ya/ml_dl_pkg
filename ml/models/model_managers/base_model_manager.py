@@ -24,6 +24,7 @@ class ModelConfig:  # ML/DL model arguments
     return_prob: bool = False     # Returns probability, not predicted labels
     loss_config: LossConfig = LossConfig()
     checkpoint_path: str = ''  # Model weight file to load model
+    amp: bool = False  # Mixed precision training
 
     input_size: List[int] = field(default_factory=lambda: [])
 

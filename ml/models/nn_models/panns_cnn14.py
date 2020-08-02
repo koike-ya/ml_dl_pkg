@@ -133,7 +133,6 @@ class Cnn14(nn.Module):
         init_layer(self.fc_audioset)
 
     def feature_extract(self, x):
-        x = x.unsqueeze(dim=1)
         x = x.transpose(1, 2)
         x = self.bn0(x)
         x = x.transpose(1, 2)

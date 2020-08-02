@@ -50,7 +50,6 @@ class TrainConfig(TensorboardConfig):
     cuda: bool = True  # Use cuda to train a model
     finetune: bool = False  # Fine-tune the model from checkpoint "continue_from"
     seed: int = 0  # Seed for generators
-    amp: bool = True  # Mixed precision training
     model_type: ModelType = ModelType.cnn
     model: ModelConfig = ExtendedModelConfig()
     class_names: List[str] = field(default_factory=lambda: ['0', '1'])
