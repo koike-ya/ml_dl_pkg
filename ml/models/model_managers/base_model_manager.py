@@ -23,6 +23,7 @@ class ModelConfig:  # ML/DL model arguments
     early_stopping: bool = False        # Early stopping with validation data
     return_prob: bool = False     # Returns probability, not predicted labels
     loss_config: LossConfig = LossConfig()
+    checkpoint_path: str = ''  # Model weight file to load model
 
     input_size: List[int] = field(default_factory=lambda: [])
 

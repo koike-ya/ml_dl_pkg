@@ -27,9 +27,13 @@ from ml.models.nn_models.rnn import RNNConfig
 from ml.models.nn_models.cnn import CNNConfig
 from ml.models.nn_models.cnn_rnn import CNNRNNConfig
 from ml.models.nn_models.pretrained_models import PretrainedConfig
+from ml.models.nn_models.panns_cnn14 import PANNsConfig
 from ml.models.ml_models.toolbox import MlModelManagerConfig
 from ml.models.ml_models.decision_trees import DecisionTreeConfig
 from ml.utils.enums import NNType, PretrainedType, ModelType
+
+
+CNN_MODELS = [CNNConfig, CNNRNNConfig, PretrainedConfig, PANNsConfig]
 
 
 @dataclass
@@ -42,7 +46,6 @@ class TensorboardConfig:
 @dataclass
 class TrainConfig(TensorboardConfig):
     epochs: int = 70  # Number of Training Epochs
-    checkpoint_path: str = ''  # Model weight file to load model
     task_type: TaskType = TaskType.classify
     cuda: bool = True  # Use cuda to train a model
     finetune: bool = False  # Fine-tune the model from checkpoint "continue_from"
@@ -80,7 +83,6 @@ class BaseTrainManager(metaclass=ABCMeta):
         self.cfg.model.task_type = self.cfg.task_type
         self.cfg.model.cuda = self.cfg.cuda
         self.cfg.model.model_type = self.cfg.model_type
-
         self.dataloaders = dataloaders
         self.device = self._init_device()
         self.model_manager = self._init_model_manager()
@@ -92,12 +94,12 @@ class BaseTrainManager(metaclass=ABCMeta):
     def _init_model_manager(self) -> Union[NNModelManager, MLModelManager]:
         self.cfg.model.input_size = list(list(self.dataloaders.values())[0].get_input_size())
 
-        if OmegaConf.get_type(self.cfg.model) in [NNConfig, CNNConfig, RNNConfig, CNNRNNConfig, PretrainedConfig]:
+        if OmegaConf.get_type(self.cfg.model) in [NNConfig, RNNConfig] + CNN_MODELS:
             if OmegaConf.get_type(self.cfg.model) in [RNNConfig]:
                 if self.cfg.model.batch_norm_size:
                     self.cfg.model.batch_norm_size = list(self.dataloaders.values())[0].get_batch_norm_size()
                 self.cfg.model.seq_len = list(self.dataloaders.values())[0].get_seq_len()
-            if OmegaConf.get_type(self.cfg.model) in [NNConfig, CNNConfig, CNNRNNConfig, PretrainedConfig]:
+            if OmegaConf.get_type(self.cfg.model) in [NNConfig] + CNN_MODELS:
                 self.cfg.model.image_size = list(list(self.dataloaders.values())[0].get_image_size())
                 self.cfg.model.in_channels = list(self.dataloaders.values())[0].get_n_channels()
 

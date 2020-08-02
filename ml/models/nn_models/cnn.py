@@ -9,27 +9,6 @@ import random
 random.seed(seed)
 import torch.nn as nn
 
-
-def type_int_list_list(args):
-    return [list(map(int, arg.split('-'))) for arg in args.split(',')]
-
-
-def type_int_list(args):
-    return list(map(int, args.split(',')))
-
-
-def cnn_args(parser):
-    cnn_parser = parser.add_argument_group("CNN model arguments")
-
-    # cnn params
-    cnn_parser.add_argument('--cnn-channel-list', default='4,8,16', type=type_int_list)
-    cnn_parser.add_argument('--cnn-kernel-sizes', default='4-4,4-4,4-4', type=type_int_list_list)
-    cnn_parser.add_argument('--cnn-stride-sizes', default='2-2,2-2,2-2', type=type_int_list_list)
-    cnn_parser.add_argument('--cnn-padding-sizes', default='1-1,1-1,1-1', type=type_int_list_list)
-
-    return parser
-
-
 from dataclasses import dataclass, field
 from typing import List
 from ml.utils.nn_config import NNModelConfig
@@ -37,7 +16,6 @@ from ml.utils.nn_config import NNModelConfig
 
 @dataclass
 class CNNConfig(NNModelConfig):    # CNN model arguments
-    # TODO remove "cnn_"
     channel_list: List = field(default_factory=lambda: [4, 8, 16])
     kernel_sizes: List = field(default_factory=lambda: [(4, 4), (4, 4), (4, 4)])
     stride_sizes: List = field(default_factory=lambda: [(2, 2), (2, 2), (2, 2)])

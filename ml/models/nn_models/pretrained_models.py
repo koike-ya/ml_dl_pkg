@@ -7,7 +7,7 @@ from ml.models.nn_models.panns_cnn14 import construct_panns
 supported_pretrained_models = {'resnet': models.resnet18, 'resnet152': models.resnet152, 'alexnet': models.alexnet,# 'densenet': models.densenet121,
                                'wideresnet': models.wide_resnet50_2, 'resnext': models.resnext50_32x4d,
                                'resnext101': models.resnext101_32x8d, 'vgg19': models.vgg19, 'vgg16': models.vgg16,
-                               'googlenet': models.googlenet, 'mobilenet': None, 'panns': None, 'resnext_wsl': None}
+                               'googlenet': models.googlenet, 'mobilenet': None, 'resnext_wsl': None}
 
 
 from dataclasses import dataclass

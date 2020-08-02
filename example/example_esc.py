@@ -8,56 +8,74 @@ from datetime import datetime as dt
 from pathlib import Path
 
 import hydra
+import librosa
 import mlflow
 import numpy as np
 import pandas as pd
+import torch
 from joblib import Parallel, delayed
 from omegaconf import OmegaConf
 
-from ml.models.nn_models.cnn import CNNConfig
-from ml.models.nn_models.cnn_rnn import CNNRNNConfig
-from ml.models.nn_models.rnn import RNNConfig
-from ml.src.dataset import ManifestDataSet
+from ml.src.dataset import ManifestWaveDataSet
 from ml.tasks.base_experiment import typical_train, typical_experiment
 from ml.utils.config import ExptConfig, before_hydra
 from ml.utils.utils import dump_dict
 
-LABELS = ['Anger', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']
-
 
 @dataclass
-class ExampleFaceConfig(ExptConfig):
+class ExampleEscConfig(ExptConfig):
     n_parallel: int = 1
     mlflow: bool = False
 
 
 def label_func(row):
-    return row[0]
+    return row[2]
 
 
-def load_func(row):
-    im = np.array(list(map(int, row[1].split(' ')))).reshape((48, 48)) / 255
-    return im[None, :, :]
+def set_load_func(orig_sr, re_sr):
+    def load_func(row):
+        wave, _ = librosa.load(row[0], sr=orig_sr)
+        wave = librosa.resample(wave, orig_sr, re_sr, res_type='kaiser_fast')
+
+        return wave
+
+    return load_func
 
 
-def create_manifest(expt_conf, expt_dir):
-    data_dir = Path(__file__).resolve().parents[1] / 'input'
-    manifest_df = pd.read_csv(data_dir / 'fer2013.csv')
+def create_manifest(cfg, expt_dir):
+    data_dir = Path(__file__).resolve().parents[1] / 'input' / 'ESC-50-master'
 
-    train_val_df = manifest_df[manifest_df['Usage'] == 'Training']
-    train_df = train_val_df.iloc[:int(len(train_val_df) * 0.7), :]
-    train_df.to_csv(expt_dir / 'train_manifest.csv', index=False, header=None)
-    expt_conf.train.train_path = expt_dir / 'train_manifest.csv'
+    path_df = pd.read_csv(data_dir / 'meta' / 'esc50.csv')
+    path_df['filename'] = str(data_dir / 'audio') + '/' + path_df['filename']
+    path_df = path_df[path_df['esc10']]
+    labels = sorted(path_df['target'].unique())
+    path_df['target'] = path_df['target'].apply(lambda x: labels.index(x))
 
-    val_df = train_val_df.iloc[int(len(train_val_df) * 0.7):, :]
-    val_df.to_csv(expt_dir / 'val_manifest.csv', index=False, header=None)
-    expt_conf.train.val_path = expt_dir / 'val_manifest.csv'
+    train_df = path_df.iloc[:8, :]
+    val_df = path_df.iloc[8:, :]
+    groups = path_df['fold']
 
-    test_df = manifest_df[manifest_df['Usage'] != 'Training']
-    test_df.to_csv(expt_dir / 'test_manifest.csv', index=False, header=None)
-    expt_conf.train.test_path = expt_dir / 'test_manifest.csv'
+    for phase in ['train', 'val']:
+        locals()[f'{phase}_df'].to_csv(expt_dir / f'{phase}_manifest.csv', index=False, header=None)
+        cfg.train[f'{phase}_path'] = expt_dir / f'{phase}_manifest.csv'
 
-    return expt_conf
+    return cfg, groups
+
+
+class LoadDataSet(ManifestWaveDataSet):
+    def __init__(self, manifest_path, data_conf, phase='train', load_func=None, transform=None, label_func=None):
+        super(LoadDataSet, self).__init__(manifest_path, data_conf, phase, load_func, transform, label_func)
+
+    def __getitem__(self, idx):
+        try:
+            x = torch.load(self.path_df.iloc[idx, 0].replace('.wav', '.pt'))
+        except FileNotFoundError as e:
+            print(e)
+            return super().__getitem__(idx)
+        # print(x.size())
+        label = self.labels[idx]
+
+        return x, label
 
 
 def set_hyperparameter(expt_conf, param, param_value):
@@ -79,14 +97,18 @@ def main(cfg, expt_dir, hyperparameters):
     logging.basicConfig(level=logging.DEBUG, format="[%(name)s] [%(levelname)s] %(message)s",
                         filename=expt_dir / 'expt.log')
 
-    cfg.train.class_names = LABELS
-    dataset_cls = ManifestDataSet
+    cfg.train.class_names = list(range(10))
+    cfg.transformer.sample_rate = 22050
+
+    load_func = set_load_func(44100, cfg.transformer.sample_rate)
     metrics_names = {'train': ['loss', 'uar'],
                      'val': ['loss', 'uar'],
                      'test': ['loss', 'uar']}
 
-    cfg = create_manifest(cfg, expt_dir)
-    process_func = None
+    dataset_cls = ManifestWaveDataSet
+    cfg, groups = create_manifest(cfg, expt_dir)
+
+    process_func = ['logmel', 'time_mask']
 
     patterns = list(itertools.product(*hyperparameters.values()))
     val_results = pd.DataFrame(np.zeros((len(patterns), len(hyperparameters) + len(metrics_names['val']))),
@@ -94,7 +116,6 @@ def main(cfg, expt_dir, hyperparameters):
 
     pp = pprint.PrettyPrinter(indent=4)
     pp.pprint(hyperparameters)
-    groups = None
 
     def experiment(pattern, cfg):
         for i, param in enumerate(hyperparameters.keys()):
@@ -104,7 +125,8 @@ def main(cfg, expt_dir, hyperparameters):
         cfg.train.log_id = f"{'_'.join([str(p).replace('/', '-') for p in pattern])}"
 
         with mlflow.start_run():
-            result_series, val_pred, _ = typical_train(cfg, load_func, label_func, process_func, dataset_cls, groups)
+            result_series, val_pred, _ = typical_train(cfg, load_func, label_func, process_func, dataset_cls,
+                                                       groups)
 
             mlflow.log_params({hyperparameter: value for hyperparameter, value in zip(hyperparameters.keys(), pattern)})
 
@@ -152,45 +174,21 @@ def main(cfg, expt_dir, hyperparameters):
 
 
 @hydra.main(config_name="config")
-def hydra_main(cfg: ExampleFaceConfig):
+def hydra_main(cfg: ExampleEscConfig):
     console = logging.StreamHandler()
     console.setFormatter(logging.Formatter("[%(name)s] [%(levelname)s] %(message)s"))
     console.setLevel(logging.INFO)
     logging.getLogger("ml").addHandler(console)
 
-    if OmegaConf.get_type(cfg.train.model) == CNNConfig:
-        hyperparameters = {
-            'train.model.optim.lr': [1e-4],
-        }
-    elif OmegaConf.get_type(cfg.train.model) == CNNRNNConfig:
-        hyperparameters = {
-            'train.model.optim.lr': [1e-3, 1e-4, 1e-5],
-            'window_size': [0.5],
-            'window_stride': [0.1],
-            'transform': ['logmel'],
-            'rnn_type': [cfg.rnn_type],
-            'bidirectional': [True],
-            'rnn_n_layers': [1],
-            'rnn_hidden_size': [10],
-        }
-    elif OmegaConf.get_type(cfg.train.model) == RNNConfig:
-        hyperparameters = {
-            'bidirectional': [True, False],
-            'rnn_type': ['lstm', 'gru'],
-            'rnn_n_layers': [1, 2],
-            'rnn_hidden_size': [10, 50],
-            'transform': [None],
-            'train.model.optim.lr': [1e-3, 1e-4, 1e-5],
-        }
-    else:
-        hyperparameters = {
-            'train.model.optim.lr': [1e-4, 1e-5],
-            'data.batch_size': [64],
-            'data.epoch_rate': [1.0],
-            'data.sample_balance': ['same'],
-        }
+    hyperparameters = {
+        'train.model.optim.lr': [1e-5],
+        'transformer.transform': ['logmel'],
+        'train.model.loss_config.loss_func': ['ce'],
+        'data.sample_balance': ['same'],
+        'transformer.n_mels': [200],
+    }
 
-    cfg.expt_id = f'{OmegaConf.get_type(cfg.train.model_type)}_{cfg.train.model.pretrained}'
+    cfg.expt_id = f'{OmegaConf.get_type(cfg.train.model_type)}'
     expt_dir = Path(__file__).resolve().parents[1] / 'output' / 'example_face' / f'{cfg.expt_id}'
     expt_dir.mkdir(exist_ok=True, parents=True)
     main(cfg, expt_dir, hyperparameters)
@@ -200,5 +198,5 @@ def hydra_main(cfg: ExampleFaceConfig):
 
 
 if __name__ == '__main__':
-    config_store = before_hydra(ExampleFaceConfig)
+    config_store = before_hydra(ExampleEscConfig)
     hydra_main()

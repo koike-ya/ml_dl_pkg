@@ -79,7 +79,8 @@ class BaseExperimentor(metaclass=ABCMeta):
         for phase in phases:
             if isinstance(self.process_func, list):
                 self.process_func = Transform(self.cfg.transformer, phase, self.process_func)
-            dataset = self.dataset_cls(self.cfg.train[f'{phase}_path'], self.cfg.train, phase, self.load_func,
+                self.cfg.train.model.n_mels = self.cfg.transformer.n_mels   # TODO refactor
+            dataset = self.dataset_cls(self.cfg.train[f'{phase}_path'], self.cfg.data, phase, self.load_func,
                                        self.process_func, self.label_func)
             dataloaders[phase] = self.data_loader_cls(dataset, phase, self.cfg.data)
 
@@ -195,7 +196,7 @@ class CrossValidator(BaseExperimentor):
         y = df_x.apply(lambda x: self.label_func(x), axis=1)
         logger.info(y.value_counts())
 
-        k_fold = KFoldManager(self.cv_name, self.n_splits)
+        k_fold = KFoldManager(self.cv_name.value, self.n_splits)
 
         for i, (train_idx, val_idx) in enumerate(k_fold.split(X=df_x.values, y=y.values, groups=self.groups)):
             logger.info(f'Fold {i + 1} started.')

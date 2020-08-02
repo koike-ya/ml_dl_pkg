@@ -1,53 +1,34 @@
-from ml.src.dataset import ManifestWaveDataSet
-from ml.tasks.base_experiment import base_expt_args
-
-BINARY_LABELS = {'Z': 0, 'O': 0, 'N': 0, 'F': 0, 'S': 1}
-
 import itertools
 import logging
 import pprint
 import shutil
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import datetime as dt
+from pathlib import Path
 
+import hydra
 import mlflow
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
+from omegaconf import OmegaConf
 
 from ml.models.nn_models.cnn import CNNConfig
 from ml.models.nn_models.cnn_rnn import CNNRNNConfig
 from ml.models.nn_models.rnn import RNNConfig
+from ml.src.dataset import ManifestWaveDataSet
 from ml.tasks.base_experiment import typical_train, typical_experiment
+from ml.utils.config import ExptConfig, before_hydra
 from ml.utils.utils import dump_dict
 
-LABELS = ['Anger', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']
-
-
-from dataclasses import dataclass
-from pathlib import Path
-
-
-import hydra
-
-from ml.utils.config import ExptConfig, before_hydra
-from omegaconf import OmegaConf
+BINARY_LABELS = {'Z': 0, 'O': 0, 'N': 0, 'F': 0, 'S': 1}
 
 
 @dataclass
 class ExampleEEGConfig(ExptConfig):
     n_parallel: int = 1
     mlflow: bool = False
-
-
-
-def expt_args(parser):
-    parser = base_expt_args(parser)
-    expt_parser = parser.add_argument_group("Experiment arguments")
-    expt_parser.add_argument('--n-parallel', default=1, type=int)
-    expt_parser.add_argument('--mlflow', action='store_true')
-
-    return parser
 
 
 def label_func(row):
