@@ -1,5 +1,4 @@
 import itertools
-import logging
 import pprint
 import shutil
 from copy import deepcopy
@@ -15,7 +14,6 @@ import pandas as pd
 import torch
 from hydra import utils
 from joblib import Parallel, delayed
-from omegaconf import OmegaConf
 
 from ml.src.dataset import ManifestWaveDataSet
 from ml.tasks.base_experiment import typical_train, typical_experiment
@@ -96,9 +94,6 @@ def main(cfg, expt_dir, hyperparameters):
     if cfg.expt_id == 'timestamp':
         cfg.expt_id = dt.today().strftime('%Y-%m-%d_%H:%M')
 
-    logging.basicConfig(level=logging.DEBUG, format="[%(name)s] [%(levelname)s] %(message)s",
-                        filename=expt_dir / 'expt.log')
-
     cfg.train.class_names = list(range(10))
     cfg.transformer.sample_rate = 22050
 
@@ -177,11 +172,6 @@ def main(cfg, expt_dir, hyperparameters):
 
 @hydra.main(config_name="config")
 def hydra_main(cfg: ExampleEscConfig):
-    console = logging.StreamHandler()
-    console.setFormatter(logging.Formatter("[%(name)s] [%(levelname)s] %(message)s"))
-    console.setLevel(logging.INFO)
-    logging.getLogger("ml").addHandler(console)
-
     hyperparameters = {
         'train.model.optim.lr': [cfg.train.model.optim.lr],
         'transformer.transform': ['logmel'],
@@ -190,8 +180,8 @@ def hydra_main(cfg: ExampleEscConfig):
         'transformer.n_mels': [cfg.transformer.n_mels],
     }
 
-    cfg.expt_id = f'{OmegaConf.get_type(cfg.train.model_type)}'
-    expt_dir = Path(utils.to_absolute_path('output')) / 'example_face' / f'{cfg.expt_id}'
+    cfg.expt_id = f'{cfg.train.model_type.value}'
+    expt_dir = Path(utils.to_absolute_path('output')) / 'example_esc' / f'{cfg.expt_id}'
     expt_dir.mkdir(exist_ok=True, parents=True)
     main(cfg, expt_dir, hyperparameters)
 
