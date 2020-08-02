@@ -182,11 +182,12 @@ def hydra_main(cfg: ExampleEscConfig):
     logging.getLogger("ml").addHandler(console)
 
     hyperparameters = {
-        'train.model.optim.lr': [1e-5],
+        'train.model.optim.lr': [1e-4],
         'transformer.transform': ['logmel'],
         'train.model.loss_config.loss_func': ['ce'],
         'data.sample_balance': ['same'],
         'transformer.n_mels': [200],
+        'train.model.n_mels': [200],
     }
 
     cfg.expt_id = f'{OmegaConf.get_type(cfg.train.model_type)}'
