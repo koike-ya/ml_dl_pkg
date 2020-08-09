@@ -179,6 +179,8 @@ def hydra_main(cfg: ExampleEscConfig):
         'data.sample_balance': ['same'],
         'transformer.n_mels': [cfg.transformer.n_mels],
     }
+    if cfg.train.model_type.value == 'panns':
+        cfg.train.model.n_mels = cfg.transformer.n_mels
 
     cfg.expt_id = f'{cfg.train.model_type.value}'
     expt_dir = Path(utils.to_absolute_path('output')) / 'example_esc' / f'{cfg.expt_id}'
