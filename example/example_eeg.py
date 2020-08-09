@@ -11,6 +11,7 @@ import hydra
 import mlflow
 import numpy as np
 import pandas as pd
+import torch
 from hydra import utils
 from joblib import Parallel, delayed
 from omegaconf import OmegaConf
@@ -46,7 +47,7 @@ def set_load_func(sr, one_audio_sec):
         elif wave.shape[0] < const_length:
             n_pad = (const_length - wave.shape[0]) // 2 + 1
             wave = np.pad(wave[:const_length], n_pad)[:const_length]
-        return wave.reshape((1, -1))
+        return torch.from_numpy(wave.reshape((1, -1)))
 
     return load_func
 

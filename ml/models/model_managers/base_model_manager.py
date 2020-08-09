@@ -13,7 +13,6 @@ from ml.models.loss import LossConfig
 from typing import List, Any
 from omegaconf import MISSING
 from ml.utils.enums import TaskType, ModelType
-from ml.preprocess.augment import SpecAugConfig
 
 
 @dataclass
@@ -41,7 +40,6 @@ class ModelConfig:  # ML/DL model arguments
 @dataclass
 class ExtendedModelConfig(ModelConfig):
     mixup_alpha: float = 0.0    # Beta distirbution alpha for mixup
-    spec_augment: SpecAugConfig = SpecAugConfig()
 
 
 class BaseModelManager(metaclass=ABCMeta):
