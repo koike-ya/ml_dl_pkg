@@ -105,7 +105,7 @@ def main(cfg, expt_dir, hyperparameters):
     dataset_cls = ManifestWaveDataSet
     cfg, groups = create_manifest(cfg, expt_dir)
 
-    process_func = ['logmel', 'time_mask']
+    process_func = ['logmel', 'normalize']
 
     patterns = list(itertools.product(*hyperparameters.values()))
     val_results = pd.DataFrame(np.zeros((len(patterns), len(hyperparameters) + len(metrics_names['val']))),

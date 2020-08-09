@@ -11,6 +11,7 @@ import hydra
 import mlflow
 import numpy as np
 import pandas as pd
+import torch
 from hydra import utils
 from joblib import Parallel, delayed
 from omegaconf import OmegaConf
@@ -38,7 +39,7 @@ def label_func(row):
 
 def load_func(row):
     im = np.array(list(map(int, row[1].split(' ')))).reshape((48, 48)) / 255
-    return im[None, :, :]
+    return torch.tensor(im[None, :, :], dtype=torch.float)
 
 
 def create_manifest(expt_conf, expt_dir):
@@ -191,7 +192,7 @@ def hydra_main(cfg: ExampleFaceConfig):
             'data.sample_balance': ['same'],
         }
 
-    cfg.expt_id = f'{OmegaConf.get_type(cfg.train.model_type)}_{cfg.train.model.pretrained}'
+    cfg.expt_id = f'{cfg.train.model_type.value}_pretrain-{cfg.train.model.pretrained}'
     expt_dir = Path(utils.to_absolute_path('output')) / 'example_face' / f'{cfg.expt_id}'
     expt_dir.mkdir(exist_ok=True, parents=True)
     main(cfg, expt_dir, hyperparameters)

@@ -7,9 +7,6 @@ from torchaudio.transforms import MelSpectrogram, TimeMasking
 
 from ml.utils.enums import TimeFrequencyFeature
 
-processes = {'logmel': MelSpectrogram, 'time_mask': TimeMasking}
-only_train_processes = ['time_mask']
-
 
 @dataclass
 class TransConfig:
@@ -21,7 +18,7 @@ class TransConfig:
     transform: TimeFrequencyFeature = TimeFrequencyFeature.none
     f_min: float = 0.0  # High pass filter
     f_max: float = sample_rate / 2  # Low pass filter
-    time_mask_len: int = 1000  # maximum possible length of the mask. Indices uniformly sampled from [0, time_mask_param)
+    time_mask_len: int = 10  # maximum possible length of the mask. Indices uniformly sampled from [0, time_mask_param)
 
 
 def _init_process(cfg, process):
@@ -30,12 +27,22 @@ def _init_process(cfg, process):
                               n_mels=cfg.n_mels)
     elif process == 'time_mask':
         return TimeMasking(cfg.time_mask_len)
+    elif process == 'normalize':
+        return Normalize()
     else:
         raise NotImplementedError
 
 
+class Normalize(torch.nn.Module):
+    def forward(self, x: Tensor):
+        return (x - x.mean()) / x.std()
+
+
 class Transform(torch.nn.Module):
-    # TODO GPU対応
+    # TODO GPU対応(Multiprocess対応, spawn)
+    processes = {'logmel': MelSpectrogram, 'time_mask': TimeMasking, 'normalize': Normalize}
+    only_train_processes = ['time_mask']
+
     def __init__(self,
                  cfg: Dict,
                  phase: str,
@@ -49,7 +56,7 @@ class Transform(torch.nn.Module):
 
     def _init_components(self, process_order):
         for process in process_order:
-            if self.phase != 'train' and process in only_train_processes:
+            if self.phase != 'train' and process in self.only_train_processes:
                 continue
 
             self.components.append(

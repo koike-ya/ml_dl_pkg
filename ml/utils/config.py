@@ -27,7 +27,7 @@ model_list = nn_model_list + pretrained_model_list + extended_models + ml_model_
 
 defaults = [
     {'train.model': 'cnn'},
-    {'train.model.optim': 'sgd'},
+    {'train.model.optim': 'adam'},
 ]
 
 
