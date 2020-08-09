@@ -6,7 +6,7 @@ import torch
 from sklearn.exceptions import NotFittedError
 from xgboost.core import XGBoostError
 
-from ml.config import TEST_PATH
+from ml.utils.config import TEST_PATH
 from ml.models.ml_models.decision_trees import XGBoost, CatBoost
 from ml.models.ml_models.toolbox import BaseMLPredictor, KNN, SGDC
 

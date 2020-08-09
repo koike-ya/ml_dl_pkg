@@ -1,11 +1,17 @@
-from typing import Dict
+from dataclasses import dataclass
+from pathlib import Path
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from ml.models.nn_models.stft import Spectrogram, LogmelFilterBank
-from ml.preprocess.augment import SpecAugment
+from ml.utils.nn_config import NNModelConfig
+
+
+@dataclass
+class PANNsConfig(NNModelConfig):    # PANNs model arguments
+    n_mels: int = 64            # Number of mel filters banks
 
 
 def init_layer(layer):
@@ -69,8 +75,7 @@ class ConvBlock(nn.Module):
 
 
 class Cnn14(nn.Module):
-    def __init__(self, sample_rate, window_size, hop_size, mel_bins, fmin,
-                 fmax, classes_num, checkpoint_path, spec_augment_params: Dict):
+    def __init__(self, mel_bins, classes_num, checkpoint_path):
         super(Cnn14, self).__init__()
 
         window = 'hann'
@@ -79,15 +84,16 @@ class Cnn14(nn.Module):
         ref = 1.0
         amin = 1e-10
         top_db = None
+        n_fft = 1024
 
         # Spectrogram extractor
-        self.spectrogram_extractor = Spectrogram(n_fft=1024, hop_length=320,
+        self.spectrogram_extractor = Spectrogram(n_fft=n_fft, hop_length=320,
             win_length=1024, window=window, center=center, pad_mode=pad_mode,
             freeze_parameters=True)
 
         # Logmel feature extractor
-        self.logmel_extractor = LogmelFilterBank(sr=2000, n_fft=1024,
-            n_mels=64, fmin=fmin, fmax=fmax, ref=ref, amin=amin, top_db=top_db,
+        self.logmel_extractor = LogmelFilterBank(sr=2000, n_fft=n_fft,
+            n_mels=64, fmin=0, fmax=n_fft // 2, ref=ref, amin=amin, top_db=top_db,
             freeze_parameters=True)
 
         self.bn0 = nn.BatchNorm2d(64)
@@ -105,30 +111,13 @@ class Cnn14(nn.Module):
         self.init_weight()
 
         if checkpoint_path:
-            checkpoint = torch.load(checkpoint_path, map_location='cpu')
+            checkpoint = torch.load(Path(checkpoint_path).resolve(), map_location='cpu')
             self.load_state_dict(checkpoint['model'])
 
-        # Spectrogram extractor
-        self.spectrogram_extractor = Spectrogram(n_fft=window_size, hop_length=hop_size,
-                                                 win_length=window_size, window=window, center=center,
-                                                 pad_mode=pad_mode,
-                                                 freeze_parameters=True)
-
-        # Logmel feature extractor
-        self.logmel_extractor = LogmelFilterBank(sr=sample_rate, n_fft=window_size,
-                                                 n_mels=mel_bins, fmin=fmin, fmax=fmax, ref=ref, amin=amin,
-                                                 top_db=top_db,
-                                                 freeze_parameters=True)
         self.bn0 = nn.BatchNorm2d(mel_bins)
-
-        # Spec augmenter
-        self.spec_augmenter = SpecAugment(**spec_augment_params)
-
         self.fc_audioset = nn.Linear(2048, classes_num, bias=True)
 
         self.feature_extractor = nn.ModuleList([
-            self.spectrogram_extractor,
-            self.logmel_extractor,
             self.bn0,
             *[getattr(self, f'conv_block{i}') for i in range(1, 7)],
         ])
@@ -144,15 +133,9 @@ class Cnn14(nn.Module):
         init_layer(self.fc_audioset)
 
     def feature_extract(self, x):
-        # print(x.size())
-        # x = self.spectrogram_extractor(x)  # (batch_size, 1, time_steps, freq_bins)
-        # x = self.logmel_extractor(x)  # (batch_size, 1, time_steps, mel_bins)
-        x = x.transpose(1, 3)
+        x = x.transpose(1, 2)
         x = self.bn0(x)
-        x = x.transpose(1, 3)
-
-        if self.training:
-            x = self.spec_augmenter(x)
+        x = x.transpose(1, 2)
 
         x = self.conv_block1(x, pool_size=(2, 2), pool_type='avg')
         x = F.dropout(x, p=0.2, training=self.training)
@@ -182,30 +165,15 @@ class Cnn14(nn.Module):
 
     def forward(self, input, feature_extract=False):
         """
-        Input: (batch_size, data_length)"""
+        Input: (batch_size, n_mels, time_frames)"""
         x = self.feature_extract(input)
 
         return self.classify(x)
 
 
 def construct_panns(cfg):
-    sample_rate = cfg['sample_rate']
-    window_size = cfg['window_size'] * sample_rate
-    hop_size = cfg['window_stride'] * sample_rate
-    mel_bins = cfg['n_mels']
-    fmin = cfg['low_cutoff']
-    fmax = cfg['high_cutoff']
-
-    spec_augment_params = dict(
-        time_drop_rate=cfg['time_drop_rate'],
-        freq_drop_rate=cfg['freq_drop_rate'],
-    )
-
-    checkpoint_path = cfg['checkpoint_path']
     device = torch.device('cuda') if cfg['cuda'] and torch.cuda.is_available() else torch.device('cpu')
 
-    model = Cnn14(sample_rate=sample_rate, window_size=window_size, hop_size=hop_size, mel_bins=mel_bins, fmin=fmin,
-                  fmax=fmax, classes_num=len(cfg['class_names']), checkpoint_path=checkpoint_path,
-                  spec_augment_params=spec_augment_params).to(device)
+    model = Cnn14(mel_bins=cfg.n_mels, classes_num=len(cfg.class_names), checkpoint_path=cfg.checkpoint_path).to(device)
 
     return model

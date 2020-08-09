@@ -22,6 +22,19 @@ def ml_model_manager_args(parser):
     return parser
 
 
+from dataclasses import dataclass, field
+from typing import List
+from ml.utils.enums import SVMKernelType
+
+
+@dataclass
+class MlModelManagerConfig:     # ML model hyper parameters
+    # TODO This is only for SVM ?
+    C: float = 0.01
+    svm_kernel: SVMKernelType = SVMKernelType.linear
+    early_stopping_round: int = 10
+
+
 class BaseMLPredictor:
     def __init__(self, class_labels, cfg):
         self.class_labels = class_labels

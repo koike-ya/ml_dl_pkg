@@ -1,31 +1,35 @@
-import argparse
 import itertools
 import logging
 import pprint
 import shutil
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import datetime as dt
 from pathlib import Path
 
+import hydra
 import mlflow
 import numpy as np
 import pandas as pd
+from hydra import utils
 from joblib import Parallel, delayed
+from omegaconf import OmegaConf
 
+from ml.models.nn_models.cnn import CNNConfig
+from ml.models.nn_models.cnn_rnn import CNNRNNConfig
+from ml.models.nn_models.rnn import RNNConfig
 from ml.src.dataset import ManifestWaveDataSet
-from ml.tasks.base_experiment import typical_train, base_expt_args, typical_experiment
+from ml.tasks.base_experiment import typical_train, typical_experiment
+from ml.utils.config import ExptConfig, before_hydra
 from ml.utils.utils import dump_dict
 
 BINARY_LABELS = {'Z': 0, 'O': 0, 'N': 0, 'F': 0, 'S': 1}
 
 
-def expt_args(parser):
-    parser = base_expt_args(parser)
-    expt_parser = parser.add_argument_group("Experiment arguments")
-    expt_parser.add_argument('--n-parallel', default=1, type=int)
-    expt_parser.add_argument('--mlflow', action='store_true')
-
-    return parser
+@dataclass
+class ExampleEEGConfig(ExptConfig):
+    n_parallel: int = 1
+    mlflow: bool = False
 
 
 def label_func(row):
@@ -47,8 +51,8 @@ def set_load_func(sr, one_audio_sec):
     return load_func
 
 
-def create_manifest(expt_conf, expt_dir):
-    data_dir = Path(__file__).resolve().parent / 'input' / 'eeg'
+def create_manifest(cfg, expt_dir):
+    data_dir = Path(utils.to_absolute_path('input')) / 'eeg'
     path_list = [str(p.resolve()) for p in sorted(list(data_dir.iterdir())) if p.is_file()]
 
     path_df = pd.DataFrame([path_list]).T.sample(n=500).T
@@ -64,30 +68,42 @@ def create_manifest(expt_conf, expt_dir):
 
     for phase in ['train', 'val', 'test']:
         locals()[f'{phase}_df'].to_csv(expt_dir / f'{phase}_manifest.csv', index=False, header=None)
-        expt_conf[f'{phase}_path'] = expt_dir / f'{phase}_manifest.csv'
+        cfg.train[f'{phase}_path'] = expt_dir / f'{phase}_manifest.csv'
+
+    return cfg
+
+
+def set_hyperparameter(expt_conf, param, param_value):
+    if len(param.split('.')) == 1:
+        expt_conf[param] = param_value
+    else:
+        tmp = expt_conf
+        for attr in param.split('.')[:-1]:
+            tmp = getattr(tmp, str(attr))
+        setattr(tmp, param.split('.')[-1], param_value)
 
     return expt_conf
 
 
-def main(expt_conf, expt_dir, hyperparameters):
-    if expt_conf['expt_id'] == 'timestamp':
-        expt_conf['expt_id'] = dt.today().strftime('%Y-%m-%d_%H:%M')
+def main(cfg, expt_dir, hyperparameters):
+    if cfg.expt_id == 'timestamp':
+        cfg.expt_id = dt.today().strftime('%Y-%m-%d_%H:%M')
 
     logging.basicConfig(level=logging.DEBUG, format="[%(name)s] [%(levelname)s] %(message)s",
                         filename=expt_dir / 'expt.log')
 
-    expt_conf['class_names'] = [0, 1]
-    expt_conf['sample_rate'] = 173.61
+    cfg.train.class_names = [0, 1]
+    cfg.transformer.sample_rate = 173.61
 
     one_audio_sec = 10
     dataset_cls = ManifestWaveDataSet
-    load_func = set_load_func(expt_conf['sample_rate'], one_audio_sec)
+    load_func = set_load_func(cfg.transformer.sample_rate, one_audio_sec)
     metrics_names = {'train': ['loss', 'uar'],
                      'val': ['loss', 'uar'],
                      'test': ['loss', 'uar']}
 
     dataset_cls = ManifestWaveDataSet
-    expt_conf = create_manifest(expt_conf, expt_dir)
+    cfg = create_manifest(cfg, expt_dir)
     process_func = None
 
     patterns = list(itertools.product(*hyperparameters.values()))
@@ -98,29 +114,28 @@ def main(expt_conf, expt_dir, hyperparameters):
     pp.pprint(hyperparameters)
     groups = None
 
-    def experiment(pattern, expt_conf):
+    def experiment(pattern, cfg):
         for i, param in enumerate(hyperparameters.keys()):
-            expt_conf[param] = pattern[i]
+            cfg = set_hyperparameter(cfg, param, pattern[i])
 
-        expt_conf['model_path'] = str(expt_dir / f"{'_'.join([str(p).replace('/', '-') for p in pattern])}.pth")
-        expt_conf['log_id'] = f"{'_'.join([str(p).replace('/', '-') for p in pattern])}"
-        # TODO cv時はmean と stdをtrainとvalの分割後に求める必要がある
+        cfg.train.model.model_path = str(expt_dir / f"{'_'.join([str(p).replace('/', '-') for p in pattern])}.pth")
+        cfg.train.log_id = f"{'_'.join([str(p).replace('/', '-') for p in pattern])}"
+
         with mlflow.start_run():
-            result_series, val_pred, _ = typical_train(expt_conf, load_func, label_func, process_func, dataset_cls,
+            result_series, val_pred, _ = typical_train(cfg, load_func, label_func, process_func, dataset_cls,
                                                        groups)
 
             mlflow.log_params({hyperparameter: value for hyperparameter, value in zip(hyperparameters.keys(), pattern)})
-            # mlflow.log_artifacts(expt_dir)
 
         return result_series, val_pred
 
     # For debugging
-    if expt_conf['n_parallel'] == 1:
-        result_pred_list = [experiment(pattern, deepcopy(expt_conf)) for pattern in patterns]
+    if cfg.n_parallel == 1:
+        result_pred_list = [experiment(pattern, deepcopy(cfg)) for pattern in patterns]
     else:
-        expt_conf['n_jobs'] = 0
-        result_pred_list = Parallel(n_jobs=expt_conf['n_parallel'], verbose=0)(
-            [delayed(experiment)(pattern, deepcopy(expt_conf)) for pattern in patterns])
+        cfg.n_jobs = 0
+        result_pred_list = Parallel(n_jobs=cfg.n_parallel, verbose=0)(
+            [delayed(experiment)(pattern, deepcopy(cfg)) for pattern in patterns])
 
     val_results.iloc[:, :len(hyperparameters)] = [[str(param) for param in p] for p in patterns]
     result_list = np.array([result for result, pred in result_pred_list])
@@ -132,18 +147,19 @@ def main(expt_conf, expt_dir, hyperparameters):
     print(f"Devel results saved into {expt_dir / 'val_results.csv'}")
     for (_, _), pattern in zip(result_pred_list, patterns):
         pattern_name = f"{'_'.join([str(p).replace('/', '-') for p in pattern])}"
-        dump_dict(expt_dir / f'{pattern_name}.txt', expt_conf)
+        dump_dict(expt_dir / f'{pattern_name}.txt', cfg)
 
     # Train with train + devel dataset
-    if expt_conf['test']:
+    if cfg.test:
         best_trial_idx = val_results['uar'].argmax()
 
         best_pattern = patterns[best_trial_idx]
         for i, param in enumerate(hyperparameters.keys()):
-            expt_conf[param] = best_pattern[i]
+            cfg = set_hyperparameter(cfg, param, best_pattern[i])
+
         dump_dict(expt_dir / 'best_parameters.txt', {p: v for p, v in zip(hyperparameters.keys(), best_pattern)})
 
-        metrics, pred_dict_list, _ = typical_experiment(expt_conf, load_func, label_func, process_func, dataset_cls,
+        metrics, pred_dict_list, _ = typical_experiment(cfg, load_func, label_func, process_func, dataset_cls,
                                                         groups)
 
         sub_name = f"uar-{metrics[-1]:.4f}_sub_{'_'.join([str(p).replace('/', '-') for p in best_pattern])}.csv"
@@ -154,63 +170,63 @@ def main(expt_conf, expt_dir, hyperparameters):
     mlflow.end_run()
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='train arguments')
-    expt_conf = vars(expt_args(parser).parse_args())
-
+@hydra.main(config_name="config")
+def hydra_main(cfg: ExampleEEGConfig):
     console = logging.StreamHandler()
     console.setFormatter(logging.Formatter("[%(name)s] [%(levelname)s] %(message)s"))
     console.setLevel(logging.INFO)
     logging.getLogger("ml").addHandler(console)
 
-    if expt_conf['model_type'] == 'cnn':
+    if OmegaConf.get_type(cfg.train.model) == CNNConfig:
         hyperparameters = {
-            'model_type': ['cnn'],
-            'transform': [None],
-            'cnn_channel_list': [[4, 8, 16, 32]],
-            'cnn_kernel_sizes': [[[4]] * 4],
-            'cnn_stride_sizes': [[[2]] * 4],
-            'cnn_padding_sizes': [[[1]] * 4],
-            'lr': [1e-4],
+            'transformer.transform': ['none'],
+            'train.model.channel_list': [[4, 8, 16, 32]],
+            'train.model.kernel_sizes': [[[4]] * 4],
+            'train.model.stride_sizes': [[[2]] * 4],
+            'train.model.padding_sizes': [[[1]] * 4],
+            'train.model.optim.lr': [1e-4],
         }
-    elif expt_conf['model_type'] == 'cnn_rnn':
+    elif OmegaConf.get_type(cfg.train.model) == CNNRNNConfig:
         hyperparameters = {
-            'lr': [1e-4],
-            'transform': [None],
-            'cnn_channel_list': [[4, 8, 16, 32]],
-            'cnn_kernel_sizes': [[[4]] * 4],
-            'cnn_stride_sizes': [[[2]] * 4],
-            'cnn_padding_sizes': [[[1]] * 4],
-            'rnn_type': [expt_conf['rnn_type']],
-            'bidirectional': [True],
-            'rnn_n_layers': [1, 2],
-            'rnn_hidden_size': [10, 50],
+            'train.model.optim.lr': [1e-3, 1e-4, 1e-5],
+            'transformer.transform': ['none'],
+            'train.model.channel_list': [[4, 8, 16, 32]],
+            'train.model.kernel_sizes': [[[4]] * 4],
+            'train.model.stride_sizes': [[[2]] * 4],
+            'train.model.padding_sizes': [[[1]] * 4],
+            'train.model.rnn_type': [cfg.train.model.rnn_type],
+            'train.model.bidirectional': [True],
+            'train.model.rnn_n_layers': [1, 2],
+            'train.model.rnn_hidden_size': [10, 50],
         }
-    elif expt_conf['model_type'] == 'rnn':
+    elif OmegaConf.get_type(cfg.train.model) == RNNConfig:
         hyperparameters = {
-            'bidirectional': [True, False],
-            'rnn_type': ['lstm', 'gru'],
-            'rnn_n_layers': [1, 2],
-            'rnn_hidden_size': [10, 50],
-            'transform': [None],
-            'lr': [1e-4],
+            'train.model.bidirectional': [True, False],
+            'train.model.rnn_type': ['lstm', 'gru'],
+            'train.model.rnn_n_layers': [1, 2],
+            'train.model.rnn_hidden_size': [10, 50],
+            'transformer.transform': ['none'],
+            'train.model.optim.lr': [1e-4],
         }
     else:
         hyperparameters = {
-            'lr': [1e-4],
+            'train.model.optim.lr': [1e-4],
             'batch_size': [16],
-            'transform': ['logmel'],
+            'transformer.transform': ['logmel'],
             'loss_func': ['ce'],
             'epoch_rate': [1.0],
             'sample_balance': ['same'],
         }
 
-    hyperparameters['model_type'] = [expt_conf['model_type']]
-
-    expt_conf['expt_id'] = f"{expt_conf['model_type']}_{expt_conf['transform']}"
-    expt_dir = Path(__file__).resolve().parent / 'output' / 'example_eeg' / f"{expt_conf['expt_id']}"
+    cfg.expt_id = f'{OmegaConf.get_type(cfg.train.model_type)}'
+    expt_dir = Path(utils.to_absolute_path('output')) / 'example_face' / f'{cfg.expt_id}'
     expt_dir.mkdir(exist_ok=True, parents=True)
-    main(expt_conf, expt_dir, hyperparameters)
+    main(cfg, expt_dir, hyperparameters)
 
-    if not expt_conf['mlflow']:
+    if not cfg.mlflow:
         shutil.rmtree('mlruns')
+
+
+if __name__ == '__main__':
+    config_store = before_hydra(ExampleEEGConfig)
+    hydra_main()

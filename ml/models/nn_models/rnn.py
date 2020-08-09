@@ -12,28 +12,24 @@ supported_rnns = {
     'rnn': nn.RNN,
     'gru': nn.GRU
 }
-supported_rnns_inv = dict((v, k) for k, v in supported_rnns.items())
 
 
-def rnn_args(parser):
-    rnn_parser = parser.add_argument_group("RNN model arguments")
+from dataclasses import dataclass
+from ml.utils.enums import RNNType
+from ml.utils.nn_config import NNModelConfig
 
-    # RNN params
-    rnn_parser.add_argument('--rnn-type', default='gru',
-                            help='Type of the RNN. rnn|gru|lstm|deepspeech are supported')
-    rnn_parser.add_argument('--rnn-hidden-size', default=100, type=int, help='Hidden size of RNNs')
-    rnn_parser.add_argument('--rnn-n-layers', default=1, type=int, help='Number of RNN layers')
-    rnn_parser.add_argument('--max-norm', default=400, type=int,
-                            help='Norm cutoff to prevent explosion of gradients')
-    rnn_parser.add_argument('--no-bidirectional', dest='bidirectional', action='store_false', default=True,
-                            help='Turn off bi-directional RNNs, introduces lookahead convolution')
-    rnn_parser.add_argument('--inference-softmax', dest='is_inference_softmax', action='store_true',
-                            help='Turn on inference softmax')
-    rnn_parser.add_argument('--batch-normalization', dest='batch_norm', action='store_true',
-                            default=False, help='Batch normalization or not')
-    rnn_parser.add_argument('--sequence-wise', dest='sequence_wise', action='store_true',
-                            default=False, help='sequence-wise batch normalization or not')
-    return parser
+
+@dataclass
+class RNNConfig(NNModelConfig):    # RNN model arguments
+    # TODO remove "rnn_"
+    rnn_type: RNNType = RNNType.gru     # Type of the RNN. rnn|gru|lstm|deepspeech are supported
+    rnn_hidden_size: int = 100      # Hidden size of RNNs
+    rnn_n_layers: int = 1  # Number of RNN layers
+    max_norm: int = 400     # Norm cutoff to prevent explosion of gradients
+    bidirectional: bool = True      # Turn off bi-directional RNNs, introduces lookahead convolution
+    # TODO change to bn
+    batch_norm_size: int = 0   # Batch normalization or not
+    seq_len: int = 0  # Length of sequence
 
 
 def construct_rnn(cfg, output_size):
@@ -50,14 +46,13 @@ def construct_rnn(cfg, output_size):
     }
     :return:
     """
-    if len(cfg['input_size']) == 2:
-        cfg['input_size'] = cfg['input_size'][0]
+    if len(cfg.input_size) == 2:
+        cfg.input_size = cfg.input_size[0]
 
-    return RNNClassifier(cfg['batch_size'], cfg['input_size'], out_time_feature=cfg['seq_len'],
-                         rnn_type=supported_rnns[cfg['rnn_type']], output_size=output_size,
-                         rnn_hidden_size=cfg['rnn_hidden_size'], n_layers=cfg['rnn_n_layers'],
-                         bidirectional=cfg['bidirectional'], is_inference_softmax=cfg['is_inference_softmax'],
-                         batch_norm_size=cfg.get('batch_norm_size'))
+    return RNNClassifier(cfg.input_size, out_time_feature=cfg.seq_len,
+                         rnn_type=supported_rnns[cfg.rnn_type.value], output_size=output_size,
+                         rnn_hidden_size=cfg.rnn_hidden_size, n_layers=cfg.rnn_n_layers,
+                         bidirectional=cfg.bidirectional, batch_norm_size=cfg.get('batch_norm_size'))
 
 
 class SequenceWise(nn.Module):
@@ -86,11 +81,10 @@ class SequenceWise(nn.Module):
 
 
 class BatchRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, batch_size, batch_norm_size, sequence_wise=False, rnn_type=nn.LSTM,
+    def __init__(self, input_size, hidden_size, batch_norm_size, sequence_wise=False, rnn_type=nn.LSTM,
                  bidirectional=False):
         super(BatchRNN, self).__init__()
         self.input_size = input_size
-        self.batch_size = batch_size
         self.hidden_size = hidden_size
         self.bidirectional = bidirectional
         self.batch_norm = SequenceWise(nn.BatchNorm1d(batch_norm_size)) if sequence_wise else nn.BatchNorm1d(batch_norm_size)
@@ -111,11 +105,10 @@ class BatchRNN(nn.Module):
 
 
 class RNN(nn.Module):
-    def __init__(self, input_size, hidden_size, batch_size, batch_norm_size, sequence_wise=False, rnn_type=nn.LSTM,
+    def __init__(self, input_size, hidden_size, batch_norm_size, sequence_wise=False, rnn_type=nn.LSTM,
                  bidirectional=False):
         super(RNN, self).__init__()
         self.input_size = input_size
-        self.batch_size = batch_size
         self.hidden_size = hidden_size
         self.bidirectional = bidirectional
         self.rnn = initialize_weights(
@@ -139,17 +132,17 @@ class InferenceBatchSoftmax(nn.Module):
 
 
 class RNNClassifier(nn.Module):
-    def __init__(self, batch_size, input_size, out_time_feature, output_size, batch_norm_size=None, sequence_wise=False,
-                 rnn_type=nn.LSTM, rnn_hidden_size=768, n_layers=5, bidirectional=True, is_inference_softmax=False):
+    def __init__(self, input_size, out_time_feature, output_size, batch_norm_size=None, sequence_wise=False,
+                 rnn_type=nn.LSTM, rnn_hidden_size=768, n_layers=5, bidirectional=True):
         super(RNNClassifier, self).__init__()
 
         rnns = []
         rnn_cls = BatchRNN if batch_norm_size else RNN
-        rnn = rnn_cls(input_size=input_size, hidden_size=rnn_hidden_size, batch_size=batch_size, rnn_type=rnn_type,
+        rnn = rnn_cls(input_size=input_size, hidden_size=rnn_hidden_size, rnn_type=rnn_type,
                        bidirectional=bidirectional, batch_norm_size=batch_norm_size, sequence_wise=sequence_wise)
         rnns.append(('0', rnn))
         for x in range(n_layers - 1):
-            rnn = rnn_cls(input_size=rnn_hidden_size, hidden_size=rnn_hidden_size, batch_size=batch_size,
+            rnn = rnn_cls(input_size=rnn_hidden_size, hidden_size=rnn_hidden_size,
                           rnn_type=rnn_type, bidirectional=bidirectional, batch_norm_size=rnn_hidden_size,
                           sequence_wise=sequence_wise)
             rnns.append(('%d' % (x + 1), rnn))
@@ -163,7 +156,6 @@ class RNNClassifier(nn.Module):
             # initialize_weights(nn.Linear(rnn_hidden_size, output_size, bias=False))
         )
         self.classify = True if output_size != 1 else False
-        self.is_inference_softmax = is_inference_softmax
 
     def forward(self, x):
         x = x.transpose(0, 2).transpose(1, 2)    # batch x feature x time -> # time x batch x feature
@@ -182,27 +174,21 @@ class RNNClassifier(nn.Module):
         if not self.classify:
             return x
 
-        # identity in training mode, softmax in eval model
-        if self.is_inference_softmax:
-            x = InferenceBatchSoftmax()(x)
-        else:
-            x = torch.exp(nn.LogSoftmax(dim=-1)(x))
+        x = torch.exp(nn.LogSoftmax(dim=-1)(x))
 
         return x
 
 
 class DeepSpeech(RNNClassifier):
-    def __init__(self, conv, input_size, out_time_feature, batch_size, rnn_type=nn.LSTM, labels="abc", eeg_conf=None,
-                 rnn_hidden_size=768, n_layers=5, bidirectional=True, is_inference_softmax=False, output_size=2):
-        super(DeepSpeech, self).__init__(batch_size, input_size=input_size, out_time_feature=out_time_feature,
-                                         rnn_type=nn.LSTM, rnn_hidden_size=rnn_hidden_size, n_layers=n_layers,
-                                         bidirectional=bidirectional, is_inference_softmax=is_inference_softmax,
-                                         output_size=output_size, batch_norm_size=input_size)
+    def __init__(self, conv, input_size, out_time_feature, rnn_type=nn.LSTM, rnn_hidden_size=768, n_layers=5,
+                 bidirectional=True, output_size=2):
+        super(DeepSpeech, self).__init__(input_size=input_size, out_time_feature=out_time_feature, rnn_type=nn.LSTM,
+                                         rnn_hidden_size=rnn_hidden_size, n_layers=n_layers,
+                                         bidirectional=bidirectional, output_size=output_size, batch_norm_size=input_size)
 
         self.hidden_size = rnn_hidden_size
         self.hidden_layers = n_layers
         self.rnn_type = rnn_type
-        self.labels = labels
         self.bidirectional = bidirectional
 
         self.conv = conv
