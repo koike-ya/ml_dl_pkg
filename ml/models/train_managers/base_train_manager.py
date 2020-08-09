@@ -112,23 +112,23 @@ class BaseTrainManager(metaclass=ABCMeta):
         
     def _init_seed(self) -> None:
         # Set seeds for determinism
-        torch.manual_seed(self.cfg['seed'])
-        torch.cuda.manual_seed_all(self.cfg['seed'])
-        np.random.seed(self.cfg['seed'])
-        random.seed(self.cfg['seed'])
+        torch.manual_seed(self.cfg.seed)
+        torch.cuda.manual_seed_all(self.cfg.seed)
+        np.random.seed(self.cfg.seed)
+        random.seed(self.cfg.seed)
 
     def _init_device(self) -> torch.device:
         if self.cfg.cuda and self.cfg.model_type.value in [name.value for name in list(NNType) + list(PretrainedType)]:
             device = torch.device("cuda")
-            torch.cuda.set_device(self.cfg['gpu_id'])
+            torch.cuda.set_device(self.cfg.gpu_id)
         else:
             device = torch.device("cpu")
 
         return device
 
     def _init_logger(self) -> TensorBoardLogger:
-        if self.cfg['tensorboard']:
-            return TensorBoardLogger(self.cfg['log_id'], self.cfg['log_dir'])
+        if self.cfg.tensorboard:
+            return TensorBoardLogger(self.cfg.log_id, self.cfg.log_dir)
 
     def _record_log(self, phase, epoch) -> None:
         values = {}
@@ -141,11 +141,11 @@ class BaseTrainManager(metaclass=ABCMeta):
         raise NotImplementedError
 
     def _average_tta(self, pred_list, label_list):
-        new_pred_list = np.zeros((-1, pred_list.shape[0] // self.cfg['tta']))
+        new_pred_list = np.zeros((-1, pred_list.shape[0] // self.cfg.tta))
         for label in range(pred_list.shape[1]):
-            new_pred_list[:, label] = pred_list[:, label].reshape(self.cfg['tta'], -1).mean(axis=0)
+            new_pred_list[:, label] = pred_list[:, label].reshape(self.cfg.tta, -1).mean(axis=0)
         pred_list = new_pred_list
-        label_list = label_list[:label_list.shape[0] // self.cfg['tta']]
+        label_list = label_list[:label_list.shape[0] // self.cfg.tta]
 
         return pred_list, label_list
 
@@ -167,14 +167,14 @@ class BaseTrainManager(metaclass=ABCMeta):
 
         for metric in self.metrics['test']:
             if metric.name == 'loss':
-                if self.cfg['task_type'].value == 'classify':
+                if self.cfg.task_type.value == 'classify':
                     y_onehot = torch.zeros(label_list.shape[0], len(self.class_labels))
                     y_onehot = y_onehot.scatter_(1, torch.from_numpy(label_list).view(-1, 1).type(torch.LongTensor), 1)
                     if not self.cfg.model.return_prob:
                         pred_onehot = torch.zeros(pred_list.shape[0], len(self.class_labels))
                         pred_onehot = pred_onehot.scatter_(1, torch.from_numpy(pred_list).view(-1, 1).type(torch.LongTensor), 1)
                     loss_value = self.model_manager.criterion(pred_onehot.to(self.device), y_onehot.to(self.device)).item()
-                elif self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn']:
+                elif self.cfg.model_type in ['rnn', 'cnn', 'cnn_rnn']:
                     loss_value = self.model_manager.criterion(torch.from_numpy(pred_list).to(self.device),
                                                               torch.from_numpy(label_list).to(self.device))
             else:
@@ -184,7 +184,7 @@ class BaseTrainManager(metaclass=ABCMeta):
             logger.info(f"{phase} {metric.name}: {metric.average_meter.value :.4f}")
             metric.average_meter.update_best()
 
-        if self.cfg['task_type'].value == 'classify':
+        if self.cfg.task_type.value == 'classify':
             confusion_matrix_ = confusion_matrix(label_list, pred_list,
                                                  labels=list(range(len(self.class_labels))))
             logger.info(f'Confusion matrix: \n{confusion_matrix_}')

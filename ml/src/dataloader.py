@@ -17,6 +17,7 @@ class DataConfig:
     task_type: TaskType = TaskType.classify
     n_jobs: int = 4             # Number of workers used in data-loading
     sample_balance: List[float] = field(default_factory=lambda: [])  # Sampling label balance from dataset
+    tta: int = 0  # Number of test time augmentation ensemble
 
 
 def set_dataloader(dataset, phase, cfg, shuffle=False):

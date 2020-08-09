@@ -219,7 +219,7 @@ def hydra_main(cfg: ExampleEEGConfig):
             'sample_balance': ['same'],
         }
 
-    cfg.expt_id = f'{OmegaConf.get_type(cfg.train.model_type)}'
+    cfg.expt_id = f'{cfg.train.model_type.value}'
     expt_dir = Path(utils.to_absolute_path('output')) / 'example_face' / f'{cfg.expt_id}'
     expt_dir.mkdir(exist_ok=True, parents=True)
     main(cfg, expt_dir, hyperparameters)
