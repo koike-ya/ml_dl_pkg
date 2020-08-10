@@ -11,6 +11,7 @@ import hydra
 import mlflow
 import numpy as np
 import pandas as pd
+import torch
 from hydra import utils
 from joblib import Parallel, delayed
 from omegaconf import OmegaConf
@@ -46,7 +47,7 @@ def set_load_func(sr, one_audio_sec):
         elif wave.shape[0] < const_length:
             n_pad = (const_length - wave.shape[0]) // 2 + 1
             wave = np.pad(wave[:const_length], n_pad)[:const_length]
-        return wave.reshape((1, -1))
+        return torch.from_numpy(wave.reshape((1, -1)))
 
     return load_func
 
@@ -196,14 +197,14 @@ def hydra_main(cfg: ExampleEEGConfig):
             'train.model.padding_sizes': [[[1]] * 4],
             'train.model.rnn_type': [cfg.train.model.rnn_type],
             'train.model.bidirectional': [True],
-            'train.model.rnn_n_layers': [1, 2],
-            'train.model.rnn_hidden_size': [10, 50],
+            'train.model.rnn_n_layers': [2],
+            'train.model.rnn_hidden_size': [50, 100],
         }
     elif OmegaConf.get_type(cfg.train.model) == RNNConfig:
         hyperparameters = {
-            'train.model.bidirectional': [True, False],
+            'train.model.bidirectional': [True],
             'train.model.rnn_type': ['lstm', 'gru'],
-            'train.model.rnn_n_layers': [1, 2],
+            'train.model.rnn_n_layers': [2],
             'train.model.rnn_hidden_size': [10, 50],
             'transformer.transform': ['none'],
             'train.model.optim.lr': [1e-4],
@@ -218,8 +219,8 @@ def hydra_main(cfg: ExampleEEGConfig):
             'sample_balance': ['same'],
         }
 
-    cfg.expt_id = f'{OmegaConf.get_type(cfg.train.model_type)}'
-    expt_dir = Path(utils.to_absolute_path('output')) / 'example_face' / f'{cfg.expt_id}'
+    cfg.expt_id = f'{cfg.train.model_type.value}'
+    expt_dir = Path(utils.to_absolute_path('output')) / 'example_eeg' / f'{cfg.expt_id}'
     expt_dir.mkdir(exist_ok=True, parents=True)
     main(cfg, expt_dir, hyperparameters)
 

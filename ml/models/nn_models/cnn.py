@@ -45,18 +45,18 @@ class CNN(nn.Module):
                 nn.Softmax(dim=-1)
             )
 
-    def forward(self, x):
-        # print(x.size())
-        # if self.n_dim == 1:
-        #     x = torch.unsqueeze(x, dim=1)
-        x = self.feature_extractor(x.to(torch.float))
+    def extract_feature(self, x):
+        return self.feature_extractor(x.to(torch.float))
+
+    def predict(self, x):
         x = x.view(x.size(0), -1)
+        return self.predictor(self.fc(x))
 
-        if self.feature_extract:
-            return x
+    def forward(self, x):
+        x = self.extract_feature(x)
+        x = self.predict(x)
 
-        x = self.fc(x)
-        return self.predictor(x)
+        return x
 
 
 class CNNMaker:
