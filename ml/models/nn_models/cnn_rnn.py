@@ -29,7 +29,7 @@ class CNNRNN(RNNClassifier):
         print(f'Number of parameters\tconv: {get_param_size(self.conv)}\trnn: {get_param_size(super())}')
 
         # self.predictor = AttentionClassifier(output_size, rnn_hidden_size * 2 if bidirectional else rnn_hidden_size)
-        self.predictor = lambda x: super().predict(x)
+        self.predictor = lambda x: super(CNNRNN, self).predict(x)
 
     def extract_feature(self, x):
         if len(x.size()) <= 2:
