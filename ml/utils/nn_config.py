@@ -26,3 +26,4 @@ class AdamConfig(OptimConfig):
 class NNModelConfig(ModelConfig):
     image_size: List[int] = field(default_factory=lambda: [])
     in_channels: int = 0
+    attention: bool = False

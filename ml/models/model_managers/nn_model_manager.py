@@ -14,7 +14,6 @@ from ml.models.nn_models.cnn_rnn import construct_cnn_rnn
 from ml.models.nn_models.cnn import construct_cnn
 from ml.models.nn_models.logmel_cnn import construct_logmel_cnn
 from ml.models.nn_models.nn import construct_nn
-from ml.models.nn_models.attention import construct_attention_cnn
 from ml.models.nn_models.panns_cnn14 import construct_panns
 from ml.models.nn_models.multitask_panns_model import construct_multitask_panns
 from ml.models.nn_models.nn_utils import get_param_size
@@ -25,9 +24,13 @@ from omegaconf import OmegaConf
 from ml.utils.nn_config import SGDConfig, AdamConfig
 
 
+ATTN_SUPPORTED = ['cnn_rnn']
+
+
 class NNModelManager(BaseModelManager):
     def __init__(self, class_labels, cfg):
         super().__init__(class_labels, cfg)
+        self._assert_cfg(cfg)
         self.device = torch.device('cuda' if cfg.cuda else 'cpu')
         self.model = self._init_model(transfer=cfg.transfer).to(self.device)
         self.mixup_alpha = cfg.mixup_alpha
@@ -43,6 +46,11 @@ class NNModelManager(BaseModelManager):
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer)
         if torch.cuda.device_count() > 1 and cfg.model_type not in ['rnn', 'cnn_rnn']:
             self.model = torch.nn.DataParallel(self.model)
+
+    def _assert_cfg(self, cfg):
+        if cfg.attention:
+            assert cfg.model_type.value in ATTN_SUPPORTED, f'Attention is not supported in {cfg.model_type.value}.' + \
+                                                           f'Supported models are {ATTN_SUPPORTED}'
 
     def _init_model(self, transfer=False):
         if transfer:
