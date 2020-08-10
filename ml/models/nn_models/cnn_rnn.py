@@ -3,7 +3,6 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 
-from ml.models.nn_models.attention import AttentionClassifier
 from ml.models.nn_models.cnn import CNNConfig
 from ml.models.nn_models.nn_utils import get_param_size
 from ml.models.nn_models.rnn import RNNClassifier, supported_rnns, RNNConfig
@@ -29,7 +28,8 @@ class CNNRNN(RNNClassifier):
         self.conv = conv
         print(f'Number of parameters\tconv: {get_param_size(self.conv)}\trnn: {get_param_size(super())}')
 
-        self.predictor = AttentionClassifier(output_size, rnn_hidden_size * 2 if bidirectional else rnn_hidden_size)
+        # self.predictor = AttentionClassifier(output_size, rnn_hidden_size * 2 if bidirectional else rnn_hidden_size)
+        self.predictor = lambda x: super().predict(x)
 
     def extract_feature(self, x):
         if len(x.size()) <= 2:
@@ -47,7 +47,6 @@ class CNNRNN(RNNClassifier):
 
     def predict(self, x):
         return self.predictor(x)
-        # return super().predict(x)
 
     def forward(self, x):
         x = self.extract_feature(x)
