@@ -1,12 +1,21 @@
+from dataclasses import dataclass, field
+from typing import List
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from ml.models.nn_models.nn_utils import initialize_weights
+from ml.utils.nn_config import NNModelConfig
+
+
+@dataclass
+class AttnConfig(NNModelConfig):    # CNN model arguments
+    da: int = 64
+    n_heads: int = 1
 
 
 class Attention(nn.Module):
-    def __init__(self, h_dim, da=24, n_heads=1):
+    def __init__(self, h_dim, da, n_heads):
         super(Attention, self).__init__()
         self.h_dim = h_dim
         self.da = da
@@ -32,7 +41,7 @@ class Attention(nn.Module):
 
 
 class AttentionClassifier(nn.Module):
-    def __init__(self, n_classes, h_dim, da=24, n_heads=8):
+    def __init__(self, n_classes, h_dim, da=512, n_heads=8):
         super(AttentionClassifier, self).__init__()
         self.attn = Attention(h_dim, da, n_heads)
         self.predictor = nn.Linear(h_dim * n_heads, n_classes)
