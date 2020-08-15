@@ -14,11 +14,7 @@ import pandas as pd
 import torch
 from hydra import utils
 from joblib import Parallel, delayed
-from omegaconf import OmegaConf
 
-from ml.models.nn_models.cnn import CNNConfig
-from ml.models.nn_models.cnn_rnn import CNNRNNConfig
-from ml.models.nn_models.rnn import RNNConfig
 from ml.src.dataset import ManifestWaveDataSet
 from ml.tasks.base_experiment import typical_train, typical_experiment
 from ml.utils.config import ExptConfig, before_hydra
@@ -178,7 +174,7 @@ def hydra_main(cfg: ExampleEEGConfig):
     console.setLevel(logging.INFO)
     logging.getLogger("ml").addHandler(console)
 
-    if OmegaConf.get_type(cfg.train.model) == CNNConfig:
+    if cfg.train.model_type.value == 'cnn':
         hyperparameters = {
             'transformer.transform': ['none'],
             'train.model.channel_list': [[4, 8, 16, 32]],
@@ -187,7 +183,7 @@ def hydra_main(cfg: ExampleEEGConfig):
             'train.model.padding_sizes': [[[1]] * 4],
             'train.model.optim.lr': [1e-4],
         }
-    elif OmegaConf.get_type(cfg.train.model) == CNNRNNConfig:
+    elif cfg.train.model_type.value == 'cnn_rnn':
         hyperparameters = {
             'train.model.optim.lr': [1e-3, 1e-4, 1e-5],
             'transformer.transform': ['none'],
@@ -200,7 +196,7 @@ def hydra_main(cfg: ExampleEEGConfig):
             'train.model.rnn_n_layers': [2],
             'train.model.rnn_hidden_size': [50, 100],
         }
-    elif OmegaConf.get_type(cfg.train.model) == RNNConfig:
+    elif cfg.train.model_type.value == 'rnn':
         hyperparameters = {
             'train.model.bidirectional': [True],
             'train.model.rnn_type': ['lstm', 'gru'],
