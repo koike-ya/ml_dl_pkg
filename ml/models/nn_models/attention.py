@@ -51,9 +51,13 @@ class AttentionClassifier(nn.Module):
                 nn.Softmax(dim=-1)
             )
 
-    def forward(self, x):
+    def extract_feature(self, x):
         x, _ = self.attn(x)
         x = x.view(x.size(0), -1)
+        return x
+
+    def forward(self, x):
+        x, _ = self.feature_extract(x)
         return self.predictor(x)
 
 

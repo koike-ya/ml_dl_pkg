@@ -32,7 +32,6 @@ class ModelConfig:  # ML/DL model arguments
     class_names: List[str] = field(default_factory=lambda: ['0', '1'])
     task_type: TaskType = TaskType.classify
     cuda: bool = True  # Use cuda to train a model
-    transfer: bool = False  # TODO modify this or remove this feature # Transfer learning from model_path
     model_type: ModelType = ModelType.cnn
 
     optim: Any = MISSING

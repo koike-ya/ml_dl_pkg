@@ -34,9 +34,6 @@ class CNNRNN(RNNClassifier):
         # self.predictor = lambda x: super(CNNRNN, self).predict(x)
 
     def extract_feature(self, x):
-        if len(x.size()) <= 2:
-            x = torch.unsqueeze(x, dim=1)
-
         x = self.conv(x.to(torch.float))  # batch x channel x time x freq
 
         if len(x.size()) == 4:  # batch x channel x time_feature x freq_feature

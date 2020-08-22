@@ -65,7 +65,7 @@ class Transform(torch.nn.Module):
 
     def forward(self, x: Tensor):
         for component in self.components:
-            x = component(torch.tensor(x))
+            x = component(x)
 
         x = x.unsqueeze(dim=0)
         return x

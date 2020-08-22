@@ -50,8 +50,8 @@ class TrainConfig(TensorboardConfig):
     cuda: bool = True  # Use cuda to train a model
     finetune: bool = False  # Fine-tune the model from checkpoint "continue_from"
     seed: int = 0  # Seed for generators
-    model_type: ModelType = ModelType.cnn
     model: ModelConfig = ExtendedModelConfig()
+    models: List[str] = field(default_factory=lambda: ['cnn'])
     class_names: List[str] = field(default_factory=lambda: ['0', '1'])
 
     train_path: str = 'input/train.csv'  # Data file for training
@@ -81,7 +81,6 @@ class BaseTrainManager(metaclass=ABCMeta):
         self.cfg.model.class_names = self.cfg.class_names
         self.cfg.model.task_type = self.cfg.task_type
         self.cfg.model.cuda = self.cfg.cuda
-        self.cfg.model.model_type = self.cfg.model_type
         self.dataloaders = dataloaders
         self.device = self._init_device()
         self.model_manager = self._init_model_manager()
@@ -118,11 +117,11 @@ class BaseTrainManager(metaclass=ABCMeta):
         random.seed(self.cfg['seed'])
 
     def _init_device(self) -> torch.device:
-        if self.cfg.cuda and self.cfg.model_type.value in [name.value for name in list(NNType) + list(PretrainedType)]:
-            device = torch.device("cuda")
+        if self.cfg.cuda:# and self.cfg.model_type.value in [name.value for name in list(NNType) + list(PretrainedType)]:
+            device = torch.device('cuda')
             torch.cuda.set_device(self.cfg['gpu_id'])
         else:
-            device = torch.device("cpu")
+            device = torch.device('cpu')
 
         return device
 
@@ -174,9 +173,9 @@ class BaseTrainManager(metaclass=ABCMeta):
                         pred_onehot = torch.zeros(pred_list.shape[0], len(self.class_labels))
                         pred_onehot = pred_onehot.scatter_(1, torch.from_numpy(pred_list).view(-1, 1).type(torch.LongTensor), 1)
                     loss_value = self.model_manager.criterion(pred_onehot.to(self.device), y_onehot.to(self.device)).item()
-                elif self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn']:
-                    loss_value = self.model_manager.criterion(torch.from_numpy(pred_list).to(self.device),
-                                                              torch.from_numpy(label_list).to(self.device))
+                # elif self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn']:
+                #     loss_value = self.model_manager.criterion(torch.from_numpy(pred_list).to(self.device),
+                #                                               torch.from_numpy(label_list).to(self.device))
             else:
                 loss_value = 10000000
 

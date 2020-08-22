@@ -18,6 +18,7 @@ from ml.models.nn_models.panns_cnn14 import construct_panns
 from ml.models.nn_models.multitask_panns_model import construct_multitask_panns
 from ml.models.nn_models.nn_utils import get_param_size
 from ml.models.nn_models.pretrained_models import construct_pretrained, supported_pretrained_models
+from ml.models.nn_models.attention import AttentionClassifier
 
 
 from omegaconf import OmegaConf
@@ -27,35 +28,18 @@ from ml.utils.nn_config import SGDConfig, AdamConfig
 ATTN_SUPPORTED = ['cnn_rnn']
 
 
-class NNModelManager(BaseModelManager):
-    def __init__(self, class_labels, cfg):
-        super().__init__(class_labels, cfg)
-        self._assert_cfg(cfg)
-        self.device = torch.device('cuda' if cfg.cuda else 'cpu')
-        self.model = self._init_model(transfer=cfg.transfer).to(self.device)
-        self.mixup_alpha = cfg.mixup_alpha
-        if self.mixup_alpha:
-            self._orig_criterion = self.criterion.to(self.device)
-            self.criterion = self._mixup_criterion(lamb=1.0)
-        else:
-            self.criterion = self.criterion.to(self.device)
-        self.optimizer = self._set_optimizer()
-        self.fitted = False
-        self.amp = cfg.amp
-        if self.amp:
-            self.model, self.optimizer = amp.initialize(self.model, self.optimizer)
-        if torch.cuda.device_count() > 1 and cfg.model_type not in ['rnn', 'cnn_rnn']:
-            self.model = torch.nn.DataParallel(self.model)
-
-    def _assert_cfg(self, cfg):
-        if cfg.attention:
-            assert cfg.model_type.value in ATTN_SUPPORTED, f'Attention is not supported in {cfg.model_type.value}.' + \
-                                                           f'Supported models are {ATTN_SUPPORTED}'
-
-    def _init_model(self, transfer=False):
-        if transfer:
-            orig_classes = self.class_labels
-            self.class_labels = self.cfg.prev_classes
+class StackedNNModel(torch.nn.Module):
+    def __init__(self, cfg, class_labels):
+        super(StackedNNModel, self).__init__()
+        self.cfg = cfg
+        hidden_size = cfg.rnn_hidden_size * 2 if cfg.bidirectional else cfg.rnn_hidden_size
+        self.feature_extractors = torch.nn.Sequential(
+            construct_cnn_rnn(self.cfg, construct_cnn, len(class_labels), 'cuda'),
+            AttentionClassifier(len(class_labels), hidden_size, da=cfg.da, n_heads=cfg.n_heads)
+        )
+        self.predictor = torch.nn.Linear(hidden_size * cfg.n_heads, len(class_labels))
+    
+    def _instantiate_model(self):
         if self.cfg.model_type.value in supported_pretrained_models.keys():
             model = construct_pretrained(self.cfg, len(self.class_labels))
         elif self.cfg.model_type.value == 'nn':
@@ -70,18 +54,45 @@ class NNModelManager(BaseModelManager):
             model = construct_logmel_cnn(self.cfg)
         elif self.cfg.model_type.value == 'panns':
             model = construct_panns(self.cfg)
-        elif self.cfg.model_type.value == 'attention_cnn':
-            model = construct_attention_cnn(self.cfg)
         elif self.cfg.model_type.value == 'multitask_panns':
             model = construct_multitask_panns(self.cfg)
         else:
             raise NotImplementedError('model_type should be either rnn or cnn, nn would be implemented in the future.')
 
-        if transfer:
-            self.class_labels = orig_classes
-            self.load_model(model)
-            model.change_last_layer(len(orig_classes))
+    def forward(self, x):
+        for feature_extractor in self.feature_extractors:
+            x = feature_extractor.extract_feature(x)
 
+        return self.predictor(x)
+
+
+class NNModelManager(BaseModelManager):
+    def __init__(self, class_labels, cfg):
+        super().__init__(class_labels, cfg)
+        self._assert_cfg(cfg)
+        self.device = torch.device('cuda' if cfg.cuda else 'cpu')
+        self.model = self._instantiate_model(class_labels).to(self.device)
+        self.mixup_alpha = cfg.mixup_alpha
+        if self.mixup_alpha:
+            self._orig_criterion = self.criterion.to(self.device)
+            self.criterion = self._mixup_criterion(lamb=1.0)
+        else:
+            self.criterion = self.criterion.to(self.device)
+        self.optimizer = self._set_optimizer()
+        self.fitted = False
+        self.amp = cfg.amp
+        if self.amp:
+            self.model, self.optimizer = amp.initialize(self.model, self.optimizer)
+        if torch.cuda.device_count() > 1 and cfg.model_type.value not in ['rnn', 'cnn_rnn']:
+            self.model = torch.nn.DataParallel(self.model)
+
+    def _assert_cfg(self, cfg):
+        if cfg.attention:
+            assert cfg.model_type.value in ATTN_SUPPORTED, f'Attention is not supported in {cfg.model_type.value}.' + \
+                                                           f'Supported models are {ATTN_SUPPORTED}'
+
+    def _instantiate_model(self, class_labels):
+        model = StackedNNModel(self.cfg, class_labels)
         logger.info(f'Model Parameters: {get_param_size(model)}')
 
         return model
