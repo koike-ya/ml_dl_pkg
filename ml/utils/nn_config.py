@@ -2,6 +2,8 @@ from dataclasses import dataclass, field
 from typing import List
 
 from ml.models.model_managers.base_model_manager import ModelConfig
+from ml.models.nn_models.attention import AttentionClassifier, AttnConfig
+from ml.models.nn_models.multitask_predictor import MultitaskPredictor, MultitaskConfig
 
 
 @dataclass
@@ -22,8 +24,14 @@ class AdamConfig(OptimConfig):
     betas: tuple = (0.9, 0.999)  # Adam betas
 
 
+
 @dataclass
-class NNModelConfig(ModelConfig):
+class StackedModelConfig(AttnConfig, MultitaskConfig):
+    pass
+
+
+@dataclass
+class NNModelConfig(ModelConfig, StackedModelConfig):
     image_size: List[int] = field(default_factory=lambda: [])
     in_channels: int = 0
     attention: bool = False

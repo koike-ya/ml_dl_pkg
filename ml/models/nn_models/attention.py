@@ -5,11 +5,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from ml.models.nn_models.nn_utils import initialize_weights
-from ml.utils.nn_config import NNModelConfig
 
 
 @dataclass
-class AttnConfig(NNModelConfig):    # CNN model arguments
+class AttnConfig:    # Attention layer arguments
     da: int = 64
     n_heads: int = 1
 

@@ -25,6 +25,7 @@ class ModelConfig:  # ML/DL model arguments
     loss_config: LossConfig = LossConfig()
     checkpoint_path: str = ''  # Model weight file to load model
     amp: bool = False  # Mixed precision training
+    models: List[str] = field(default_factory=lambda: ['cnn'])
 
     input_size: List[int] = field(default_factory=lambda: [])
 

@@ -18,12 +18,14 @@ from ml.models.nn_models.panns_cnn14 import construct_panns
 from ml.models.nn_models.multitask_panns_model import construct_multitask_panns
 from ml.models.nn_models.nn_utils import get_param_size
 from ml.models.nn_models.pretrained_models import construct_pretrained, supported_pretrained_models
-from ml.models.nn_models.attention import AttentionClassifier
+from ml.models.nn_models.attention import AttentionClassifier, AttnConfig
+from ml.models.nn_models.multitask_predictor import MultitaskPredictor, MultitaskConfig
 
 
 from omegaconf import OmegaConf
 from ml.utils.nn_config import SGDConfig, AdamConfig
-
+from dataclasses import dataclass, field
+from typing import List
 
 ATTN_SUPPORTED = ['cnn_rnn']
 
@@ -37,6 +39,7 @@ class StackedNNModel(torch.nn.Module):
             construct_cnn_rnn(self.cfg, construct_cnn, len(class_labels), 'cuda'),
             AttentionClassifier(len(class_labels), hidden_size, da=cfg.da, n_heads=cfg.n_heads)
         )
+        self.predictor = MultitaskPredictor(self.predictor.predictor.in_features, '')
         self.predictor = torch.nn.Linear(hidden_size * cfg.n_heads, len(class_labels))
     
     def _instantiate_model(self):

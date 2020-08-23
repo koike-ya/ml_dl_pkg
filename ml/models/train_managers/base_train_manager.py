@@ -51,7 +51,6 @@ class TrainConfig(TensorboardConfig):
     finetune: bool = False  # Fine-tune the model from checkpoint "continue_from"
     seed: int = 0  # Seed for generators
     model: ModelConfig = ExtendedModelConfig()
-    models: List[str] = field(default_factory=lambda: ['cnn'])
     class_names: List[str] = field(default_factory=lambda: ['0', '1'])
 
     train_path: str = 'input/train.csv'  # Data file for training

@@ -10,7 +10,7 @@ from ml.models.nn_models.attention import AttentionClassifier, AttnConfig
 
 
 @dataclass
-class CNNRNNConfig(CNNConfig, RNNConfig, AttnConfig):
+class CNNRNNConfig(CNNConfig, RNNConfig):
     pass
 
 
