@@ -52,7 +52,7 @@ def get_metrics(phases, task_type, train_manager='normal'):
             if train_manager == 'ml':
                 metrics[phase] = get_metric_list(['uar'], target_metric='uar')
             else:
-                metrics[phase] = get_metric_list(['loss', 'uar'], target_metric='uar')
+                metrics[phase] = get_metric_list(['loss', 'uar'], target_metric='loss')
         else:
             metrics[phase] = get_metric_list(['loss'], target_metric='loss')
 
@@ -65,12 +65,12 @@ class BaseExperimentor(metaclass=ABCMeta):
         self.load_func = load_func
         self.label_func = label_func
         self.dataset_cls = dataset_cls
-        self.data_loader_cls = DATALOADERS[cfg['data_loader'].value]
-        self.train_manager_cls = TRAINMANAGERS[cfg['train_manager'].value]
+        self.data_loader_cls = DATALOADERS[cfg.data_loader.value]
+        self.train_manager_cls = TRAINMANAGERS[cfg.train_manager.value]
         self.train_manager = None
         self.process_func = process_func
-        self.test = cfg['test']
-        self.infer = cfg['infer']
+        self.test = cfg.test
+        self.infer = cfg.infer
         
     def _experiment(self, metrics, phases) -> Tuple[Metrics, Dict[str, np.array]]:
         pred_list = {}
@@ -130,7 +130,7 @@ class BaseExperimentor(metaclass=ABCMeta):
         else:
             pred_list = []
             for seed in range(seed_average):
-                self.cfg['seed'] = seed
+                self.cfg.seed = seed
                 metrics, pred = self._experiment(metrics=metrics, phases=phases)
                 pred_list.append(pred)
 

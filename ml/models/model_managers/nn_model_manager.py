@@ -3,29 +3,25 @@ from typing import Tuple
 
 import numpy as np
 import torch
-from apex import amp
+from ml.models.model_managers.base_model_manager import BaseModelManager
+from ml.models.nn_models.attention import AttentionClassifier
+from ml.models.nn_models.cnn import construct_cnn
+from ml.models.nn_models.cnn_rnn import construct_cnn_rnn
+from ml.models.nn_models.logmel_cnn import construct_logmel_cnn
+from ml.models.nn_models.multitask_panns_model import construct_multitask_panns
+from ml.models.nn_models.multitask_predictor import MultitaskPredictor
+from ml.models.nn_models.nn import construct_nn
+from ml.models.nn_models.nn_utils import get_param_size
+from ml.models.nn_models.panns_cnn14 import construct_panns
+from ml.models.nn_models.pretrained_models import construct_pretrained, supported_pretrained_models
+from ml.models.nn_models.rnn import construct_rnn
+from ml.utils.nn_config import SGDConfig, AdamConfig
+from omegaconf import OmegaConf
 from sklearn.exceptions import NotFittedError
 
+from apex import amp
+
 logger = logging.getLogger(__name__)
-
-from ml.models.model_managers.base_model_manager import BaseModelManager
-from ml.models.nn_models.rnn import construct_rnn
-from ml.models.nn_models.cnn_rnn import construct_cnn_rnn
-from ml.models.nn_models.cnn import construct_cnn
-from ml.models.nn_models.logmel_cnn import construct_logmel_cnn
-from ml.models.nn_models.nn import construct_nn
-from ml.models.nn_models.panns_cnn14 import construct_panns
-from ml.models.nn_models.multitask_panns_model import construct_multitask_panns
-from ml.models.nn_models.nn_utils import get_param_size
-from ml.models.nn_models.pretrained_models import construct_pretrained, supported_pretrained_models
-from ml.models.nn_models.attention import AttentionClassifier, AttnConfig
-from ml.models.nn_models.multitask_predictor import MultitaskPredictor, MultitaskConfig
-
-
-from omegaconf import OmegaConf
-from ml.utils.nn_config import SGDConfig, AdamConfig
-from dataclasses import dataclass, field
-from typing import List
 
 ATTN_SUPPORTED = ['cnn_rnn']
 
@@ -34,13 +30,14 @@ class StackedNNModel(torch.nn.Module):
     def __init__(self, cfg, class_labels):
         super(StackedNNModel, self).__init__()
         self.cfg = cfg
+        self.device = torch.device('cuda' if cfg.cuda else 'cpu')
         hidden_size = cfg.rnn_hidden_size * 2 if cfg.bidirectional else cfg.rnn_hidden_size
         self.feature_extractors = torch.nn.Sequential(
             construct_cnn_rnn(self.cfg, construct_cnn, len(class_labels), 'cuda'),
             AttentionClassifier(len(class_labels), hidden_size, da=cfg.da, n_heads=cfg.n_heads)
         )
-        self.predictor = MultitaskPredictor(self.predictor.predictor.in_features, '')
-        self.predictor = torch.nn.Linear(hidden_size * cfg.n_heads, len(class_labels))
+        self.predictor = MultitaskPredictor(self.feature_extractors[-1].predictor[0].in_features,
+                                            cfg.n_labels_in_each_task, self.device)
     
     def _instantiate_model(self):
         if self.cfg.model_type.value in supported_pretrained_models.keys():

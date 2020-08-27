@@ -1,39 +1,23 @@
 import logging
 import random
 import time
-from abc import ABCMeta
+from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 from pathlib import Path
-
-logger = logging.getLogger(__name__)
+from typing import Tuple, List, Union
 
 import numpy as np
 import pandas as pd
 import torch
-from ml.models.model_managers.ml_model_manager import MLModelManager
-from ml.models.model_managers.nn_model_manager import NNModelManager
-from sklearn.metrics import confusion_matrix
-from ml.utils.logger import TensorBoardLogger
-from typing import Tuple, List, Union
-from ml.utils.utils import Metrics
-
-
-from ml.utils.enums import TaskType
 from ml.models.model_managers.base_model_manager import ExtendedModelConfig, ModelConfig
-from dataclasses import dataclass, field
-from omegaconf import OmegaConf
-from ml.models.nn_models.nn import NNConfig
-from ml.models.nn_models.rnn import RNNConfig
-from ml.models.nn_models.cnn import CNNConfig
-from ml.models.nn_models.cnn_rnn import CNNRNNConfig
-from ml.models.nn_models.pretrained_models import PretrainedConfig
-from ml.models.nn_models.panns_cnn14 import PANNsConfig
-from ml.models.ml_models.toolbox import MlModelManagerConfig
-from ml.models.ml_models.decision_trees import DecisionTreeConfig
-from ml.utils.enums import NNType, PretrainedType, ModelType
+from ml.models.model_managers.base_model_manager import BaseModelManager
+from ml.utils.enums import TaskType
+from ml.utils.logger import TensorBoardLogger
+from ml.utils.utils import Metrics
+from sklearn.metrics import confusion_matrix
 
-
-CNN_MODELS = [CNNConfig, CNNRNNConfig, PretrainedConfig, PANNsConfig]
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -88,26 +72,10 @@ class BaseTrainManager(metaclass=ABCMeta):
         self.metrics = metrics
         Path(self.cfg.model.model_path).parent.mkdir(exist_ok=True, parents=True)
 
-    def _init_model_manager(self) -> Union[NNModelManager, MLModelManager]:
-        self.cfg.model.input_size = list(list(self.dataloaders.values())[0].get_input_size())
+    @abstractmethod
+    def _init_model_manager(self) -> BaseModelManager:
+        pass
 
-        if OmegaConf.get_type(self.cfg.model) in [NNConfig, RNNConfig] + CNN_MODELS:
-            if OmegaConf.get_type(self.cfg.model) in [RNNConfig]:
-                if self.cfg.model.batch_norm_size:
-                    self.cfg.model.batch_norm_size = list(self.dataloaders.values())[0].get_batch_norm_size()
-                self.cfg.model.seq_len = list(self.dataloaders.values())[0].get_seq_len()
-            if OmegaConf.get_type(self.cfg.model) in [NNConfig] + CNN_MODELS:
-                self.cfg.model.image_size = list(list(self.dataloaders.values())[0].get_image_size())
-                self.cfg.model.in_channels = list(self.dataloaders.values())[0].get_n_channels()
-
-            return NNModelManager(self.class_labels, self.cfg.model)
-
-        elif OmegaConf.get_type(self.cfg.model) in [MlModelManagerConfig, DecisionTreeConfig]:
-            return MLModelManager(self.class_labels, self.cfg.model)
-
-        else:
-            raise NotImplementedError
-        
     def _init_seed(self) -> None:
         # Set seeds for determinism
         torch.manual_seed(self.cfg['seed'])
@@ -128,11 +96,11 @@ class BaseTrainManager(metaclass=ABCMeta):
         if self.cfg['tensorboard']:
             return TensorBoardLogger(self.cfg['log_id'], self.cfg['log_dir'])
 
-    def _record_log(self, phase, epoch) -> None:
+    def _record_log(self, phase, epoch, metrics, suffix='') -> None:
         values = {}
 
-        for metric in self.metrics[phase]:
-            values[f'{phase}_{metric.name}_mean'] = metric.average_meter.average
+        for metric in metrics[phase]:
+            values[f'{phase}_{metric.name}_mean{suffix}'] = metric.average_meter.average
         self.logger.update(epoch, values)
 
     def _predict(self, phase) -> Tuple[np.array, np.array]:
