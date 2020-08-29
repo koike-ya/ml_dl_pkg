@@ -12,7 +12,8 @@ from dataclasses import dataclass, field
 from ml.models.loss import LossConfig
 from typing import List, Any
 from omegaconf import MISSING
-from ml.utils.enums import TaskType, ModelType
+from ml.utils.enums import TaskType
+from ml.utils import init_seed
 from ml.preprocess.augment import SpecAugConfig
 
 
@@ -25,6 +26,7 @@ class ModelConfig:  # ML/DL model arguments
     loss_config: LossConfig = LossConfig()
     checkpoint_path: str = ''  # Model weight file to load model
     amp: bool = False  # Mixed precision training
+    seed: int = 0  # Seed for deterministic
     models: List[str] = field(default_factory=lambda: ['cnn'])
 
     input_size: List[int] = field(default_factory=lambda: [])
@@ -49,6 +51,7 @@ class BaseModelManager(metaclass=ABCMeta):
         self.cfg = cfg
         self.criterion = set_criterion(self.cfg.loss_config, self.cfg.task_type.value, self.cfg.class_names)
         self.fitted = False
+        init_seed(self.cfg.seed)
 
     def anneal_lr(self, learning_anneal):
         pass

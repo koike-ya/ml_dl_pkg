@@ -1,4 +1,5 @@
 import logging
+import os
 import random
 import time
 from abc import ABCMeta, abstractmethod
@@ -10,8 +11,8 @@ from typing import Tuple, List, Union
 import numpy as np
 import pandas as pd
 import torch
-from ml.models.model_managers.base_model_manager import ExtendedModelConfig, ModelConfig
 from ml.models.model_managers.base_model_manager import BaseModelManager
+from ml.models.model_managers.base_model_manager import ExtendedModelConfig, ModelConfig
 from ml.utils.enums import TaskType
 from ml.utils.logger import TensorBoardLogger
 from ml.utils.utils import Metrics
@@ -33,7 +34,6 @@ class TrainConfig(TensorboardConfig):
     task_type: TaskType = TaskType.classify
     cuda: bool = True  # Use cuda to train a model
     finetune: bool = False  # Fine-tune the model from checkpoint "continue_from"
-    seed: int = 0  # Seed for generators
     model: ModelConfig = ExtendedModelConfig()
     class_names: List[str] = field(default_factory=lambda: ['0', '1'])
 
@@ -67,7 +67,6 @@ class BaseTrainManager(metaclass=ABCMeta):
         self.dataloaders = dataloaders
         self.device = self._init_device()
         self.model_manager = self._init_model_manager()
-        self._init_seed()
         self.logger = self._init_logger()
         self.metrics = metrics
         Path(self.cfg.model.model_path).parent.mkdir(exist_ok=True, parents=True)
@@ -75,13 +74,6 @@ class BaseTrainManager(metaclass=ABCMeta):
     @abstractmethod
     def _init_model_manager(self) -> BaseModelManager:
         pass
-
-    def _init_seed(self) -> None:
-        # Set seeds for determinism
-        torch.manual_seed(self.cfg['seed'])
-        torch.cuda.manual_seed_all(self.cfg['seed'])
-        np.random.seed(self.cfg['seed'])
-        random.seed(self.cfg['seed'])
 
     def _init_device(self) -> torch.device:
         if self.cfg.cuda:# and self.cfg.model_type.value in [name.value for name in list(NNType) + list(PretrainedType)]:

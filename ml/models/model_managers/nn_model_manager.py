@@ -11,7 +11,7 @@ from ml.models.nn_models.logmel_cnn import construct_logmel_cnn
 from ml.models.nn_models.multitask_panns_model import construct_multitask_panns
 from ml.models.nn_models.multitask_predictor import MultitaskPredictor
 from ml.models.nn_models.nn import construct_nn
-from ml.models.nn_models.nn_utils import get_param_size
+from ml.models.nn_models.nn_utils import get_param_size, Predictor
 from ml.models.nn_models.panns_cnn14 import construct_panns
 from ml.models.nn_models.pretrained_models import construct_pretrained, supported_pretrained_models
 from ml.models.nn_models.rnn import construct_rnn, RNNConfig
@@ -32,21 +32,20 @@ class StackedNNModel(torch.nn.Module):
         self.cfg = cfg
         self.device = torch.device('cuda' if cfg.cuda else 'cpu')
         hidden_size = cfg.rnn_hidden_size * 2 if cfg.bidirectional else cfg.rnn_hidden_size
-        self.feature_extractors = torch.nn.Sequential(
-            construct_cnn_rnn(self.cfg, construct_cnn, len(class_labels), 'cuda'),
-            AttentionClassifier(len(class_labels), hidden_size, da=cfg.da, n_heads=cfg.n_heads)
-        )
+        self.feature_extractors = [
+            construct_cnn_rnn(cfg=self.cfg, construct_cnn_func=construct_cnn, n_classes=len(class_labels)).to(self.device),
+        ]
+
+        if cfg.attention:
+            self.feature_extractors.append(
+                AttentionClassifier(len(class_labels), hidden_size, da=cfg.da, n_heads=cfg.n_heads).to(self.device)
+            )
 
         if multitask:
-            self.predictor = MultitaskPredictor(self.feature_extractors[-1].predictor[0].in_features,
+            self.predictor = MultitaskPredictor(self.feature_extractors[-1].predictor.in_features,
                                                 cfg.n_labels_in_each_task, self.device)
         else:
-            self.predictor = torch.nn.Linear(self.feature_extractors[-1].predictor[0].in_features, len(class_labels))
-            if len(class_labels) >= 2:
-                self.predictors = torch.nn.Sequential(
-                    self.predictor,
-                    torch.nn.Softmax(dim=-1)
-                ).to(self.device)
+            self.predictor = self.feature_extractors[-1].predictor.to(self.device)
     
     def _instantiate_model(self):
         if self.cfg.model_type.value in supported_pretrained_models.keys():
@@ -72,13 +71,13 @@ class StackedNNModel(torch.nn.Module):
         for feature_extractor in self.feature_extractors:
             x = feature_extractor.extract_feature(x)
 
+        x = x.reshape(x.size(0), -1)
         return self.predictor(x)
 
 
 class NNModelManager(BaseModelManager):
     def __init__(self, class_labels, cfg):
         super().__init__(class_labels, cfg)
-        self._assert_cfg(cfg)
         self.device = torch.device('cuda' if cfg.cuda else 'cpu')
         self.model = self._instantiate_model(class_labels).to(self.device)
         self.mixup_alpha = cfg.mixup_alpha
@@ -94,11 +93,6 @@ class NNModelManager(BaseModelManager):
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer)
         if torch.cuda.device_count() > 1 and OmegaConf.get_type(cfg) not in [RNNConfig, CNNRNNConfig]:
             self.model = torch.nn.parallel.DataParallel(self.model)
-
-    def _assert_cfg(self, cfg):
-        if cfg.attention:
-            assert cfg.model_type.value in ATTN_SUPPORTED, f'Attention is not supported in {cfg.model_type.value}.' + \
-                                                           f'Supported models are {ATTN_SUPPORTED}'
 
     def _instantiate_model(self, class_labels):
         model = StackedNNModel(self.cfg, class_labels, multitask=False)

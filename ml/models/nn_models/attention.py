@@ -4,7 +4,7 @@ from typing import List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from ml.models.nn_models.nn_utils import initialize_weights
+from ml.models.nn_models.nn_utils import initialize_weights, Predictor
 
 
 @dataclass
@@ -43,12 +43,7 @@ class AttentionClassifier(nn.Module):
     def __init__(self, n_classes, h_dim, da=512, n_heads=8):
         super(AttentionClassifier, self).__init__()
         self.attn = Attention(h_dim, da, n_heads)
-        self.predictor = nn.Linear(h_dim * n_heads, n_classes)
-        if n_classes >= 2:
-            self.predictor = nn.Sequential(
-                self.predictor,
-                nn.Softmax(dim=-1)
-            )
+        self.predictor = Predictor(h_dim * n_heads, n_classes)
 
     def extract_feature(self, x):
         x, _ = self.attn(x)

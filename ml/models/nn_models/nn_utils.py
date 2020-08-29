@@ -34,3 +34,18 @@ def init_bn(bn):
 def set_requires_grad(model, requires_grad=True):
     for param in model.parameters():
         param.requires_grad = requires_grad
+
+
+class Predictor(nn.Module):
+    def __init__(self, in_features, n_classes):
+        super(Predictor, self).__init__()
+        self.in_features = in_features
+        self.predictor = nn.Linear(in_features, n_classes)
+        if n_classes >= 2:
+            self.predictor = nn.Sequential(
+                self.predictor,
+                nn.Softmax(dim=-1)
+            )
+
+    def forward(self, x):
+        return self.predictor(x)

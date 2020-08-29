@@ -17,6 +17,7 @@ supported_rnns = {
 from dataclasses import dataclass
 from ml.utils.enums import RNNType
 from ml.utils.nn_config import NNModelConfig
+from ml.models.nn_models.nn_utils import Predictor
 
 
 @dataclass
@@ -57,7 +58,7 @@ def construct_rnn(cfg, output_size):
 
 
 class RNNClassifier(nn.Module):
-    def __init__(self, input_size, out_time_feature, output_size, rnn_type=nn.LSTM, rnn_hidden_size=768, n_layers=5,
+    def __init__(self, input_size, out_time_feature, n_classes, rnn_type=nn.LSTM, rnn_hidden_size=768, n_layers=5,
                  bidirectional=True, dropout=0.3):
         super(RNNClassifier, self).__init__()
 
@@ -76,11 +77,11 @@ class RNNClassifier(nn.Module):
                          bias=True, dropout=dropout))
             rnns.append((f'{i + 1}', rnn))
         self.rnns = nn.Sequential(OrderedDict(rnns))
-        self.fc = nn.Sequential(
-            nn.BatchNorm1d(rnn_hidden_size * out_time_feature),
-            initialize_weights(nn.Linear(rnn_hidden_size * out_time_feature, output_size, bias=False))
-        )
-        self.classify = True if output_size != 1 else False
+        # self.predictor = nn.Sequential(
+        #     nn.BatchNorm1d(rnn_hidden_size * out_time_feature),
+        #     initialize_weights(nn.Linear(rnn_hidden_size * out_time_feature, output_size, bias=False))
+        # )
+        self.predictor = Predictor(in_features=rnn_hidden_size * out_time_feature, n_classes=n_classes)
 
     def extract_feature(self, x):
         x = x.transpose(0, 2).transpose(1, 2)  # batch x feature x time -> # time x batch x feature
@@ -93,12 +94,7 @@ class RNNClassifier(nn.Module):
 
     def predict(self, x):
         x = x.reshape(x.size(0), -1)
-        x = self.fc(x)
-
-        if self.classify:
-            x = torch.exp(nn.LogSoftmax(dim=-1)(x))
-
-        return x
+        return self.predictor(x)
 
     def forward(self, x):
         x = self.extract_feature(x)

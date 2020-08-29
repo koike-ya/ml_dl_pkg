@@ -4,10 +4,9 @@ seed = 0
 torch.manual_seed(seed)
 import math
 
-torch.cuda.manual_seed_all(seed)
 import random
-random.seed(seed)
 import torch.nn as nn
+from ml.models.nn_models.nn_utils import Predictor
 
 from dataclasses import dataclass, field
 from typing import List
@@ -38,12 +37,7 @@ class CNN(nn.Module):
         )
         self.n_dim = dim
         self.feature_extract = feature_extract
-        self.predictor = nn.Linear(out_features, n_classes)
-        if n_classes >= 2:
-            self.predictor = nn.Sequential(
-                self.predictor,
-                nn.Softmax(dim=-1)
-            )
+        self.predictor = Predictor(out_features, n_classes)
 
     def extract_feature(self, x):
         return self.feature_extractor(x.to(torch.float))
