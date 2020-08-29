@@ -88,7 +88,7 @@ class CNNMaker:
             else:
                 conv = cnn_set[self.n_dim]['conv_cls'](n_channels, channel, kernel_size, stride, padding)
                 layers += [conv, cnn_set[self.n_dim]['batch_norm_cls'](channel), nn.ReLU(inplace=True)]
-            n_channels = channel
+                n_channels = channel
 
         return nn.Sequential(*layers)
 
@@ -112,8 +112,10 @@ class CNNMaker:
         if len(feature_shape) == 1:
             feature_shape.append(1)
 
+        n_channels = self.cfg[-2][0] if self.cfg[-1][0] == 'M' else self.cfg[-1][0]
+
         return {
-            'n_channels': self.cfg[-1][0],
+            'n_channels': n_channels,
             'height': int(feature_shape[0]),
             'width': int(feature_shape[1])}
 
