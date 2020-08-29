@@ -24,4 +24,8 @@ class MultitaskPredictor(nn.Module):
                 ).to(device)
 
     def forward(self, x):
-        return [self.predictors[i](x) for i in range(len(self.predictors))]
+        preds = []
+        for i in range(len(self.predictors)):
+            device = self.predictors[i][0].weight.device
+            preds.append(self.predictors[i](x.to(device)))
+        return preds

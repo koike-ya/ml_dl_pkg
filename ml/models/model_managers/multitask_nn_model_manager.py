@@ -19,7 +19,7 @@ class MultitaskCriterion(torch.nn.BCELoss, torch.nn.MSELoss):
     def forward(self, inputs, labels):
         losses = []
 
-        for i in range(labels.size(0)):
+        for i in range(len(labels)):
             input = inputs[i]
             label = labels[i]   # shape: [task_i, batch, one_hot] -> [batch, one_hot]
             if label.size(1) == 1:
@@ -27,7 +27,7 @@ class MultitaskCriterion(torch.nn.BCELoss, torch.nn.MSELoss):
             else:
                 losses.append(F.binary_cross_entropy_with_logits(input, label))
 
-        return torch.stack(losses, dim=0)
+        return losses
 
 
 class MultitaskNNModelManager(NNModelManager):
@@ -40,7 +40,7 @@ class MultitaskNNModelManager(NNModelManager):
     def set_criterion(self):
         return MultitaskCriterion()
 
-    def _fit_classify(self, inputs, labels, phase) -> Tuple[List[float], np.ndarray]:
+    def _fit_classify(self, inputs, labels, phase) -> Tuple[np.array, np.ndarray]:
         if self.mixup_alpha:
             raise NotImplementedError
 
@@ -48,7 +48,6 @@ class MultitaskNNModelManager(NNModelManager):
             self.model.train() if phase == 'train' else self.model.eval()
 
             outputs = self.model(inputs)
-            outputs = torch.stack(outputs, dim=0)
 
             y_onehot_list = []
             for i in range(self.n_tasks):
@@ -56,7 +55,7 @@ class MultitaskNNModelManager(NNModelManager):
                 y_onehot = y_onehot.scatter_(1, labels[i].view(-1, 1).type(torch.LongTensor), 1).to(self.device)
                 y_onehot_list.append(y_onehot)
 
-            losses = self.criterion(outputs, torch.stack(y_onehot_list, dim=0))
+            losses = self.criterion(outputs, y_onehot_list)
 
             if phase == 'train':
                 self.optimizer.zero_grad()
@@ -74,10 +73,10 @@ class MultitaskNNModelManager(NNModelManager):
                 preds = []
                 for i in range(self.n_tasks):
                     preds.append(torch.max(outputs[i], 1)[1])
-                preds = torch.stack(preds, dim=0)
 
-        losses = [losses[i].item() for i in range(self.n_tasks)]
-        return losses, preds.cpu().numpy()
+        losses = np.array([losses[i].item() for i in range(self.n_tasks)])
+        preds = np.array([preds[i].cpu().numpy() for i in range(self.n_tasks)])
+        return losses, preds
 
     def _fit_regress(self, inputs, labels, phase) -> Tuple[float, np.ndarray]:
         raise NotImplementedError

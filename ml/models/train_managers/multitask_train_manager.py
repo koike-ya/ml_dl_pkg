@@ -82,27 +82,22 @@ class MultitaskTrainManager(NNTrainManager):
                 pred_list, label_list, loss_list = np.array([]), np.array([]), np.array([])
 
                 for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
-                    labels = torch.stack(labels, dim=0)
                     losses, predicts = self.model_manager.fit(inputs.to(self.device), labels, phase)
+                    labels = np.array([labels[i_task].cpu().numpy() for i_task in range(self.n_tasks)])
 
                     if pred_list.size == 0:
                         pred_list = predicts
                         label_list = labels
-                        loss_list = np.array(losses)[None, :]
+                        loss_list = np.array(losses)[:, None]
                     else:
                         pred_list = np.hstack((pred_list, predicts))
                         label_list = np.hstack((label_list, labels))
-                        loss_list = np.hstack((loss_list, np.array(losses)[None, :]))
-
-                    # save loss in one batch
-                    # for j in range(self.n_tasks):
-                    #     self.metrics_list[j][phase][0].update(losses[j], predicts[j], labels[j].numpy())
+                        loss_list = np.hstack((loss_list, np.array(losses)[:, None]))
 
                     self._verbose(epoch, phase, losses, i, elapsed=int(time.time() - start))
 
                 # save metrics in one batch
                 loss = loss_list.sum(axis=1).mean()
-                assert loss_list.sum(axis=1).shape[0] == loss_list.shape[0]
                 for i_task in range(self.n_tasks):
                     for metric in self.metrics_list[i_task][phase]:
                         metric.update(loss, pred_list[i_task], label_list[i_task])
