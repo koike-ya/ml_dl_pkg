@@ -52,7 +52,7 @@ def construct_rnn(cfg, output_size):
         cfg.input_size = cfg.input_size[0]
 
     return RNNClassifier(cfg.input_size, out_time_feature=cfg.seq_len,
-                         rnn_type=supported_rnns[cfg.rnn_type.value], output_size=output_size,
+                         rnn_type=supported_rnns[cfg.rnn_type.value], n_classes=output_size,
                          rnn_hidden_size=cfg.rnn_hidden_size, n_layers=cfg.rnn_n_layers,
                          bidirectional=cfg.bidirectional, dropout=cfg.dropout)
 

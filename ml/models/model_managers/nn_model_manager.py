@@ -31,6 +31,7 @@ class StackedNNModel(torch.nn.Module):
         super(StackedNNModel, self).__init__()
         self.cfg = cfg
         self.device = torch.device('cuda' if cfg.cuda else 'cpu')
+        self.class_labels = class_labels
         hidden_size = cfg.rnn_hidden_size * 2 if cfg.bidirectional else cfg.rnn_hidden_size
         self.feature_extractors = [
             construct_cnn_rnn(cfg=self.cfg, construct_cnn_func=construct_cnn, n_classes=len(class_labels)).to(self.device),
@@ -55,7 +56,7 @@ class StackedNNModel(torch.nn.Module):
         elif self.cfg.model_type.value == 'rnn':
             model = construct_rnn(self.cfg, len(self.class_labels))
         elif self.cfg.model_type.value == 'cnn_rnn':
-            model = construct_cnn_rnn(self.cfg, construct_cnn, len(self.class_labels), self.device)
+            model = construct_cnn_rnn(self.cfg, construct_cnn, len(self.class_labels))
         elif self.cfg.model_type.value == 'cnn':
             model = construct_cnn(self.cfg, use_as_extractor=False)
         elif self.cfg.model_type.value == 'logmel_cnn':
@@ -156,6 +157,10 @@ class NNModelManager(BaseModelManager):
                         loss.backward()
                 else:
                     loss.backward(retain_graph=True)
+
+                if self.cfg.grad_clip:
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), *list(self.cfg.grad_clip))
+
                 self.optimizer.step()
 
             if self.cfg.return_prob:
@@ -188,6 +193,10 @@ class NNModelManager(BaseModelManager):
                         loss.backward()
                 else:
                     loss.backward(retain_graph=True)
+
+                if self.cfg.grad_clip:
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), *list(self.cfg.grad_clip))
+
                 self.optimizer.step()
 
                 if hasattr(self, 'predictor'):
