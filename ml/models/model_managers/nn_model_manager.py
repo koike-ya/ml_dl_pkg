@@ -6,7 +6,7 @@ import torch
 from ml.models.model_managers.base_model_manager import BaseModelManager
 from ml.models.nn_models.attention import AttentionClassifier
 from ml.models.nn_models.cnn import construct_cnn
-from ml.models.nn_models.cnn_rnn import construct_cnn_rnn
+from ml.models.nn_models.cnn_rnn import construct_cnn_rnn, CNNRNNConfig
 from ml.models.nn_models.logmel_cnn import construct_logmel_cnn
 from ml.models.nn_models.multitask_panns_model import construct_multitask_panns
 from ml.models.nn_models.multitask_predictor import MultitaskPredictor
@@ -14,7 +14,7 @@ from ml.models.nn_models.nn import construct_nn
 from ml.models.nn_models.nn_utils import get_param_size
 from ml.models.nn_models.panns_cnn14 import construct_panns
 from ml.models.nn_models.pretrained_models import construct_pretrained, supported_pretrained_models
-from ml.models.nn_models.rnn import construct_rnn
+from ml.models.nn_models.rnn import construct_rnn, RNNConfig
 from ml.utils.nn_config import SGDConfig, AdamConfig
 from omegaconf import OmegaConf
 from sklearn.exceptions import NotFittedError
@@ -92,8 +92,8 @@ class NNModelManager(BaseModelManager):
         self.amp = cfg.amp
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer)
-        if torch.cuda.device_count() > 1 and cfg.model_type.value not in ['rnn', 'cnn_rnn']:
-            self.model = torch.nn.DataParallel(self.model)
+        if torch.cuda.device_count() > 1 and OmegaConf.get_type(cfg) not in [RNNConfig, CNNRNNConfig]:
+            self.model = torch.nn.parallel.DataParallel(self.model)
 
     def _assert_cfg(self, cfg):
         if cfg.attention:
