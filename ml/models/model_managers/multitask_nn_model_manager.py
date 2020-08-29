@@ -4,7 +4,7 @@ from typing import Tuple, List
 import numpy as np
 import torch
 import torch.nn.functional as F
-from ml.models.model_managers.nn_model_manager import NNModelManager
+from ml.models.model_managers.nn_model_manager import NNModelManager, StackedNNModel, get_param_size
 from sklearn.exceptions import NotFittedError
 
 # from apex import amp
@@ -39,6 +39,12 @@ class MultitaskNNModelManager(NNModelManager):
 
     def set_criterion(self):
         return MultitaskCriterion()
+
+    def _instantiate_model(self, class_labels):
+        model = StackedNNModel(self.cfg, class_labels, multitask=True)
+        logger.info(f'Model Parameters: {get_param_size(model)}')
+
+        return model
 
     def _fit_classify(self, inputs, labels, phase) -> Tuple[np.array, np.ndarray]:
         if self.mixup_alpha:
