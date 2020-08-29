@@ -40,10 +40,13 @@ class Predictor(nn.Module):
     def __init__(self, in_features, n_classes):
         super(Predictor, self).__init__()
         self.in_features = in_features
-        self.predictor = nn.Linear(in_features, n_classes)
+        self.predictor = nn.Sequential(
+            nn.Linear(in_features, 100),
+            nn.Linear(100, n_classes),
+        )
         if n_classes >= 2:
             self.predictor = nn.Sequential(
-                self.predictor,
+                *self.predictor,
                 nn.Softmax(dim=-1)
             )
 
