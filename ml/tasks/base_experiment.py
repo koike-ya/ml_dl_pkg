@@ -166,7 +166,7 @@ class CrossValidator(BaseExperimentor):
         df_x = pd.concat([pd.read_csv(self.orig_cfg.train.train_path, header=None),
                           pd.read_csv(self.orig_cfg.train.val_path, header=None)])
         y = df_x.apply(lambda x: self.label_func(x), axis=1)
-        logger.info(y.value_counts())
+        # logger.info(y.value_counts())
         
         k_fold = KFoldManager(self.cv_name.value, self.n_splits)
 
@@ -193,7 +193,8 @@ class CrossValidator(BaseExperimentor):
         df_x = pd.concat([pd.read_csv(self.orig_cfg.train.train_path, header=None),
                           pd.read_csv(self.orig_cfg.train.val_path, header=None)])
         y = df_x.apply(lambda x: self.label_func(x), axis=1)
-        logger.info(y.value_counts())
+
+        # logger.info(y.value_counts())
 
         k_fold = KFoldManager(self.cv_name.value, self.n_splits)
 
