@@ -79,7 +79,9 @@ class BaseExperimentor(metaclass=ABCMeta):
         for phase in phases:
             if isinstance(self.process_func, list):
                 self.process_func = Transform(self.cfg.transformer, phase, self.process_func)
-            dataset = self.dataset_cls(self.cfg.train[f'{phase}_path'], self.cfg.data, phase, self.load_func,
+
+            load_func = self.load_func[phase] if isinstance(self.load_func, dict) else self.load_func
+            dataset = self.dataset_cls(self.cfg.train[f'{phase}_path'], self.cfg.data, phase, load_func,
                                        self.process_func, self.label_func)
             dataloaders[phase] = self.data_loader_cls(dataset, phase, self.cfg.data)
 
