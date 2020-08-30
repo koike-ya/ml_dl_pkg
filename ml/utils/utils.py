@@ -1,4 +1,5 @@
 import json
+import yaml
 import os
 import random
 from typing import Sequence, Dict
@@ -14,7 +15,8 @@ def dump_dict(path, dict_):
     dict_ = {key: str(value) for key, value in dict_.items()}
 
     with open(path, 'w') as f:
-        json.dump(dict_, f, indent=4)
+        yaml.dump(dict_, f)
+        # json.dump(dict_, f, indent=4)
 
 
 def init_seed(seed) -> None:

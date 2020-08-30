@@ -145,10 +145,10 @@ class NNModelManager(BaseModelManager):
 
             outputs = self.model(inputs)
 
-            y_onehot = torch.zeros(labels.size(0), len(self.class_labels))
-            y_onehot = y_onehot.scatter_(1, labels.view(-1, 1).type(torch.LongTensor), 1).to(self.device)
+            if labels.dim() == 1:   # Not softlabel
+                labels = torch.eye(len(self.class_labels))[labels].to(self.device)
 
-            loss = self.criterion(outputs, y_onehot)
+            loss = self.criterion(outputs, labels)
 
             if phase == 'train':
                 self.optimizer.zero_grad()

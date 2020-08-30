@@ -155,6 +155,10 @@ class NNTrainManager(BaseTrainManager):
 
                 for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
                     loss, predicts = self.model_manager.fit(inputs.to(self.device), labels.to(self.device), phase)
+
+                    if self.cfg.softlabel_t != 0.0:   # TODO ここはlabelsのサイズを見て切り替えもありかも。
+                        labels = labels.argmax(dim=1)
+
                     if pred_list.size == 0:
                         pred_list = predicts
                     elif pred_list.ndim == 1:

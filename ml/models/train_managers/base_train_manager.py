@@ -36,6 +36,7 @@ class TrainConfig(TensorboardConfig):
     finetune: bool = False  # Fine-tune the model from checkpoint "continue_from"
     model: ModelConfig = ExtendedModelConfig()
     class_names: List[str] = field(default_factory=lambda: ['0', '1'])
+    softlabel_t: float = 0.0
 
     train_path: str = 'input/train.csv'  # Data file for training
     val_path: str = 'input/val.csv'  # Data file for validation
