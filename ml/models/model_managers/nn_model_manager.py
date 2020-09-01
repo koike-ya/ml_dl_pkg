@@ -3,6 +3,7 @@ from typing import Tuple
 
 import numpy as np
 import torch
+from apex import amp
 from ml.models.model_managers.base_model_manager import BaseModelManager
 from ml.models.nn_models.attention import AttentionClassifier
 from ml.models.nn_models.cnn import construct_cnn
@@ -11,7 +12,7 @@ from ml.models.nn_models.logmel_cnn import construct_logmel_cnn
 from ml.models.nn_models.multitask_panns_model import construct_multitask_panns
 from ml.models.nn_models.multitask_predictor import MultitaskPredictor
 from ml.models.nn_models.nn import construct_nn
-from ml.models.nn_models.nn_utils import get_param_size, Predictor
+from ml.models.nn_models.nn_utils import get_param_size
 from ml.models.nn_models.panns_cnn14 import construct_panns
 from ml.models.nn_models.pretrained_models import construct_pretrained, supported_pretrained_models
 from ml.models.nn_models.rnn import construct_rnn, RNNConfig
@@ -19,11 +20,7 @@ from ml.utils.nn_config import SGDConfig, AdamConfig
 from omegaconf import OmegaConf
 from sklearn.exceptions import NotFittedError
 
-from apex import amp
-
 logger = logging.getLogger(__name__)
-
-ATTN_SUPPORTED = ['cnn_rnn']
 
 
 class StackedNNModel(torch.nn.Module):
@@ -37,14 +34,14 @@ class StackedNNModel(torch.nn.Module):
             construct_cnn_rnn(cfg=self.cfg, construct_cnn_func=construct_cnn, n_classes=len(class_labels)).to(self.device),
         ]
 
-        if cfg.attention:
-            self.feature_extractors.append(
-                AttentionClassifier(len(class_labels), hidden_size, da=cfg.da, n_heads=cfg.n_heads).to(self.device)
-            )
-
         if multitask:
             self.predictor = MultitaskPredictor(self.feature_extractors[-1].predictor.in_features,
                                                 cfg.n_labels_in_each_task, self.device)
+        elif cfg.attention:
+            # self.feature_extractors.append(
+            #     AttentionClassifier(len(class_labels), hidden_size, da=cfg.da, n_heads=cfg.n_heads).to(self.device)
+            # )
+            self.predictor = AttentionClassifier(len(class_labels), hidden_size, da=cfg.da, n_heads=cfg.n_heads).to(self.device)
         else:
             self.predictor = self.feature_extractors[-1].predictor.to(self.device)
     
@@ -72,7 +69,6 @@ class StackedNNModel(torch.nn.Module):
         for feature_extractor in self.feature_extractors:
             x = feature_extractor.extract_feature(x)
 
-        x = x.reshape(x.size(0), -1)
         return self.predictor(x)
 
 

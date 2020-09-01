@@ -37,13 +37,19 @@ def set_requires_grad(model, requires_grad=True):
 
 
 class Predictor(nn.Module):
-    def __init__(self, in_features, n_classes):
+    def __init__(self, in_features, n_classes, n_fc=3):
         super(Predictor, self).__init__()
         self.in_features = in_features
-        self.predictor = nn.Sequential(
-            nn.Linear(in_features, 100),
-            nn.Linear(100, n_classes),
-        )
+
+        if n_fc == 1:
+            self.predictor = nn.Sequential(nn.Linear(in_features, n_classes))
+        else:
+            self.predictor = nn.Sequential(
+                nn.Linear(in_features, 1000), nn.ReLU(), nn.Dropout(p=0.2),
+                nn.Linear(1000, 200), nn.ReLU(), nn.Dropout(p=0.2),
+                nn.Linear(200, n_classes),
+            )
+
         if n_classes >= 2:
             self.predictor = nn.Sequential(
                 *self.predictor,
@@ -51,4 +57,6 @@ class Predictor(nn.Module):
             )
 
     def forward(self, x):
+        if x.dim() >= 3:
+            x = x.reshape(x.size(0), -1)
         return self.predictor(x)
