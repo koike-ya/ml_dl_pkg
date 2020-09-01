@@ -80,8 +80,7 @@ class BaseExperimentor(metaclass=ABCMeta):
             if isinstance(self.process_func, list):
                 self.process_func = Transform(self.cfg.transformer, phase, self.process_func)
 
-            load_func = self.load_func[phase] if isinstance(self.load_func, dict) else self.load_func
-            dataset = self.dataset_cls(self.cfg.train[f'{phase}_path'], self.cfg.data, phase, load_func,
+            dataset = self.dataset_cls(self.cfg.train[f'{phase}_path'], self.cfg.data, phase, self.load_func,
                                        self.process_func, self.label_func)
             dataloaders[phase] = self.data_loader_cls(dataset, phase, self.cfg.data)
 
@@ -168,7 +167,7 @@ class CrossValidator(BaseExperimentor):
         df_x = pd.concat([pd.read_csv(self.orig_cfg.train.train_path, header=None),
                           pd.read_csv(self.orig_cfg.train.val_path, header=None)])
         y = df_x.apply(lambda x: self.label_func(x), axis=1)
-        # logger.info(y.value_counts())
+        logger.info(y.value_counts())
         
         k_fold = KFoldManager(self.cv_name.value, self.n_splits)
 
@@ -196,7 +195,7 @@ class CrossValidator(BaseExperimentor):
                           pd.read_csv(self.orig_cfg.train.val_path, header=None)])
         y = df_x.apply(lambda x: self.label_func(x), axis=1)
 
-        # logger.info(y.value_counts())
+        logger.info(y.value_counts())
 
         k_fold = KFoldManager(self.cv_name.value, self.n_splits)
 
