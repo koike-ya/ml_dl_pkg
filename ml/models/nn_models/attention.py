@@ -9,43 +9,40 @@ from ml.models.nn_models.nn_utils import initialize_weights, Predictor
 
 @dataclass
 class AttnConfig:    # Attention layer arguments
-    da: int = 64
+    d_attn: int = 64
     n_heads: int = 1
 
 
 class Attention(nn.Module):
-    def __init__(self, h_dim, da, n_heads):
+    def __init__(self, h_dim, d_attn, n_heads):
         super(Attention, self).__init__()
         self.h_dim = h_dim
-        self.da = da
+        self.d_attn = d_attn
         self.n_heads = n_heads
         self.attn = nn.Sequential(
-            nn.Linear(h_dim, da),
-            nn.ReLU(),
-            nn.Linear(da, n_heads)
+            nn.Linear(h_dim, d_attn),
+            nn.Tanh(),
+            nn.Linear(d_attn, n_heads)
         )
         
     def calc_attention(self, x):
         b_size = x.size(0)
         attn_ene = self.attn(x.reshape(-1, self.h_dim))  # (b, s, h) -> (b * s, n_heads)
-        # print(F.softmax(attn_ene.view(b_size, -1, self.n_heads), dim=2))
-        # exit()
-        return F.softmax(attn_ene.view(b_size, -1, self.n_heads), dim=2)  # (b*s, n_heads) -> (b, s, n_heads)
+        x = attn_ene.view(b_size, -1, self.n_heads).transpose(1, 2)  # (b * s, n_heads) -> (b, s, n_heads) -> (b, n_heads, s)
+        return torch.softmax(x, dim=2)
 
     def forward(self, x):
         x = x.transpose(1, 2)  # (b, h, s) -> (b, s, h)
-        attns = self.calc_attention(x)  # (b, s, h) -> (b, s, n_heads)
-        feats = torch.stack(
-            [(x * attns[:, :, i_head].unsqueeze(dim=2)).sum(dim=1) for i_head in range(self.n_heads)],  # (b, s, h) -> (b, h)
-        dim=2)  # (b, h, n_heads)
+        attns = self.calc_attention(x)  # (b, s, h) -> (b, n_heads, s)
+        feats = attns.matmul(x).mean(dim=1)
         return feats, attns
 
 
 class AttentionClassifier(nn.Module):
-    def __init__(self, n_classes, h_dim, da=512, n_heads=8):
+    def __init__(self, n_classes, h_dim, d_attn=512, n_heads=8):
         super(AttentionClassifier, self).__init__()
-        self.attn = Attention(h_dim, da, n_heads)
-        self.predictor = Predictor(h_dim * n_heads, n_classes, n_fc=1)
+        self.attn = Attention(h_dim, d_attn, n_heads)
+        self.predictor = Predictor(h_dim, n_classes, n_fc=1)
 
     def extract_feature(self, x):
         x, _ = self.attn(x)

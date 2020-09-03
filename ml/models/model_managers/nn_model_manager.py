@@ -41,7 +41,7 @@ class StackedNNModel(torch.nn.Module):
             # self.feature_extractors.append(
             #     AttentionClassifier(len(class_labels), hidden_size, da=cfg.da, n_heads=cfg.n_heads).to(self.device)
             # )
-            self.predictor = AttentionClassifier(len(class_labels), hidden_size, da=cfg.da, n_heads=cfg.n_heads).to(self.device)
+            self.predictor = AttentionClassifier(len(class_labels), hidden_size, d_attn=cfg.d_attn, n_heads=cfg.n_heads).to(self.device)
         else:
             self.predictor = self.feature_extractors[-1].predictor.to(self.device)
     
