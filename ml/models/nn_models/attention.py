@@ -21,14 +21,16 @@ class Attention(nn.Module):
         self.n_heads = n_heads
         self.attn = nn.Sequential(
             nn.Linear(h_dim, da),
-            nn.Tanh(),
+            nn.ReLU(),
             nn.Linear(da, n_heads)
         )
         
     def calc_attention(self, x):
         b_size = x.size(0)
         attn_ene = self.attn(x.reshape(-1, self.h_dim))  # (b, s, h) -> (b * s, n_heads)
-        return F.softmax(attn_ene.view(b_size, -1, self.n_heads), dim=1)  # (b*s, n_heads) -> (b, s, n_heads)
+        # print(F.softmax(attn_ene.view(b_size, -1, self.n_heads), dim=2))
+        # exit()
+        return F.softmax(attn_ene.view(b_size, -1, self.n_heads), dim=2)  # (b*s, n_heads) -> (b, s, n_heads)
 
     def forward(self, x):
         x = x.transpose(1, 2)  # (b, h, s) -> (b, s, h)
