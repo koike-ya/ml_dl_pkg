@@ -37,7 +37,7 @@ def set_requires_grad(model, requires_grad=True):
 
 
 class Predictor(nn.Module):
-    def __init__(self, in_features, n_classes, n_fc=3):
+    def __init__(self, in_features, n_classes, n_fc=3, tagging=False):
         super(Predictor, self).__init__()
         self.in_features = in_features
 

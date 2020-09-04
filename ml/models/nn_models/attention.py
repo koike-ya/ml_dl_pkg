@@ -42,7 +42,7 @@ class AttentionClassifier(nn.Module):
     def __init__(self, n_classes, h_dim, d_attn=512, n_heads=8):
         super(AttentionClassifier, self).__init__()
         self.attn = Attention(h_dim, d_attn, n_heads)
-        self.predictor = Predictor(h_dim, n_classes, n_fc=1)
+        self.predictor = Predictor(h_dim, n_classes, n_fc=1, tagging=False)
 
     def extract_feature(self, x):
         x, _ = self.attn(x)
