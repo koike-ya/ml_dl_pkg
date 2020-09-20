@@ -26,7 +26,6 @@ def initialize_weights(model):
 
 def init_bn(bn):
     """Initialize a Batchnorm layer. """
-
     bn.bias.data.fill_(0.)
     bn.weight.data.fill_(1.)
 
@@ -55,6 +54,7 @@ class Predictor(nn.Module):
                 *self.predictor,
                 nn.Softmax(dim=-1)
             )
+        self.predictor = initialize_weights(self.predictor)
 
     def forward(self, x):
         if x.dim() >= 3:

@@ -62,33 +62,17 @@ class RNNClassifier(nn.Module):
                  bidirectional=True, dropout=0.3):
         super(RNNClassifier, self).__init__()
 
-        rnns = []
-        rnn = initialize_weights(
+        self.rnn = initialize_weights(
             rnn_type(input_size=input_size, hidden_size=rnn_hidden_size, bidirectional=bidirectional, bias=True,
-                     dropout=dropout))
-        rnns.append(('0', rnn))
-        rnn_hidden_size = rnn_hidden_size * 2 if bidirectional else rnn_hidden_size
+                     dropout=dropout, num_layers=n_layers))
 
-        for i in range(n_layers - 1):
-            rnn = initialize_weights(
-                rnn_type(input_size=rnn_hidden_size,
-                         hidden_size=rnn_hidden_size // 2 if bidirectional else rnn_hidden_size,
-                         bidirectional=bidirectional,
-                         bias=True, dropout=dropout))
-            rnns.append((f'{i + 1}', rnn))
-        self.rnns = nn.Sequential(OrderedDict(rnns))
-        # self.predictor = nn.Sequential(
-        #     nn.BatchNorm1d(rnn_hidden_size * out_time_feature),
-        #     initialize_weights(nn.Linear(rnn_hidden_size * out_time_feature, output_size, bias=False))
-        # )
+        rnn_hidden_size = rnn_hidden_size * 2 if bidirectional else rnn_hidden_size
         self.predictor = Predictor(in_features=rnn_hidden_size * out_time_feature, n_classes=n_classes)
 
     def extract_feature(self, x):
-        x = x.transpose(0, 2).transpose(1, 2)  # batch x feature x time -> # time x batch x feature
-        for rnn in self.rnns:
-            x, _ = rnn(x)
-
-        x = x.transpose(0, 1).transpose(1, 2)  # time x batch x feature -> batch x time x feature -> batch x feature x time
+        x = x.transpose(0, 2).transpose(1, 2)  # batch x feature x seq -> # seq x batch x feature
+        x, _ = self.rnn(x)
+        x = x.transpose(0, 1).transpose(1, 2)  # seq x batch x feature -> batch x seq x feature -> batch x feature x seq
 
         return x
 
@@ -101,33 +85,3 @@ class RNNClassifier(nn.Module):
         x = self.predict(x)
 
         return x
-
-#
-# class DeepSpeech(RNNClassifier):
-#     def __init__(self, conv, input_size, out_time_feature, rnn_type=nn.LSTM, rnn_hidden_size=768, n_layers=5,
-#                  bidirectional=True, output_size=2):
-#         super(DeepSpeech, self).__init__(input_size=input_size, out_time_feature=out_time_feature, rnn_type=nn.LSTM,
-#                                          rnn_hidden_size=rnn_hidden_size, n_layers=n_layers,
-#                                          bidirectional=bidirectional, output_size=output_size)
-#
-#         self.hidden_size = rnn_hidden_size
-#         self.hidden_layers = n_layers
-#         self.rnn_type = rnn_type
-#         self.bidirectional = bidirectional
-#
-#         self.conv = conv
-#         print(f'Number of parameters\tconv: {get_param_size(self.conv)}\trnn: {get_param_size(super())}')
-#
-#     def forward(self, x):
-#         x = self.conv(x.to(torch.float))    # batch x channel x freq x time
-#
-#         sizes = x.size()    # batch x channel x freq_feature x time_feature
-#         if len(sizes) == 4:
-#             x = x.view(sizes[0], sizes[1] * sizes[2], sizes[3])  # Collapse feature dimension   batch x feature x time
-#         x = super().forward(x)
-#         return x
-#
-#     def change_last_layer(self, n_classes):
-#         self.fc[1] = initialize_weights(nn.Linear(self.fc[1].in_features, n_classes, bias=False))
-#         # print(self.fc[1].in_features)
-#         # self.fc[1] = nn.Linear(self.fc[1].in_features, n_classes, bias=False)
