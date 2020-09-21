@@ -49,11 +49,6 @@ class Predictor(nn.Module):
                 nn.Linear(200, n_classes),
             )
 
-        if n_classes >= 2:
-            self.predictor = nn.Sequential(
-                *self.predictor,
-                nn.Softmax(dim=-1)
-            )
         self.predictor = initialize_weights(self.predictor)
 
     def forward(self, x):
