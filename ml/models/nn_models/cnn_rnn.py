@@ -45,8 +45,6 @@ class CNNRNN(RNNClassifier):
 
     def forward(self, x):
         x = self.extract_feature(x)
-        print(x.size())
-        exit()
         x = self.predict(x)
 
         return x
