@@ -52,7 +52,10 @@ class AttentionClassifier(nn.Module):
         return x
 
     def forward(self, x):
+        print(x.size())
         x = self.extract_feature(x)
+        print(x.size())
+        exit()
         return self.predictor(x)
 
 

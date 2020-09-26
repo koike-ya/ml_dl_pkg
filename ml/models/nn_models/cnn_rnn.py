@@ -30,6 +30,8 @@ class CNNRNN(RNNClassifier):
         print(f'Number of parameters\tconv: {get_param_size(self.conv)}\trnn: {get_param_size(super())}')
 
     def extract_feature(self, x):
+        print(x.size())
+        exit()
         x = self.conv(x.to(torch.float))  # batch x channel x time x freq
 
         if len(x.size()) == 4:  # batch x channel x time_feature x freq_feature

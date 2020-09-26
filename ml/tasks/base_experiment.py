@@ -2,7 +2,7 @@ import logging
 import tempfile
 from abc import ABCMeta
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Tuple, Dict, List
 
 import mlflow
@@ -13,7 +13,7 @@ from ml.models.train_managers.base_train_manager import TrainConfig
 from ml.models.train_managers.ml_train_manager import MLTrainManager
 from ml.models.train_managers.multitask_train_manager import MultitaskTrainManager
 from ml.models.train_managers.nn_train_manager import NNTrainManager
-from ml.preprocess.transforms import Transform, TransConfig
+from ml.preprocess.parallel_transforms import ParallelTransform
 from ml.src.cv_manager import KFoldManager
 from ml.src.cv_manager import SupportedCV
 from ml.src.dataloader import DataConfig
@@ -42,7 +42,7 @@ class BaseExptConfig:
 
     train: TrainConfig = TrainConfig()
     data: DataConfig = DataConfig()
-    transformer: TransConfig = TransConfig()
+    transformers: List[TrainConfig] = field(default_factory=lambda: [])
 
 
 def get_metrics(phases, task_type, train_manager='normal'):
@@ -78,7 +78,7 @@ class BaseExperimentor(metaclass=ABCMeta):
         dataloaders = {}
         for phase in phases:
             if isinstance(self.process_func, list):
-                self.process_func = Transform(self.cfg.transformer, phase, self.process_func)
+                self.process_func = ParallelTransform(self.cfg.transformers, phase, self.process_func)
 
             dataset = self.dataset_cls(self.cfg.train[f'{phase}_path'], self.cfg.data, phase, self.load_func,
                                        self.process_func, self.label_func)
