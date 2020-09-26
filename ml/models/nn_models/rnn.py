@@ -70,8 +70,6 @@ class RNNClassifier(nn.Module):
         self.predictor = Predictor(in_features=rnn_hidden_size * out_time_feature, n_classes=n_classes)
 
     def extract_feature(self, x):
-        print(x.size())
-        exit()
         x = x.transpose(0, 2).transpose(1, 2)  # batch x feature x seq -> # seq x batch x feature
         x, _ = self.rnn(x)
         x = x.transpose(0, 1).transpose(1, 2)  # seq x batch x feature -> batch x seq x feature -> batch x feature x seq
