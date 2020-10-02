@@ -38,7 +38,7 @@ class NNTrainManager(BaseTrainManager):
         for metric in self.metrics[phase]:
             best_flag = metric.average_meter.update_best()
             if metric.save_model and best_flag and phase == 'val':
-                logger.info(f"Found better validated model, saving to {self.cfg['model_path']}")
+                logger.info(f"Found better validated model, saving to {self.cfg.model.model_path}")
                 self.model_manager.save_model()
                 best_val_flag = True
 
@@ -46,10 +46,10 @@ class NNTrainManager(BaseTrainManager):
             metric.average_meter.reset()
 
         if phase == 'train' and epoch + 1 in self.cfg['snapshot']:
-            orig_model_path = self.cfg['model_path']
-            self.cfg['model_path'] = self.cfg['model_path'].replace('.pth', f'_ep{epoch + 1}.pth')
+            orig_model_path = self.cfg.model.model_path
+            self.cfg.model.model_path = self.cfg.model.model_path.replace('.pth', f'_ep{epoch + 1}.pth')
             self.model_manager.save_model()
-            self.cfg['model_path'] = orig_model_path
+            self.cfg.model.model_path = orig_model_path
 
         # anneal lr
         if phase == 'train':
@@ -69,8 +69,6 @@ class NNTrainManager(BaseTrainManager):
             logger.info(message)
 
     def _predict(self, phase) -> Tuple[np.array, np.array]:
-        self.check_keys_from_dict([phase], self.dataloaders)
-
         pred_list, label_list = np.array([]), np.array([])
         for i, (inputs, labels) in tqdm(enumerate(self.dataloaders[phase]), total=len(self.dataloaders[phase])):
             inputs, labels = inputs.to(self.device), labels.numpy().reshape(-1,)
@@ -91,17 +89,17 @@ class NNTrainManager(BaseTrainManager):
     def snapshot_predict(self, phase):
         snap_pred_list = []
         for epoch in self.cfg['snapshot']:
-            model_path = self.cfg['model_path']
-            self.cfg['model_path'] = self.cfg['model_path'].replace('.pth', f'_ep{epoch}.pth')
+            model_path = self.cfg.model.model_path
+            self.cfg.model.model_path = self.cfg.model.model_path.replace('.pth', f'_ep{epoch}.pth')
             self.model_manager.load_model()
-            self.cfg['model_path'] = model_path
+            self.cfg.model.model_path = model_path
             pred_list, label_list = self._predict(phase=phase)
             snap_pred_list.append(pred_list)
 
         ensemble = np.array(snap_pred_list).mean(axis=0)
 
         print(ensemble)
-        if not self.cfg['return_prob']:
+        if not self.cfg.model.return_prob:
             ensemble = ensemble.astype(int)
         print(ensemble)
         return ensemble, label_list
@@ -126,8 +124,6 @@ class NNTrainManager(BaseTrainManager):
             phases = ['train']
         if only_validate:
             phases = ['val']
-
-        self.check_keys_from_dict(phases, self.dataloaders)
 
         for epoch in range(self.cfg['epochs']):
             for phase in phases:
@@ -156,11 +152,11 @@ class NNTrainManager(BaseTrainManager):
                 if self.logger:
                     self._record_log(phase, epoch)
 
-                best_val_flag = self._update_by_epoch(phase, self.cfg['learning_anneal'], epoch)
+                best_val_flag = self._update_by_epoch(phase, self.cfg.model.optim.learning_anneal, epoch)
 
                 if best_val_flag:
                     best_val_pred = pred_list.copy()
-                    if not self.cfg['return_prob']:
+                    if not self.cfg.model.return_prob:
                         logger.debug(f'Best prediction of validation info:\n{pd.Series(best_val_pred).describe()}')
 
         if self.logger:

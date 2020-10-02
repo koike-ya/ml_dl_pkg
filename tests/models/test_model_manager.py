@@ -4,7 +4,7 @@ import torch
 from ml.models.train_managers.train_manager import BaseTrainManager
 from torch.utils.data import DataLoader
 
-from ml.config import TEST_PATH
+from ml.utils.config import TEST_PATH
 from ml.src.dataset import BaseDataSet
 from ml.src.metrics import Metric
 

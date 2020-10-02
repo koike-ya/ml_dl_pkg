@@ -50,9 +50,9 @@ class SimpleCSVDataset(BaseDataSet):
 
 
 class CSVDataSet(BaseDataSet):
-    def __init__(self, csv_path, data_conf, phase, load_func=None, transform=None, label_func=None):
+    def __init__(self, csv_path, cfg, phase, load_func=None, transform=None, label_func=None):
         """
-        data_conf: {
+        cfg: {
             'header': None or True,
             'feature_columns': list of feature columns,
             'label_column': column name to use as label
@@ -67,7 +67,7 @@ class CSVDataSet(BaseDataSet):
             self.x, self.y = load_func(csv_path)
             logger.debug(f'{phase}: mean {self.x.mean()}\t std {self.x.std()}')
         else:
-            df = pd.read_csv(csv_path, header=data_conf.get('header', 'infer'))
+            df = pd.read_csv(csv_path, header=cfg.get('header', 'infer'))
             if phase in ['train', 'val']:
                 self.y = df.iloc[:, -1]
                 self.x = df.iloc[:, :-1].values
@@ -108,9 +108,9 @@ class CSVDataSet(BaseDataSet):
 
 class ManifestDataSet(BaseDataSet):
     # TODO 要テスト実装
-    def __init__(self, manifest_path, data_conf, phase='train', load_func=None, transform=None, label_func=None):
+    def __init__(self, manifest_path, cfg, phase='train', load_func=None, transform=None, label_func=None):
         """
-        data_conf: {
+        cfg: {
             'load_func': Function to load data from manifest correctly,
             'labels': List of labels or None if it's made from path
             'label_func': Function to extract labels from path or None if labels are given as 'labels'
@@ -119,14 +119,14 @@ class ManifestDataSet(BaseDataSet):
         """
         super(ManifestDataSet, self).__init__()
         self.path_df = pd.read_csv(manifest_path, header=None)
-        if phase == 'test' and data_conf['tta']:
-            self.path_df = pd.concat([self.path_df] * data_conf['tta'])
+        if phase == 'test' and cfg.tta:
+            self.path_df = pd.concat([self.path_df] * cfg.tta)
         self.load_func = load_func
         self.label_func = label_func
         if phase == 'infer':
             self.labels = [-100] * len(self.path_df)
         else:
-            self.labels = self._set_labels(data_conf['labels'] if 'labels' in data_conf.keys() else None)
+            self.labels = self._set_labels(cfg.labels if 'labels' in cfg.keys() else None)
         self.transform = transform
         self.phase = phase
 
@@ -165,8 +165,8 @@ class ManifestDataSet(BaseDataSet):
 
 
 class ManifestWaveDataSet(ManifestDataSet):
-    def __init__(self, manifest_path, data_conf, load_func=None, transform=None, label_func=None, phase='train'):
-        super(ManifestWaveDataSet, self).__init__(manifest_path, data_conf, load_func, transform, label_func, phase)
+    def __init__(self, manifest_path, cfg, load_func=None, transform=None, label_func=None, phase='train'):
+        super(ManifestWaveDataSet, self).__init__(manifest_path, cfg, load_func, transform, label_func, phase)
 
     def get_seq_len(self):
         x = self.load_func(self.path_df.iloc[0, :])
