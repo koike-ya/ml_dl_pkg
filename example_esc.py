@@ -94,7 +94,7 @@ def main(expt_conf, expt_dir, hyperparameters):
                         filename=expt_dir / 'expt.log')
 
     expt_conf['class_names'] = list(range(10))
-    expt_conf['sample_rate'] = 11025
+    expt_conf['sample_rate'] = 22050
 
     load_func = set_load_func(44100, expt_conf['sample_rate'])
     metrics_names = {'train': ['loss', 'uar'],
@@ -187,7 +187,7 @@ if __name__ == '__main__':
 
     console = logging.StreamHandler()
     console.setFormatter(logging.Formatter("[%(name)s] [%(levelname)s] %(message)s"))
-    console.setLevel(logging.INFO)
+    console.setLevel(logging.DEBUG)
     logging.getLogger("ml").addHandler(console)
 
     if expt_conf['model_type'] == 'cnn':

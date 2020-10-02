@@ -47,7 +47,7 @@ class CNN1d(nn.Module):
             nn.MaxPool2d((1, 2), (1, 2)),
         )
         # TODO debug and determine
-        n_features = 15360
+        n_features = 38400
 
         return nn.Sequential(*layers), n_features
 
@@ -62,9 +62,9 @@ class CNN1d(nn.Module):
         return self.predictor(x)
 
     def get_1dconv_responce(self, x):
-        x = torch.Tensor(x).unsqueeze(dim=0).unsqueeze(dim=1).unsqueeze(dim=1)
+        x = x.unsqueeze(dim=0).unsqueeze(dim=1).unsqueeze(dim=1)
         x = self.cnn_1d(x.to(torch.float))
-        return x.transpose(1, 2)
+        return x.transpose(1, 2).squeeze(dim=0).squeeze(dim=0)
 
 
 def construct_1dcnn(cfg):

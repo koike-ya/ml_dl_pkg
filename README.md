@@ -1,13 +1,13 @@
 # What's this repository for?
 To boost baseline model construction and incremental hypothesis testing speed.
 
-You can use this library for both machine learning and deep learning tasks only with changing some argments.
+You can use this library for both machine learning and deep learning tasks by changing only some arguments.
 
 # Requirements
-- cuda >= 10.0
+- cuda >= 10.0 (for GPU users)
 
-# Setup Environment
-
+# Setup
+## Virtual environment
 ```
 conda create -n ml_dl_pkg python=3.7
 source activate ml_dl_pkg
@@ -31,14 +31,13 @@ cd ../ml_dl_pkg
 
 ## For CPU users
 ```
-mkdir --parent apex/amp 
+mkdir --parent ../apex/amp
 ```
 
-## Finish
+## Installation
 ```
 pip install -r requirements.txt
 python setup.py install
-
 ```
 
 # Example
