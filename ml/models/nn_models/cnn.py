@@ -4,10 +4,9 @@ seed = 0
 torch.manual_seed(seed)
 import math
 
-torch.cuda.manual_seed_all(seed)
 import random
-random.seed(seed)
 import torch.nn as nn
+from ml.models.nn_models.nn_utils import Predictor
 
 from dataclasses import dataclass, field
 from typing import List
@@ -38,12 +37,7 @@ class CNN(nn.Module):
         )
         self.n_dim = dim
         self.feature_extract = feature_extract
-        self.predictor = nn.Linear(out_features, n_classes)
-        if n_classes >= 2:
-            self.predictor = nn.Sequential(
-                self.predictor,
-                nn.Softmax(dim=-1)
-            )
+        self.predictor = Predictor(out_features, n_classes)
 
     def extract_feature(self, x):
         return self.feature_extractor(x.to(torch.float))
@@ -94,7 +88,7 @@ class CNNMaker:
             else:
                 conv = cnn_set[self.n_dim]['conv_cls'](n_channels, channel, kernel_size, stride, padding)
                 layers += [conv, cnn_set[self.n_dim]['batch_norm_cls'](channel), nn.ReLU(inplace=True)]
-            n_channels = channel
+                n_channels = channel
 
         return nn.Sequential(*layers)
 
@@ -118,8 +112,10 @@ class CNNMaker:
         if len(feature_shape) == 1:
             feature_shape.append(1)
 
+        n_channels = self.cfg[-2][0] if self.cfg[-1][0] == 'M' else self.cfg[-1][0]
+
         return {
-            'n_channels': self.cfg[-1][0],
+            'n_channels': n_channels,
             'height': int(feature_shape[0]),
             'width': int(feature_shape[1])}
 

@@ -1,50 +1,58 @@
+from dataclasses import dataclass, field
+from typing import List
+import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn import MultiheadAttention
+from ml.models.nn_models.nn_utils import initialize_weights, Predictor
 
-from ml.models.nn_models.nn_utils import initialize_weights
+
+@dataclass
+class AttnConfig:    # Attention layer arguments
+    d_attn: int = 64
+    n_heads: int = 1
 
 
 class Attention(nn.Module):
-    def __init__(self, h_dim, da=24, n_heads=1):
+    def __init__(self, h_dim, d_attn, n_heads):
         super(Attention, self).__init__()
         self.h_dim = h_dim
-        self.da = da
+        self.d_attn = d_attn
         self.n_heads = n_heads
         self.attn = nn.Sequential(
-            nn.Linear(h_dim, da),
+            nn.Linear(h_dim, d_attn, bias=False),
             nn.Tanh(),
-            nn.Linear(da, n_heads)
+            nn.Linear(d_attn, n_heads, bias=False),
         )
+        self.softmax = nn.Softmax(dim=1)
         
     def calc_attention(self, x):
-        b_size = x.size(0)
-        attn_ene = self.attn(x.reshape(-1, self.h_dim))  # (b, s, h) -> (b * s, n_heads)
-        return F.softmax(attn_ene.view(b_size, -1, self.n_heads), dim=1)  # (b*s, n_heads) -> (b, s, n_heads)
+        x = self.attn(x)
+        x = self.softmax(x).transpose(1, 2)  # (b, s, n_heads) -> (b, n_heads, s)
+        return x
 
     def forward(self, x):
         x = x.transpose(1, 2)  # (b, h, s) -> (b, s, h)
-        attns = self.calc_attention(x)  # (b, s, h) -> (b, s, n_heads)
-        feats = torch.stack(
-            [(x * attns[:, :, i_head].unsqueeze(dim=2)).sum(dim=1) for i_head in range(self.n_heads)],  # (b, s, h) -> (b, h)
-        dim=2)  # (b, h, n_heads)
+        attns = self.calc_attention(x)  # (b, s, h) -> (b, n_heads, s)
+        feats = torch.bmm(attns, x).view(x.size(0), -1)
+
         return feats, attns
 
 
 class AttentionClassifier(nn.Module):
-    def __init__(self, n_classes, h_dim, da=24, n_heads=8):
+    def __init__(self, n_classes, h_dim, d_attn=512, n_heads=8):
         super(AttentionClassifier, self).__init__()
-        self.attn = Attention(h_dim, da, n_heads)
-        self.predictor = nn.Linear(h_dim * n_heads, n_classes)
-        if n_classes >= 2:
-            self.predictor = nn.Sequential(
-                self.predictor,
-                nn.Softmax(dim=-1)
-            )
+        self.attn = Attention(h_dim, d_attn, n_heads)
+        self.predictor = Predictor(h_dim * n_heads, n_classes, n_fc=1, tagging=False)
+
+    def extract_feature(self, x):
+        x, _ = self.attn(x)
+        return x
 
     def forward(self, x):
-        x, _ = self.attn(x)
-        x = x.view(x.size(0), -1)
+        x = self.extract_feature(x)
         return self.predictor(x)
 
 

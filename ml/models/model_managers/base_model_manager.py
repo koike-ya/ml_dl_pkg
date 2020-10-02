@@ -1,19 +1,15 @@
 import logging
 from abc import ABCMeta, abstractmethod
-
-logger = logging.getLogger(__name__)
+from dataclasses import dataclass, field
+from typing import List
 
 import numpy as np
-
 from ml.models.loss import set_criterion
-
-
-from dataclasses import dataclass, field
-from ml.models.loss import LossConfig
-from typing import List, Any
-from omegaconf import MISSING
-from ml.utils.enums import TaskType, ModelType
 from ml.preprocess.augment import SpecAugConfig
+from ml.utils import init_seed
+from ml.utils.enums import TaskType
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -22,20 +18,13 @@ class ModelConfig:  # ML/DL model arguments
     model_path: str = '../output/models/sth.pth'    # Path to save model
     early_stopping: bool = False        # Early stopping with validation data
     return_prob: bool = False     # Returns probability, not predicted labels
-    loss_config: LossConfig = LossConfig()
-    checkpoint_path: str = ''  # Model weight file to load model
-    amp: bool = False  # Mixed precision training
-
+    seed: int = 0  # Seed for deterministic
+    models: List[str] = field(default_factory=lambda: ['cnn'])
     input_size: List[int] = field(default_factory=lambda: [])
 
     # TODO train_managerと共有したままなのか、継承によって消すのか
     class_names: List[str] = field(default_factory=lambda: ['0', '1'])
     task_type: TaskType = TaskType.classify
-    cuda: bool = True  # Use cuda to train a model
-    transfer: bool = False  # TODO modify this or remove this feature # Transfer learning from model_path
-    model_type: ModelType = ModelType.cnn
-
-    optim: Any = MISSING
 
 
 @dataclass
@@ -50,6 +39,7 @@ class BaseModelManager(metaclass=ABCMeta):
         self.cfg = cfg
         self.criterion = set_criterion(self.cfg.loss_config, self.cfg.task_type.value, self.cfg.class_names)
         self.fitted = False
+        init_seed(self.cfg.seed)
 
     def anneal_lr(self, learning_anneal):
         pass
