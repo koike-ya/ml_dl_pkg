@@ -14,6 +14,7 @@ from ml.models.train_managers.ml_train_manager import MLTrainManager
 from ml.models.train_managers.multitask_train_manager import MultitaskTrainManager
 from ml.models.train_managers.nn_train_manager import NNTrainManager
 from ml.preprocess.parallel_transforms import ParallelTransform
+from ml.preprocess.transforms import TransConfig
 from ml.src.cv_manager import KFoldManager
 from ml.src.cv_manager import SupportedCV
 from ml.src.dataloader import DataConfig
@@ -42,7 +43,7 @@ class BaseExptConfig:
 
     train: TrainConfig = TrainConfig()
     data: DataConfig = DataConfig()
-    transformers: List[TrainConfig] = field(default_factory=lambda: [])
+    transformers: List[TransConfig] = field(default_factory=lambda: [])
 
 
 def get_metrics(phases, task_type, train_manager='normal'):

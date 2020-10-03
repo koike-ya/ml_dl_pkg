@@ -38,7 +38,7 @@ cd ../ml_dl_pkg
 
 For CPU users,
 ```
-mkdir --parent ../apex/amp
+mkdir -p ../apex/amp
 ```
 
 Lastly,

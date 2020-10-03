@@ -60,7 +60,7 @@ class StackedNNModel(torch.nn.Module):
             model = construct_panns(self.cfg)
         elif self.cfg.model_type.value == 'multitask_panns':
             model = construct_multitask_panns(self.cfg)
-        elif self.cfg['model_type'] == '1dcnn':
+        elif self.cfg.model_type.value == '1dcnn':
             model = construct_1dcnn(self.cfg)
         else:
             raise NotImplementedError('model_type should be either rnn or cnn, nn would be implemented in the future.')
