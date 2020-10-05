@@ -3,7 +3,7 @@ from typing import List, Dict
 
 import torch
 from torch import Tensor
-from torchaudio.transforms import MelSpectrogram, TimeMasking, ComputeDeltas
+from torchaudio.transforms import MelSpectrogram, TimeMasking, FrequencyMasking, ComputeDeltas, TimeStretch
 
 from ml.utils.enums import TimeFrequencyFeature
 
@@ -19,7 +19,9 @@ class TransConfig:
     f_min: float = 0.0  # High pass filter
     f_max: float = sample_rate / 2  # Low pass filter
     time_mask_len: int = 10  # maximum possible length of the mask. Indices uniformly sampled from [0, time_mask_param)
+    freq_mask_len: int = 10  # maximum possible length of the mask. Indices uniformly sampled from [0, freq_mask_param).
     delta: int = 5  # Compute delta coefficients of a tensor, usually a spectrogram
+    stretch_rate: float = 1.0  # Time Stretch speedup/slow down rate
 
 
 def _init_process(cfg, process):
@@ -30,6 +32,10 @@ def _init_process(cfg, process):
         return ComputeDeltas(cfg.delta)
     elif process == 'time_mask':
         return TimeMasking(cfg.time_mask_len)
+    elif process == 'freq_mask':
+        return FrequencyMasking(cfg.freq_mask_len)
+    elif process == 'time_stretch':
+        return TimeStretch(hop_length=cfg.hop_length, n_freq=cfg.n_mels, fixed_rate=cfg.fixed_rate)
     elif process == 'normalize':
         return Normalize()
     else:
@@ -43,8 +49,9 @@ class Normalize(torch.nn.Module):
 
 class Transform(torch.nn.Module):
     # TODO GPU対応(Multiprocess対応, spawn)
-    processes = {'logmel': MelSpectrogram, 'time_mask': TimeMasking, 'normalize': Normalize}
-    only_train_processes = ['time_mask']
+    processes = {'logmel': MelSpectrogram, 'time_mask': TimeMasking, 'freq_mask': FrequencyMasking,
+                 'normalize': Normalize, 'time_stretch': TimeStretch}
+    only_train_processes = ['time_mask', 'freq_mask', 'time_stretch']
 
     def __init__(self,
                  cfg: Dict,
