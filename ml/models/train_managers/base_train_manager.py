@@ -1,116 +1,52 @@
-import argparse
 import logging
+import os
 import random
 import time
-from abc import ABCMeta
+from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 from pathlib import Path
-
-logger = logging.getLogger(__name__)
+from typing import Tuple, List, Union
 
 import numpy as np
 import pandas as pd
 import torch
-from ml.models.model_managers.base_model_manager import model_args
-from ml.preprocess.augment import spec_augment_args
-from ml.models.model_managers.ml_model_manager import MLModelManager, supported_ml_models
-from ml.models.model_managers.nn_model_manager import NNModelManager, supported_nn_models, supported_pretrained_models
-from sklearn.metrics import confusion_matrix
+from ml.models.model_managers.base_model_manager import BaseModelManager
+from ml.models.model_managers.base_model_manager import ExtendedModelConfig, ModelConfig
+from ml.utils.enums import TaskType
 from ml.utils.logger import TensorBoardLogger
-from typing import Tuple, List, Union
 from ml.utils.utils import Metrics
+from sklearn.metrics import confusion_matrix
+
+logger = logging.getLogger(__name__)
 
 
-supported_models = supported_ml_models + supported_nn_models + list(supported_pretrained_models.keys())
+@dataclass
+class TensorboardConfig:
+    log_id: str = 'results'         # Identifier for tensorboard run
+    tensorboard: bool = False       # Turn on tensorboard graphing
+    log_dir: str = '../visualize/tensorboard'   # Location of tensorboard log
 
 
-def type_float_list(args) -> Union[List[float], str]:
-    if args in ['same', None]:
-        return args
-    return list(map(float, args.split(',')))
+@dataclass
+class TrainConfig(TensorboardConfig):
+    epochs: int = 70  # Number of Training Epochs
+    task_type: TaskType = TaskType.classify
+    cuda: bool = True  # Use cuda to train a model
+    finetune: bool = False  # Fine-tune the model from checkpoint "continue_from"
+    model: ModelConfig = ExtendedModelConfig()
+    class_names: List[str] = field(default_factory=lambda: ['0', '1'])
 
+    train_path: str = 'input/train.csv'  # Data file for training
+    val_path: str = 'input/val.csv'  # Data file for validation
+    test_path: str = 'input/test.csv'  # Data file for testing
 
-def type_int_list(args) -> Union[List[float], str]:
-    if args in ['same', None]:
-        return args
-    return list(map(int, args.split(',')))
+    gpu_id: int = 0  # ID of GPU to use
 
-
-def train_manager_args(parser) -> argparse.ArgumentParser:
-
-    train_manager_parser = parser.add_argument_group("Model manager arguments")
-    train_manager_parser.add_argument('--train-path', help='data file for training', default='input/train.csv')
-    train_manager_parser.add_argument('--val-path', help='data file for validation', default='input/val.csv')
-    train_manager_parser.add_argument('--test-path', help='data file for testing', default='input/test.csv')
-
-    train_manager_parser.add_argument('--model-type', default='cnn', choices=supported_models)
-    train_manager_parser.add_argument('--gpu-id', default=0, type=int, help='ID of GPU to use')
-    train_manager_parser.add_argument('--transfer', action='store_true', help='Transfer learning from model_path')
-
-    # optimizer params
-    optim_param_parser = parser.add_argument_group("Optimizer parameter arguments for learning")
-    optim_param_parser.add_argument('--optimizer', default='adam', help='Type of optimizer. ',
-                                    choices=['sgd', 'adam', 'rmsprop'])
-    optim_param_parser.add_argument('--lr', '--learning-rate', default=1e-3, type=float, help='initial learning rate')
-    optim_param_parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
-    optim_param_parser.add_argument('--weight-decay', default=0.0, type=float, help='weight-decay')
-    optim_param_parser.add_argument('--learning-anneal', default=1.01, type=float,
-                                    help='Annealing applied to learning rate every epoch')
-
-    hyper_param_parser = parser.add_argument_group("Hyper parameter arguments for learning")
-    hyper_param_parser.add_argument('--batch-size', default=32, type=int, help='Batch size for training')
-    hyper_param_parser.add_argument('--epoch-rate', default=1.0, type=float, help='Data rate to to use in one epoch')
-    hyper_param_parser.add_argument('--n-jobs', default=4, type=int, help='Number of workers used in data-loading')
-    hyper_param_parser.add_argument('--loss-weight', default='same', type=type_float_list,
-                                    help='The weights of all class about loss')
-    hyper_param_parser.add_argument('--sample-balance', default=None, type=type_float_list,
-                                    help='Sampling label balance from dataset.')
-    hyper_param_parser.add_argument('--epochs', default=20, type=int, help='Number of training epochs')
-    hyper_param_parser.add_argument('--tta', default=0, type=int, help='Number of test time augmentation ensemble')
-    hyper_param_parser.add_argument('--mixup-alpha', default=0.0, type=float, help='Beta distirbution alpha for mixup.')
-    hyper_param_parser.add_argument('--retrain-epochs', default=5, type=int, help='Number of training epochs')
-
-    # General parameters for training
-    general_param_parser = parser.add_argument_group("General parameters for training")
-    general_param_parser.add_argument('--model-path', help='Path to save model', default='../output/models/sth.pth')
-    general_param_parser.add_argument('--checkpoint-path', help='Model weight file to load model',
-                                      default=None)
-    general_param_parser.add_argument('--snapshot', default=[], type=type_int_list,
-                                      help='The number of epochs to save weights. Comma separated int is allowed.')
-    general_param_parser.add_argument('--task-type', help='Task type. regress or classify',
-                                      default='classify', choices=['classify', 'regress'])
-    general_param_parser.add_argument('--seed', default=0, type=int, help='Seed to generators')
-    general_param_parser.add_argument('--cuda', action='store_true', help='Use cuda to train model')
-    general_param_parser.add_argument('--amp', dest='amp', action='store_true', help='Mixed precision training')
-    general_param_parser.add_argument('--cache', action='store_true', help='Make cache after preprocessing or not')
-
-    # Logging of criterion
-    logging_parser = parser.add_argument_group("Logging parameters")
-    logging_parser.add_argument('--log-id', default='results', help='Identifier for tensorboard run')
-    logging_parser.add_argument('--tensorboard', dest='tensorboard', action='store_true', help='Turn on tensorboard graphing')
-    logging_parser.add_argument('--log-dir', default='../visualize/tensorboard', help='Location of tensorboard log')
-
-    parser = acgan_train_manager_args(parser)
-    parser = model_args(parser)
-    parser = spec_augment_args(parser)
-
-    return parser
-
-
-def acgan_train_manager_args(parser):
-    acgan_train_manager_parser = parser.add_argument_group("acgan_train_manager model arguments")
-
-    # acgan_train_manager params
-    acgan_train_manager_parser.add_argument("--gan-epochs", type=int, default=200, help="number of epochs of training")
-    acgan_train_manager_parser.add_argument("--gan-batch-size", type=int, default=64, help="size of the batches")
-    acgan_train_manager_parser.add_argument("--gan-lr", type=float, default=0.0002, help="adam: learning rate")
-    acgan_train_manager_parser.add_argument("--gen-weight", type=float, default=1.0, help="generator weight of learning")
-    acgan_train_manager_parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
-    acgan_train_manager_parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
-    acgan_train_manager_parser.add_argument("--gan-latent_dim", type=int, default=100, help="dimensionality of the latent space")
-    acgan_train_manager_parser.add_argument("--img_size", type=int, default=200, help="size of each image dimension")
-    acgan_train_manager_parser.add_argument("--sample_interval", type=int, default=500, help="interval between image sampling")
-    return parser
+    tta: int = 0  # Number of test time augmentation ensemble
+    snapshot: List[int] = field(
+        default_factory=lambda: [])  # The number of epochs to save weights. Comma separated int is allowed
+    cache: bool = False  # Make cache after preprocessing or not
 
 
 @contextmanager
@@ -125,49 +61,26 @@ class BaseTrainManager(metaclass=ABCMeta):
     def __init__(self, class_labels, cfg, dataloaders, metrics):
         self.class_labels = class_labels
         self.cfg = cfg
+        self.cfg.model.class_names = self.cfg.class_names
+        self.cfg.model.task_type = self.cfg.task_type
+        self.cfg.model.cuda = self.cfg.cuda
         self.dataloaders = dataloaders
         self.device = self._init_device()
         self.model_manager = self._init_model_manager()
-        self._init_seed()
-        self.tensor_board_logger = self._init_logger()
+        self.logger = self._init_logger()
         self.metrics = metrics
-        Path(self.cfg['model_path']).parent.mkdir(exist_ok=True, parents=True)
+        Path(self.cfg.model.model_path).parent.mkdir(exist_ok=True, parents=True)
 
-    @staticmethod
-    def check_keys_from_dict(must_contain_keys, dic) -> None:
-        for key in must_contain_keys:
-            assert key in dic.keys(), f'{key} must be in {str(dic)}'
-
-    def _init_model_manager(self) -> Union[NNModelManager, MLModelManager]:
-        self.cfg['input_size'] = list(self.dataloaders.values())[0].get_input_size()
-
-        if self.cfg['model_type'] in supported_nn_models + list(supported_pretrained_models.keys()):
-            if self.cfg['model_type'] in ['rnn']:
-                if self.cfg['batch_norm']:
-                    self.cfg['batch_norm_size'] = list(self.dataloaders.values())[0].get_batch_norm_size()
-                self.cfg['seq_len'] = list(self.dataloaders.values())[0].get_seq_len()
-            elif self.cfg['model_type'] in ['logmel_cnn', 'cnn', 'cnn_rnn'] + list(supported_pretrained_models.keys()):
-                self.cfg['image_size'] = list(self.dataloaders.values())[0].get_image_size()
-                self.cfg['in_channels'] = list(self.dataloaders.values())[0].get_n_channels()
-
-            return NNModelManager(self.class_labels, self.cfg)
-
-        elif self.cfg['model_type'] in supported_ml_models:
-            return MLModelManager(self.class_labels, self.cfg)
-        
-    def _init_seed(self) -> None:
-        # Set seeds for determinism
-        torch.manual_seed(self.cfg['seed'])
-        torch.cuda.manual_seed_all(self.cfg['seed'])
-        np.random.seed(self.cfg['seed'])
-        random.seed(self.cfg['seed'])
+    @abstractmethod
+    def _init_model_manager(self) -> BaseModelManager:
+        pass
 
     def _init_device(self) -> torch.device:
-        if self.cfg['cuda'] and self.cfg['model_type'] in supported_nn_models + list(supported_pretrained_models.keys()):
-            device = torch.device("cuda")
+        if self.cfg.cuda:# and self.cfg.model_type.value in [name.value for name in list(NNType) + list(PretrainedType)]:
+            device = torch.device('cuda')
             torch.cuda.set_device(self.cfg['gpu_id'])
         else:
-            device = torch.device("cpu")
+            device = torch.device('cpu')
 
         return device
 
@@ -175,12 +88,12 @@ class BaseTrainManager(metaclass=ABCMeta):
         if self.cfg['tensorboard']:
             return TensorBoardLogger(self.cfg['log_id'], self.cfg['log_dir'])
 
-    def _record_log(self, phase, epoch) -> None:
+    def _record_log(self, phase, epoch, metrics, suffix='') -> None:
         values = {}
 
-        for metric in self.metrics[phase]:
-            values[f'{phase}_{metric.name}_mean'] = metric.average_meter.average
-        self.tensor_board_logger.update(epoch, values)
+        for metric in metrics[phase]:
+            values[f'{phase}_{metric.name}_mean{suffix}'] = metric.average_meter.average
+        self.logger.update(epoch, values)
 
     def _predict(self, phase) -> Tuple[np.array, np.array]:
         raise NotImplementedError
@@ -204,7 +117,7 @@ class BaseTrainManager(metaclass=ABCMeta):
 
         pred_list, label_list = self.predict(phase=phase)
 
-        if self.cfg['return_prob']:
+        if self.cfg.model.return_prob:
             pred_onehot = torch.from_numpy(pred_list)
             pred_list = np.argmax(pred_list, axis=1)
 
@@ -212,16 +125,16 @@ class BaseTrainManager(metaclass=ABCMeta):
 
         for metric in self.metrics['test']:
             if metric.name == 'loss':
-                if self.cfg['task_type'] == 'classify':
+                if self.cfg['task_type'].value == 'classify':
                     y_onehot = torch.zeros(label_list.shape[0], len(self.class_labels))
                     y_onehot = y_onehot.scatter_(1, torch.from_numpy(label_list).view(-1, 1).type(torch.LongTensor), 1)
-                    if not self.cfg['return_prob']:
+                    if not self.cfg.model.return_prob:
                         pred_onehot = torch.zeros(pred_list.shape[0], len(self.class_labels))
                         pred_onehot = pred_onehot.scatter_(1, torch.from_numpy(pred_list).view(-1, 1).type(torch.LongTensor), 1)
                     loss_value = self.model_manager.criterion(pred_onehot.to(self.device), y_onehot.to(self.device)).item()
-                elif self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn']:
-                    loss_value = self.model_manager.criterion(torch.from_numpy(pred_list).to(self.device),
-                                                              torch.from_numpy(label_list).to(self.device))
+                # elif self.cfg['model_type'] in ['rnn', 'cnn', 'cnn_rnn']:
+                #     loss_value = self.model_manager.criterion(torch.from_numpy(pred_list).to(self.device),
+                #                                               torch.from_numpy(label_list).to(self.device))
             else:
                 loss_value = 10000000
 
@@ -229,13 +142,13 @@ class BaseTrainManager(metaclass=ABCMeta):
             logger.info(f"{phase} {metric.name}: {metric.average_meter.value :.4f}")
             metric.average_meter.update_best()
 
-        if self.cfg['task_type'] == 'classify':
+        if self.cfg['task_type'].value == 'classify':
             confusion_matrix_ = confusion_matrix(label_list, pred_list,
                                                  labels=list(range(len(self.class_labels))))
             logger.info(f'Confusion matrix: \n{confusion_matrix_}')
 
         if return_metrics:
-            if self.cfg['return_prob']:
+            if self.cfg.model.return_prob:
                 return pred_onehot.numpy(), label_list, self.metrics
             else:
                 return pred_list, label_list, self.metrics

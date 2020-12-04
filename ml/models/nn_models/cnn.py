@@ -4,30 +4,21 @@ seed = 0
 torch.manual_seed(seed)
 import math
 
-torch.cuda.manual_seed_all(seed)
 import random
-random.seed(seed)
 import torch.nn as nn
+from ml.models.nn_models.nn_utils import Predictor
+
+from dataclasses import dataclass, field
+from typing import List
+from ml.utils.nn_config import NNModelConfig
 
 
-def type_int_list_list(args):
-    return [list(map(int, arg.split('-'))) for arg in args.split(',')]
-
-
-def type_int_list(args):
-    return list(map(int, args.split(',')))
-
-
-def cnn_args(parser):
-    cnn_parser = parser.add_argument_group("CNN model arguments")
-
-    # cnn params
-    cnn_parser.add_argument('--cnn-channel-list', default='4,8,16', type=type_int_list)
-    cnn_parser.add_argument('--cnn-kernel-sizes', default='4-4,4-4,4-4', type=type_int_list_list)
-    cnn_parser.add_argument('--cnn-stride-sizes', default='2-2,2-2,2-2', type=type_int_list_list)
-    cnn_parser.add_argument('--cnn-padding-sizes', default='1-1,1-1,1-1', type=type_int_list_list)
-
-    return parser
+@dataclass
+class CNNConfig(NNModelConfig):    # CNN model arguments
+    channel_list: List = field(default_factory=lambda: [4, 8, 16])
+    kernel_sizes: List = field(default_factory=lambda: [(4, 4), (4, 4), (4, 4)])
+    stride_sizes: List = field(default_factory=lambda: [(2, 2), (2, 2), (2, 2)])
+    padding_sizes: List = field(default_factory=lambda: [(1, 1), (1, 1), (1, 1)])
 
 
 class CNN(nn.Module):
@@ -46,25 +37,20 @@ class CNN(nn.Module):
         )
         self.n_dim = dim
         self.feature_extract = feature_extract
-        self.predictor = nn.Linear(out_features, n_classes)
-        if n_classes >= 2:
-            self.predictor = nn.Sequential(
-                self.predictor,
-                nn.Softmax(dim=-1)
-            )
+        self.predictor = Predictor(out_features, n_classes)
+
+    def extract_feature(self, x):
+        return self.feature_extractor(x.to(torch.float))
+
+    def predict(self, x):
+        x = x.view(x.size(0), -1)
+        return self.predictor(self.fc(x))
 
     def forward(self, x):
-        # print(x.size())
-        # if self.n_dim == 1:
-        #     x = torch.unsqueeze(x, dim=1)
-        x = self.feature_extractor(x.to(torch.float))
-        x = x.view(x.size(0), -1)
+        x = self.extract_feature(x)
+        x = self.predict(x)
 
-        if self.feature_extract:
-            return x
-
-        x = self.fc(x)
-        return self.predictor(x)
+        return x
 
 
 class CNNMaker:
@@ -102,7 +88,7 @@ class CNNMaker:
             else:
                 conv = cnn_set[self.n_dim]['conv_cls'](n_channels, channel, kernel_size, stride, padding)
                 layers += [conv, cnn_set[self.n_dim]['batch_norm_cls'](channel), nn.ReLU(inplace=True)]
-            n_channels = channel
+                n_channels = channel
 
         return nn.Sequential(*layers)
 
@@ -126,22 +112,24 @@ class CNNMaker:
         if len(feature_shape) == 1:
             feature_shape.append(1)
 
+        n_channels = self.cfg[-2][0] if self.cfg[-1][0] == 'M' else self.cfg[-1][0]
+
         return {
-            'n_channels': self.cfg[-1][0],
+            'n_channels': n_channels,
             'height': int(feature_shape[0]),
             'width': int(feature_shape[1])}
 
 
 def construct_cnn(cfg, use_as_extractor=False):
     layer_info = []
-    n_dim = len(cfg['cnn_kernel_sizes'][0])
-    for layer in range(len(cfg['cnn_channel_list'])):
+    n_dim = len(cfg.kernel_sizes[0])
+    for layer in range(len(cfg.channel_list)):
         layer_info.append((
-            cfg['cnn_channel_list'][layer],
-            cfg['cnn_kernel_sizes'][layer],
-            cfg['cnn_stride_sizes'][layer],
-            cfg['cnn_padding_sizes'][layer],
+            cfg.channel_list[layer],
+            list(cfg.kernel_sizes[layer]),
+            list(cfg.stride_sizes[layer]),
+            list(cfg.padding_sizes[layer]),
         ))
-    cnn_maker = CNNMaker(in_channels=cfg['in_channels'], image_size=cfg['image_size'], cfg=layer_info, n_dim=n_dim,
-                         n_classes=len(cfg['class_names']), use_as_extractor=use_as_extractor)
+    cnn_maker = CNNMaker(in_channels=cfg.in_channels, image_size=cfg.image_size, cfg=layer_info, n_dim=n_dim,
+                         n_classes=len(cfg.class_names), use_as_extractor=use_as_extractor)
     return cnn_maker.construct_cnn()

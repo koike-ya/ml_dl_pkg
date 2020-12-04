@@ -25,6 +25,21 @@ def decision_tree_args(parser):
     return parser
 
 
+from dataclasses import dataclass
+@dataclass
+class DecisionTreeConfig:
+    n_estimators: int = 200
+    num_iterations: int = 1000      # TODO n_iterations
+    n_leaves: int = 32
+    max_bin: int = 255
+    max_depth: int = 5
+    min_data_in_leaf: int = 50
+    reg_alpha: float = 0.5      # L1 regularization term on weights'
+    reg_lambda: float = 0.5     # L2 regularization term on weights
+    sabsample: float = 0.8         # TODO sabsample_rate: Sample rate for bagging
+    feature_fraction: float = 0.8  # Sample rate for bagging
+
+
 def get_feature_importance(model_cls, features):
     feature_importances = pd.DataFrame()
     feature_importances['feature'] = features
@@ -43,7 +58,7 @@ class RandomForest(BaseMLPredictor):
 
 class XGBoost(BaseMLPredictor):
     def __init__(self, class_labels, cfg):
-        self.classify = cfg['task_type'] == 'classify'
+        self.classify = cfg['task_type'].value == 'classify'
         params = dict(
             learning_rate=cfg['lr'],
             n_estimators=cfg['n_estimators'],
@@ -79,7 +94,7 @@ class XGBoost(BaseMLPredictor):
 class CatBoost(BaseMLPredictor):
     def __init__(self, class_labels, cfg):
         # TODO visualizationも試す
-        self.classify = cfg['task_type'] == 'classify'
+        self.classify = cfg['task_type'].value == 'classify'
 
         params = dict(
             iterations=cfg['n_estimators'],

@@ -36,13 +36,46 @@ def preprocess_args(parser):
     return parser
 
 
+from dataclasses import dataclass
+from ml.utils.enums import SpectrogramWindow, TimeFrequencyFeature, PretrainedType
+
+
+@dataclass
+class TransConfig:
+    cuda: bool = True
+    scaling: bool = False     # scaling
+    augment: bool = False       # Use random tempo and gain perturbations.
+    sample_rate: float = 500.0  # The sample rate for the data/model features
+    window_size: float = 4.0    # Window size for spectrogram in seconds
+    window_stride: float = 2.0  # Window stride for spectrogram in seconds
+    window: SpectrogramWindow = SpectrogramWindow.hamming   # Window type for spectrogram generation
+    n_mels: int = 64            # Number of mel filters banks
+    transform: TimeFrequencyFeature = TimeFrequencyFeature.none
+    low_cutoff: float = 0.0  # High pass filter
+    high_cutoff: float = 0.0  # Low pass filter
+    # TODO refactor below
+    spec_augment: float = 0.0
+    fe_pretrained: PretrainedType = PretrainedType.none
+    remove_power_noise: bool = False
+    channel_wise_mean: bool = False
+    inter_channel_mean: bool = False
+    muscle_noise: bool = False
+    eye_noise: bool = False
+    white_noise: bool = False
+    shift_gain: bool = False
+
+
+class DeepSELFTransformer:    # TODO make transformer.py
+    pass
+
+
 class Preprocessor:
     def __init__(self, cfg, phase):
         self.phase = phase
         self.sr = cfg['sample_rate']
         self.l_cutoff = cfg['low_cutoff']
         self.h_cutoff = cfg['high_cutoff']
-        self.transform = cfg['transform']
+        self.transform = cfg['transform'].value
         self.window_stride = cfg['window_stride']
         self.window_size = cfg['window_size']
         self.window = cfg['window']
@@ -50,7 +83,7 @@ class Preprocessor:
         self.cfg = cfg
         self.spec_augment = cfg['spec_augment']
         self.device = torch.device('cuda') if cfg['cuda'] and torch.cuda.is_available() else torch.device('cpu')
-        if cfg['fe_pretrained']:
+        if cfg['fe_pretrained'] and cfg['fe_pretrained'].value:
             cfg_copy = cfg.copy()
             cfg_copy['model_type'] = cfg['fe_pretrained']
             self.feature_extractor = PretrainedNN(cfg_copy, len(cfg['class_names']))
