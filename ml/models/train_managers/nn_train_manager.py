@@ -122,10 +122,9 @@ class NNTrainManager(BaseTrainManager):
 
         ensemble = np.array(snap_pred_list).mean(axis=0)
 
-        print(ensemble)
         if not self.cfg.model.return_prob:
             ensemble = ensemble.astype(int)
-        print(ensemble)
+
         return ensemble, label_list
 
     def predict(self, phase):
