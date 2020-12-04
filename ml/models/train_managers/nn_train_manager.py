@@ -1,15 +1,24 @@
 import logging
 import time
 from contextlib import contextmanager
-
-logger = logging.getLogger(__name__)
+from typing import Tuple
 
 import numpy as np
 import pandas as pd
+from ml.models.model_managers.nn_model_manager import NNModelManager
+from ml.models.nn_models.cnn import CNNConfig
+from ml.models.nn_models.cnn_rnn import CNNRNNConfig
+from ml.models.nn_models.nn import NNConfig
+from ml.models.nn_models.panns_cnn14 import PANNsConfig
+from ml.models.nn_models.pretrained_models import PretrainedConfig
+from ml.models.nn_models.rnn import RNNConfig
 from ml.models.train_managers.base_train_manager import BaseTrainManager
-from tqdm import tqdm
-from typing import Tuple
 from ml.utils.utils import Metrics
+from omegaconf import OmegaConf
+from tqdm import tqdm
+
+logger = logging.getLogger(__name__)
+CNN_MODELS = [CNNConfig, CNNRNNConfig, PretrainedConfig, PANNsConfig]
 
 
 @contextmanager
@@ -24,18 +33,33 @@ class NNTrainManager(BaseTrainManager):
     def __init__(self, class_labels, cfg, dataloaders, metrics):
         super().__init__(class_labels, cfg, dataloaders, metrics)
 
-    def _verbose(self, epoch, phase, i, elapsed, data_len=None) -> None:
+    def _init_model_manager(self) -> NNModelManager:
+        self.cfg.model.input_size = list(list(self.dataloaders.values())[0].get_input_size())
+
+        if OmegaConf.get_type(self.cfg.model) in [RNNConfig]:
+            if self.cfg.model.batch_norm_size:
+                self.cfg.model.batch_norm_size = list(self.dataloaders.values())[0].get_batch_norm_size()
+            self.cfg.model.seq_len = list(self.dataloaders.values())[0].get_seq_len()
+        if OmegaConf.get_type(self.cfg.model) in [NNConfig] + CNN_MODELS:
+            self.cfg.model.image_size = list(list(self.dataloaders.values())[0].get_image_size())
+            self.cfg.model.in_channels = list(self.dataloaders.values())[0].get_n_channels()
+
+            return NNModelManager(self.class_labels, self.cfg.model)
+        else:
+            raise NotImplementedError
+
+    def _verbose(self, epoch, phase, metrics, i, elapsed, data_len=None) -> None:
         if not data_len:
             data_len = len(self.dataloaders[phase])
         eta = int(elapsed / (i + 1) * (data_len - (i + 1)))
         progress = f'\r{phase} epoch: [{epoch + 1}][{i + 1}/{data_len}]\t eta:{eta}(s)\t'
-        progress += '\t'.join([f'{m.name} {m.average_meter.value:.4f}' for m in self.metrics[phase] if m.name == 'loss'])
+        progress += '\t'.join([f'{m.name} {m.average_meter.value:.4f}' for m in metrics[phase] if m.name == 'loss'])
         logger.debug(progress)
 
-    def _update_by_epoch(self, phase, learning_anneal, epoch) -> bool:
+    def _update_by_epoch(self, phase, metrics, learning_anneal, epoch) -> bool:
         best_val_flag = False
 
-        for metric in self.metrics[phase]:
+        for metric in metrics[phase]:
             best_flag = metric.average_meter.update_best()
             if metric.save_model and best_flag and phase == 'val':
                 logger.info(f"Found better validated model, saving to {self.cfg.model.model_path}")
@@ -45,7 +69,7 @@ class NNTrainManager(BaseTrainManager):
             # reset epoch average meter
             metric.average_meter.reset()
 
-        if phase == 'train' and epoch + 1 in self.cfg['snapshot']:
+        if phase == 'train' and epoch + 1 in self.cfg.snapshot:
             orig_model_path = self.cfg.model.model_path
             self.cfg.model.model_path = self.cfg.model.model_path.replace('.pth', f'_ep{epoch + 1}.pth')
             self.model_manager.save_model()
@@ -81,14 +105,14 @@ class NNTrainManager(BaseTrainManager):
                 pred_list = np.vstack((pred_list, preds))
             label_list = np.hstack((label_list, labels))
 
-        if self.cfg['tta']:
+        if self.cfg.tta:
             pred_list, label_list = self._average_tta(pred_list, label_list)
 
         return pred_list, label_list
 
     def snapshot_predict(self, phase):
         snap_pred_list = []
-        for epoch in self.cfg['snapshot']:
+        for epoch in self.cfg.snapshot:
             model_path = self.cfg.model.model_path
             self.cfg.model.model_path = self.cfg.model.model_path.replace('.pth', f'_ep{epoch}.pth')
             self.model_manager.load_model()
@@ -105,7 +129,7 @@ class NNTrainManager(BaseTrainManager):
         return ensemble, label_list
 
     def predict(self, phase):
-        if self.cfg['snapshot']:
+        if self.cfg.snapshot:
             print('snapshot started')
             return self.snapshot_predict(phase=phase)
         else:
@@ -125,12 +149,16 @@ class NNTrainManager(BaseTrainManager):
         if only_validate:
             phases = ['val']
 
-        for epoch in range(self.cfg['epochs']):
+        for epoch in range(self.cfg.epochs):
             for phase in phases:
                 pred_list, label_list = np.array([]), np.array([])
 
                 for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
                     loss, predicts = self.model_manager.fit(inputs.to(self.device), labels.to(self.device), phase)
+
+                    if labels.dim() == 2:     # If softlabel
+                        labels = labels.argmax(dim=1)
+
                     if pred_list.size == 0:
                         pred_list = predicts
                     elif pred_list.ndim == 1:
@@ -142,7 +170,7 @@ class NNTrainManager(BaseTrainManager):
                     # save loss in one batch
                     self.metrics[phase][0].update(loss, predicts, labels.numpy())
 
-                    self._verbose(epoch, phase, i, elapsed=int(time.time() - start))
+                    self._verbose(epoch, phase, self.metrics, i, elapsed=int(time.time() - start))
 
                 # save metrics in one batch
                 [metric.update(0.0, pred_list, label_list) for metric in self.metrics[phase][1:]]
@@ -150,9 +178,9 @@ class NNTrainManager(BaseTrainManager):
                 self._epoch_verbose(epoch, self.metrics, phase)
 
                 if self.logger:
-                    self._record_log(phase, epoch)
+                    self._record_log(phase, epoch, self.metrics)
 
-                best_val_flag = self._update_by_epoch(phase, self.cfg.model.optim.learning_anneal, epoch)
+                best_val_flag = self._update_by_epoch(phase, self.metrics, self.cfg.model.optim.learning_anneal, epoch)
 
                 if best_val_flag:
                     best_val_pred = pred_list.copy()
@@ -166,35 +194,3 @@ class NNTrainManager(BaseTrainManager):
             self.model_manager.save_model()
 
         return self.metrics, best_val_pred
-
-    def retrain(self):
-        phase = 'retrain'
-        self.model_manager.load_model()
-
-        for metric in self.metrics:
-            metric.add_average_meter(phase_name=phase)
-            metric.add_average_meter(phase_name=f'{phase}_test')
-
-            start = time.time()
-
-        for epoch in range(self.cfg['retrain_epochs']):
-            for i, (inputs, labels) in enumerate(self.dataloaders[phase]):
-
-                loss, predicts = self.model_manager.fit(inputs.to(self.device), labels.to(self.device), 'train')
-
-                # save loss and metrics in one batch
-                for metric in self.metrics[phase]:
-                    metric.update(loss, predicts, labels.numpy())
-
-                if not self.cfg['silent']:
-                    self._verbose(epoch, phase, i, elapsed=int(time.time() - start))
-
-            if self.logger:
-                self._record_log(phase, epoch)
-
-            self._update_by_epoch(phase, epoch, self.cfg['learning_anneal'])
-
-        # selfのmetricsのretrain_testが更新される
-        self.test(return_metrics=True, load_best=False, phase='retrain_test')
-
-        return self.metrics
