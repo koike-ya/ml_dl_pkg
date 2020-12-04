@@ -109,7 +109,7 @@ class BaseTrainManager(metaclass=ABCMeta):
 
         else:
             raise NotImplementedError
-        
+
     def _init_seed(self) -> None:
         # Set seeds for determinism
         torch.manual_seed(self.cfg.seed)
