@@ -26,7 +26,6 @@ def initialize_weights(model):
 
 def init_bn(bn):
     """Initialize a Batchnorm layer. """
-
     bn.bias.data.fill_(0.)
     bn.weight.data.fill_(1.)
 
@@ -34,3 +33,25 @@ def init_bn(bn):
 def set_requires_grad(model, requires_grad=True):
     for param in model.parameters():
         param.requires_grad = requires_grad
+
+
+class Predictor(nn.Module):
+    def __init__(self, in_features, n_classes, n_fc=3, tagging=False):
+        super(Predictor, self).__init__()
+        self.in_features = in_features
+
+        if n_fc == 1:
+            self.predictor = nn.Sequential(nn.Linear(in_features, n_classes))
+        else:
+            self.predictor = nn.Sequential(
+                nn.Linear(in_features, 1000), nn.ReLU(), nn.Dropout(p=0.2),
+                nn.Linear(1000, 200), nn.ReLU(), nn.Dropout(p=0.2),
+                nn.Linear(200, n_classes),
+            )
+
+        self.predictor = initialize_weights(self.predictor)
+
+    def forward(self, x):
+        if x.dim() >= 3:
+            x = x.reshape(x.size(0), -1)
+        return self.predictor(x)

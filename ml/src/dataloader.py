@@ -22,7 +22,7 @@ class DataConfig:
 
 def set_dataloader(dataset, phase, cfg, shuffle=False):
     if phase != 'train':
-        dataloader = WrapperDataLoader(dataset, batch_size=cfg['batch_size'], num_workers=cfg['n_jobs'],
+        dataloader = WrapperDataLoader(dataset, batch_size=cfg.batch_size, num_workers=cfg.n_jobs,
                                        pin_memory=False, sampler=None, shuffle=False, drop_last=False)
     else:
         if cfg.sample_balance:

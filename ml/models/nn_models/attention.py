@@ -1,109 +1,122 @@
+from dataclasses import dataclass, field
+from typing import List
+import math
+
 import torch
-from torch import nn
-from torch.functional import F
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.nn import MultiheadAttention
+from ml.models.nn_models.nn_utils import initialize_weights, Predictor
 
-from ml.models.attention import Attention2d
-from ml.models.nn_models.nn_utils import initialize_weights, init_bn
+
+@dataclass
+class AttnConfig:    # Attention layer arguments
+    d_attn: int = 64
+    n_heads: int = 1
 
 
-class EmbeddingLayers_pooling(nn.Module):
-    def __init__(self):
-        super(EmbeddingLayers_pooling, self).__init__()
+class Attention(nn.Module):
+    def __init__(self, h_dim, d_attn, n_heads):
+        super(Attention, self).__init__()
+        self.h_dim = h_dim
+        self.d_attn = d_attn
+        self.n_heads = n_heads
+        self.attn = nn.Sequential(
+            nn.Linear(h_dim, d_attn, bias=False),
+            nn.Tanh(),
+            nn.Linear(d_attn, n_heads, bias=False),
+        )
+        self.softmax = nn.Softmax(dim=1)
+        
+    def calc_attention(self, x):
+        x = self.attn(x)
+        x = self.softmax(x).transpose(1, 2)  # (b, s, n_heads) -> (b, n_heads, s)
+        return x
 
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels=64,
-                               kernel_size=(5, 5), stride=(1, 1),  dilation=1,
-                               padding=(2, 2), bias=False)
+    def forward(self, x):
+        x = x.transpose(1, 2)  # (b, h, s) -> (b, s, h)
+        attns = self.calc_attention(x)  # (b, s, h) -> (b, n_heads, s)
+        feats = torch.bmm(attns, x).view(x.size(0), -1)
 
-        self.conv2 = nn.Conv2d(in_channels=64, out_channels=128,
-                               kernel_size=(5, 5), stride=(1, 1),  dilation=2,
-                               padding=(4, 4), bias=False)
+        return feats, attns
 
-        self.conv3 = nn.Conv2d(in_channels=128, out_channels=256,
-                               kernel_size=(5, 5), stride=(1, 1),  dilation=4,
-                               padding=(8, 8), bias=False)
 
-        self.conv4 = nn.Conv2d(in_channels=256, out_channels=512,
-                               kernel_size=(5, 5), stride=(1, 1),  dilation=8,
-                               padding=(16, 16), bias=False)
+class AttentionClassifier(nn.Module):
+    def __init__(self, n_classes, h_dim, d_attn=512, n_heads=8):
+        super(AttentionClassifier, self).__init__()
+        self.attn = Attention(h_dim, d_attn, n_heads)
+        self.predictor = Predictor(h_dim * n_heads, n_classes, n_fc=1, tagging=False)
 
-        self.bn1 = nn.BatchNorm2d(64)
-        self.bn2 = nn.BatchNorm2d(128)
-        self.bn3 = nn.BatchNorm2d(256)
-        self.bn4 = nn.BatchNorm2d(512)
+    def extract_feature(self, x):
+        x, _ = self.attn(x)
+        return x
+
+    def forward(self, x):
+        x = self.extract_feature(x)
+        return self.predictor(x)
+
+
+class Attention2d(nn.Module):
+    def __init__(self, n_in, n_out, att_activation, cla_activation):
+        super(Attention2d, self).__init__()
+
+        self.att_activation = att_activation
+        self.cla_activation = cla_activation
+
+        self.att = nn.Conv2d(
+            in_channels=n_in, out_channels=n_out, kernel_size=(
+                1, 1), stride=(
+                1, 1), padding=(
+                0, 0), bias=True)
+
+        self.cla = nn.Conv2d(
+            in_channels=n_in, out_channels=n_out, kernel_size=(
+                1, 1), stride=(
+                1, 1), padding=(
+                0, 0), bias=True)
 
         self.init_weights()
 
     def init_weights(self):
-        initialize_weights(self.conv1)
-        initialize_weights(self.conv2)
-        initialize_weights(self.conv3)
-        initialize_weights(self.conv4)
+        initialize_weights(self.att)
+        initialize_weights(self.cla)
+        self.att.weight.data.fill_(0.)
 
-        init_bn(self.bn1)
-        init_bn(self.bn2)
-        init_bn(self.bn3)
-        init_bn(self.bn4)
+    def activate(self, x, activation):
 
-    def forward(self, input, return_layers=False):
-        (_, seq_len, mel_bins) = input.shape
+        if activation == 'linear':
+            return x
 
-        x = input.view(-1, 1, seq_len, mel_bins)
-        """(samples_num, feature_maps, time_steps, freq_num)"""
+        elif activation == 'relu':
+            return F.relu(x)
 
-        x = F.relu(self.bn1(self.conv1(x)))
-        x = F.relu(self.bn2(self.conv2(x)))
-        x = F.relu(self.bn3(self.conv3(x)))
-        x = F.relu(self.bn4(self.conv4(x)))
+        elif activation == 'sigmoid':
+            return F.sigmoid(x)+0.1
 
-        return x
+        elif activation == 'log_softmax':
+            return F.log_softmax(x, dim=1)
 
+    def forward(self, x):
+        """input: (samples_num, channel, time_steps, freq_bins)
+        """
+        att = self.att(x)
+        att = self.activate(att, self.att_activation)
 
-class CnnPooling(nn.Module):
-    def __init__(self, sample_rate, window_size, hop_size, mel_bins, fmin,
-                 fmax, classes_num, pooling='attention'):
-        super(CnnPooling, self).__init__()
+        cla = self.cla(x)
+        cla = self.activate(cla, self.cla_activation)
 
-        self.emb = EmbeddingLayers_pooling()
-        self.attention = Attention2d(
-            512,
-            classes_num,
-            att_activation='sigmoid',
-            cla_activation='log_softmax')
-        self.fc_final = nn.Linear(512, classes_num)
-        self.pooling = pooling
+        # (samples_num, channel, time_steps * freq_bins)
+        att = att.view(att.size(0), att.size(1), att.size(2) * att.size(3))
+        cla = cla.view(cla.size(0), cla.size(1), cla.size(2) * cla.size(3))
 
-    def init_weights(self):
-        initialize_weights(self.fc_final)
-        
-    def forward(self, input):
-        """(samples_num, feature_maps, time_steps, freq_num)"""
-        x = x.squeeze(dim=1)
-        x = self.emb(x)
+        epsilon = 0.1 # 1e-7
+        att = torch.clamp(att, epsilon, 1. - epsilon)
 
-        if self.pooling == 'attention':
-            x = self.attention(x)
-        elif self.pooling == 'average':
-            x = F.avg_pool2d(x, kernel_size=x.shape[2:])
-            x = self.fc_final(x.view(x.shape[0:2]))
+        norm_att = att / torch.sum(att, dim=2)[:, :, None]
+        x = torch.sum(norm_att * cla, dim=2)
+
+        Return_heatmap = False
+        if Return_heatmap:
+            return x, norm_att
         else:
-            x = F.max_pool2d(x, kernel_size=x.shape[2:])
-            x = self.fc_final(x.view(x.shape[0:2]))
-
-        return output
-
-
-def construct_attention_cnn(cfg):
-    sample_rate = cfg['sample_rate']
-    classes_num = len(cfg['class_names'])
-
-    window_size = cfg['window_size'] * sample_rate
-    hop_size = cfg['window_stride'] * sample_rate
-    mel_bins = cfg['n_mels']
-    fmin = cfg['low_cutoff']
-    fmax = cfg['high_cutoff']
-    device = torch.device('cuda') if cfg['cuda'] and torch.cuda.is_available() else torch.device('cpu')
-
-    model = CnnPooling(sample_rate=sample_rate, window_size=window_size, hop_size=hop_size, mel_bins=mel_bins,
-                           fmin=fmin, fmax=fmax, classes_num=classes_num, pooling=cfg['pooling']).to(device)
-
-    return model
+            return x

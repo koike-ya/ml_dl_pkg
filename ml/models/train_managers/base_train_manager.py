@@ -122,7 +122,7 @@ class BaseTrainManager(metaclass=ABCMeta):
             device = torch.device("cuda")
             torch.cuda.set_device(self.cfg.gpu_id)
         else:
-            device = torch.device("cpu")
+            device = torch.device('cpu')
 
         return device
 
@@ -130,11 +130,11 @@ class BaseTrainManager(metaclass=ABCMeta):
         if self.cfg.tensorboard:
             return TensorBoardLogger(self.cfg.log_id, self.cfg.log_dir)
 
-    def _record_log(self, phase, epoch) -> None:
+    def _record_log(self, phase, epoch, metrics, suffix='') -> None:
         values = {}
 
-        for metric in self.metrics[phase]:
-            values[f'{phase}_{metric.name}_mean'] = metric.average_meter.average
+        for metric in metrics[phase]:
+            values[f'{phase}_{metric.name}_mean{suffix}'] = metric.average_meter.average
         self.logger.update(epoch, values)
 
     def _predict(self, phase) -> Tuple[np.array, np.array]:

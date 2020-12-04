@@ -1,7 +1,11 @@
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Any
 
+from ml.models.loss import LossConfig
 from ml.models.model_managers.base_model_manager import ModelConfig
+from ml.models.nn_models.attention import AttnConfig
+from ml.models.nn_models.multitask_predictor import MultitaskConfig
+from omegaconf import MISSING
 
 
 @dataclass
@@ -23,6 +27,19 @@ class AdamConfig(OptimConfig):
 
 
 @dataclass
-class NNModelConfig(ModelConfig):
+class StackedModelConfig(AttnConfig, MultitaskConfig):
+    pass
+
+
+@dataclass
+class NNModelConfig(ModelConfig, StackedModelConfig):
     image_size: List[int] = field(default_factory=lambda: [])
     in_channels: int = 0
+    attention: bool = False
+    grad_clip: List[float] = field(default_factory=lambda: [])
+    loss_config: LossConfig = LossConfig()
+    checkpoint_path: str = ''  # Model weight file to load model
+    amp: bool = False  # Mixed precision training
+
+    cuda: bool = True  # Use cuda to train a model
+    optim: Any = MISSING

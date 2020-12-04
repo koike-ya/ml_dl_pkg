@@ -3,7 +3,7 @@ from typing import List, Dict
 
 import torch
 from torch import Tensor
-from torchaudio.transforms import MelSpectrogram, TimeMasking
+from torchaudio.transforms import MelSpectrogram, TimeMasking, ComputeDeltas
 
 from ml.utils.enums import TimeFrequencyFeature
 
@@ -11,20 +11,23 @@ from ml.utils.enums import TimeFrequencyFeature
 @dataclass
 class TransConfig:
     sample_rate: float = 500.0  # The sample rate for the data/model features
-    n_fft: int = 400  # Size of FFT
-    win_length: int = n_fft    # Window size for spectrogram in seconds
-    hop_length: int = n_fft // 2 + 1  # Window stride for spectrogram in seconds
+    n_fft: int = 800  # Size of FFT
+    win_length: int = n_fft    # Window size for spectrogram in data points
+    hop_length: int = n_fft // 2  # Window stride for spectrogram in data points
     n_mels: int = 64            # Number of mel filters banks
     transform: TimeFrequencyFeature = TimeFrequencyFeature.none
     f_min: float = 0.0  # High pass filter
     f_max: float = sample_rate / 2  # Low pass filter
     time_mask_len: int = 10  # maximum possible length of the mask. Indices uniformly sampled from [0, time_mask_param)
+    delta: int = 5  # Compute delta coefficients of a tensor, usually a spectrogram
 
 
 def _init_process(cfg, process):
     if process == 'logmel':
         return MelSpectrogram(cfg.sample_rate, cfg.n_fft, cfg.win_length, cfg.hop_length, cfg.f_min, cfg.f_max, pad=0,
                               n_mels=cfg.n_mels)
+    elif process == 'delta':
+        return ComputeDeltas(cfg.delta)
     elif process == 'time_mask':
         return TimeMasking(cfg.time_mask_len)
     elif process == 'normalize':
@@ -65,7 +68,6 @@ class Transform(torch.nn.Module):
 
     def forward(self, x: Tensor):
         for component in self.components:
-            x = component(torch.tensor(x))
-
+            x = component(x)
         x = x.unsqueeze(dim=0)
         return x
