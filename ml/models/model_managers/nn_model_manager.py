@@ -30,11 +30,11 @@ class StackedNNModel(torch.nn.Module):
         self.cfg = cfg
         self.device = torch.device('cuda' if cfg.cuda else 'cpu')
         self.class_labels = class_labels
-        hidden_size = cfg.rnn_hidden_size * 2 if cfg.bidirectional else cfg.rnn_hidden_size
         self.feature_extractors = [
-            construct_cnn_rnn(cfg=self.cfg, construct_cnn_func=construct_cnn, n_classes=len(class_labels)).to(self.device),
+            construct_cnn(cfg=self.cfg).to(self.device),
+            # construct_cnn_rnn(cfg=self.cfg, construct_cnn_func=construct_cnn, n_classes=len(class_labels)).to(self.device),
         ]
-
+        # hidden_size = cfg.rnn_hidden_size * 2 if cfg.bidirectional else cfg.rnn_hidden_size
         if multitask:
             self.predictor = MultitaskPredictor(self.feature_extractors[-1].predictor.in_features,
                                                 cfg.n_labels_in_each_task, self.device)
@@ -42,28 +42,6 @@ class StackedNNModel(torch.nn.Module):
             self.predictor = AttentionClassifier(len(class_labels), hidden_size, d_attn=cfg.d_attn, n_heads=cfg.n_heads).to(self.device)
         else:
             self.predictor = self.feature_extractors[-1].predictor.to(self.device)
-
-    def _instantiate_model(self):
-        if self.cfg.model_type.value in supported_pretrained_models.keys():
-            model = construct_pretrained(self.cfg, len(self.class_labels))
-        elif self.cfg.model_type.value == 'nn':
-            model = construct_nn(self.cfg)
-        elif self.cfg.model_type.value == 'rnn':
-            model = construct_rnn(self.cfg, len(self.class_labels))
-        elif self.cfg.model_type.value == 'cnn_rnn':
-            model = construct_cnn_rnn(self.cfg, construct_cnn, len(self.class_labels))
-        elif self.cfg.model_type.value == 'cnn':
-            model = construct_cnn(self.cfg, use_as_extractor=False)
-        elif self.cfg.model_type.value == 'logmel_cnn':
-            model = construct_logmel_cnn(self.cfg)
-        elif self.cfg.model_type.value == 'panns':
-            model = construct_panns(self.cfg)
-        elif self.cfg.model_type.value == 'multitask_panns':
-            model = construct_multitask_panns(self.cfg)
-        elif self.cfg.model_type.value == '1dcnn':
-            model = construct_1dcnn(self.cfg)
-        else:
-            raise NotImplementedError('model_type should be either rnn or cnn, nn would be implemented in the future.')
 
     def forward(self, x):
         for feature_extractor in self.feature_extractors:
@@ -92,7 +70,29 @@ class NNModelManager(BaseModelManager):
             self.model = torch.nn.parallel.DataParallel(self.model)
 
     def _instantiate_model(self, class_labels):
-        model = StackedNNModel(self.cfg, class_labels, multitask=False)
+        if self.cfg.model_name in supported_pretrained_models.keys():
+            model = construct_pretrained(self.cfg, len(self.class_labels))
+        elif self.cfg.model_name == 'nn':
+            model = construct_nn(self.cfg)
+        elif self.cfg.model_name == 'rnn':
+            model = construct_rnn(self.cfg, len(self.class_labels))
+        elif self.cfg.model_name == 'cnn_rnn':
+            model = construct_cnn_rnn(self.cfg, construct_cnn, len(self.class_labels))
+        elif self.cfg.model_name == 'cnn':
+            model = construct_cnn(self.cfg, use_as_extractor=False)
+        elif self.cfg.model_name == 'logmel_cnn':
+            model = construct_logmel_cnn(self.cfg)
+        elif self.cfg.model_name == 'panns':
+            model = construct_panns(self.cfg)
+        elif self.cfg.model_name == 'multitask_panns':
+            model = construct_multitask_panns(self.cfg)
+        elif self.cfg.model_name == '1dcnn':
+            model = construct_1dcnn(self.cfg)
+        else:
+            raise NotImplementedError(
+                'model_type should be either rnn or cnn, nn would be implemented in the future.')
+
+        # model = StackedNNModel(self.cfg, class_labels, multitask=False)
         logger.info(f'Model Parameters: {get_param_size(model)}')
 
         return model

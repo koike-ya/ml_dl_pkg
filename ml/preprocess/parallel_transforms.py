@@ -42,5 +42,7 @@ class ParallelTransform(torch.nn.Module):
         for transform in self.transforms:
             features.append(transform(x))
 
-        x = torch.cat(features, dim=0)
+        if len(features):
+            x = torch.cat(features, dim=0)
+
         return x

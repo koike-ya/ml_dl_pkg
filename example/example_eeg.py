@@ -14,7 +14,9 @@ import pandas as pd
 import torch
 from hydra import utils
 from joblib import Parallel, delayed
+from omegaconf import open_dict
 
+from ml.preprocess.transforms import TransConfig
 from ml.src.dataset import ManifestWaveDataSet
 from ml.tasks.base_experiment import typical_train, typical_experiment
 from ml.utils.config import ExptConfig, before_hydra
@@ -71,13 +73,14 @@ def create_manifest(cfg, expt_dir):
 
 
 def set_hyperparameter(expt_conf, param, param_value):
-    if len(param.split('.')) == 1:
-        expt_conf[param] = param_value
-    else:
-        tmp = expt_conf
-        for attr in param.split('.')[:-1]:
-            tmp = getattr(tmp, str(attr))
-        setattr(tmp, param.split('.')[-1], param_value)
+    with open_dict(expt_conf):
+        if len(param.split('.')) == 1:
+            expt_conf[param] = param_value
+        else:
+            tmp = expt_conf
+            for attr in param.split('.')[:-1]:
+                tmp = getattr(tmp, str(attr))
+            setattr(tmp, param.split('.')[-1], param_value)
 
     return expt_conf
 
@@ -90,18 +93,19 @@ def main(cfg, expt_dir, hyperparameters):
                         filename=expt_dir / 'expt.log')
 
     cfg.train.class_names = [0, 1]
-    cfg.transformer.sample_rate = 173.61
+    with open_dict(cfg):
+        cfg.transformers = [TransConfig(sample_rate=173.61)]
 
     one_audio_sec = 10
     dataset_cls = ManifestWaveDataSet
-    load_func = set_load_func(cfg.transformer.sample_rate, one_audio_sec)
+    load_func = set_load_func(cfg.transformers[0].sample_rate, one_audio_sec)
     metrics_names = {'train': ['loss', 'uar'],
                      'val': ['loss', 'uar'],
                      'test': ['loss', 'uar']}
 
     dataset_cls = ManifestWaveDataSet
     cfg = create_manifest(cfg, expt_dir)
-    process_func = None
+    process_func = []
 
     patterns = list(itertools.product(*hyperparameters.values()))
     val_results = pd.DataFrame(np.zeros((len(patterns), len(hyperparameters) + len(metrics_names['val']))),
@@ -130,7 +134,8 @@ def main(cfg, expt_dir, hyperparameters):
     if cfg.n_parallel == 1:
         result_pred_list = [experiment(pattern, deepcopy(cfg)) for pattern in patterns]
     else:
-        cfg.n_jobs = 0
+        with open_dict(cfg):
+            cfg.n_jobs = 0
         result_pred_list = Parallel(n_jobs=cfg.n_parallel, verbose=0)(
             [delayed(experiment)(pattern, deepcopy(cfg)) for pattern in patterns])
 
@@ -161,7 +166,8 @@ def main(cfg, expt_dir, hyperparameters):
 
         sub_name = f"uar-{metrics[-1]:.4f}_sub_{'_'.join([str(p).replace('/', '-') for p in best_pattern])}.csv"
         pd.DataFrame(pred_dict_list['test']).to_csv(expt_dir / f'{sub_name}_prob.csv', index=False, header=None)
-        pd.DataFrame(pred_dict_list['test'].argmax(axis=1)).to_csv(expt_dir / sub_name, index=False, header=None)
+        if pred_dict_list['test'].ndim == 2:
+            pd.DataFrame(pred_dict_list['test'].argmax(axis=1)).to_csv(expt_dir / sub_name, index=False, header=None)
         print(f"Submission file is saved in {expt_dir / sub_name}")
 
     mlflow.end_run()
@@ -174,19 +180,17 @@ def hydra_main(cfg: ExampleEEGConfig):
     console.setLevel(logging.INFO)
     logging.getLogger("ml").addHandler(console)
 
-    if cfg.train.model_type.value == 'cnn':
+    if cfg.train.model.model_name == 'cnn':
         hyperparameters = {
-            'transformer.transform': ['none'],
             'train.model.channel_list': [[4, 8, 16, 32]],
             'train.model.kernel_sizes': [[[4]] * 4],
             'train.model.stride_sizes': [[[2]] * 4],
             'train.model.padding_sizes': [[[1]] * 4],
             'train.model.optim.lr': [1e-4],
         }
-    elif cfg.train.model_type.value == 'cnn_rnn':
+    elif cfg.train.model.model_name == 'cnn_rnn':
         hyperparameters = {
             'train.model.optim.lr': [1e-3, 1e-4, 1e-5],
-            'transformer.transform': ['none'],
             'train.model.channel_list': [[4, 8, 16, 32]],
             'train.model.kernel_sizes': [[[4]] * 4],
             'train.model.stride_sizes': [[[2]] * 4],
@@ -196,26 +200,25 @@ def hydra_main(cfg: ExampleEEGConfig):
             'train.model.rnn_n_layers': [2],
             'train.model.rnn_hidden_size': [50, 100],
         }
-    elif cfg.train.model_type.value == 'rnn':
+    elif cfg.train.model.model_name == 'rnn':
         hyperparameters = {
             'train.model.bidirectional': [True],
             'train.model.rnn_type': ['lstm', 'gru'],
             'train.model.rnn_n_layers': [2],
             'train.model.rnn_hidden_size': [10, 50],
-            'transformer.transform': ['none'],
+            # 'transformer.transform': ['none'],
             'train.model.optim.lr': [1e-4],
         }
     else:
         hyperparameters = {
             'train.model.optim.lr': [1e-4],
             'batch_size': [16],
-            'transformer.transform': ['logmel'],
             'loss_func': ['ce'],
             'epoch_rate': [1.0],
             'sample_balance': ['same'],
         }
 
-    cfg.expt_id = f'{cfg.train.model_type.value}'
+    cfg.expt_id = f'{cfg.train.model.model_name}'
     expt_dir = Path(utils.to_absolute_path('output')) / 'example_eeg' / f'{cfg.expt_id}'
     expt_dir.mkdir(exist_ok=True, parents=True)
     main(cfg, expt_dir, hyperparameters)
