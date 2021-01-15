@@ -170,9 +170,9 @@ class CrossValidator(BaseExperimentor):
         y = df_x.apply(lambda x: self.label_func(x), axis=1)
         logger.info(y.value_counts())
         
-        k_fold = KFoldManager(self.cv_name.value, self.n_splits)
+        k_fold = KFoldManager(self.cv_name.value, self.n_splits, groups=self.groups)
 
-        for i, (train_idx, val_idx) in enumerate(k_fold.split(X=df_x.values, y=y.values, groups=self.groups)):
+        for i, (train_idx, val_idx) in enumerate(k_fold.split(X=df_x.values, y=y.values)):
             logger.info(f'Fold {i + 1} started.')
             with tempfile.TemporaryDirectory() as temp_dir:
                 self._save_path(df_x, train_idx, val_idx, temp_dir)
@@ -198,9 +198,9 @@ class CrossValidator(BaseExperimentor):
 
         logger.info(y.value_counts())
 
-        k_fold = KFoldManager(self.cv_name.value, self.n_splits)
+        k_fold = KFoldManager(self.cv_name.value, self.n_splits, groups=self.groups)
 
-        for i, (train_idx, val_idx) in enumerate(k_fold.split(X=df_x.values, y=y.values, groups=self.groups)):
+        for i, (train_idx, val_idx) in enumerate(k_fold.split(X=df_x.values, y=y.values)):
             logger.info(f'Fold {i + 1} started.')
             with tempfile.TemporaryDirectory() as temp_dir:
                 self._save_path(df_x, train_idx, val_idx, temp_dir)
@@ -220,8 +220,8 @@ class CrossValidator(BaseExperimentor):
         raise NotImplementedError
 
 
-def typical_train(expt_conf, load_func, label_func, process_func, dataset_cls, groups, metrics_names=None):
-    if expt_conf['cv_name'] and expt_conf['cv_name'].value:
+def typical_train(expt_conf, load_func, label_func, process_func, dataset_cls, groups=None, metrics_names=None):
+    if (expt_conf['cv_name'] and expt_conf['cv_name'].value) or isinstance(groups, pd.Series):
         experimentor = CrossValidator(expt_conf, load_func, label_func, process_func, dataset_cls, expt_conf['cv_name'],
                                       expt_conf['n_splits'], groups)
     else:
