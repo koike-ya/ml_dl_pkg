@@ -1,10 +1,11 @@
 import numpy as np
 import pandas as pd
 import torch
-from sklearn.metrics import recall_score, accuracy_score, f1_score, precision_score, balanced_accuracy_score, confusion_matrix
+from sklearn.metrics import recall_score, accuracy_score, f1_score, precision_score, balanced_accuracy_score, \
+    confusion_matrix, classification_report
 
 
-ALLOWED_METRICS = ['loss', 'far', 'accuracy', 'f1', 'precision', 'uar', 'specificity']
+ALLOWED_METRICS = ['loss', 'far', 'accuracy', 'f1', 'precision', 'uar', 'specificity', 'recall']
 
 
 class AverageMeter(object):
@@ -81,9 +82,9 @@ class Metric:
 
         if self.name == 'loss':
             self.average_meter.update(loss_value / len(labels), len(labels))
-        elif 'recall' in self.name:
-            recall_label = int(self.name[-1])
-            self.average_meter.update(recall(labels.copy(), preds.copy(), recall_label, self.numpy_))
+        # elif 'recall' in self.name:
+        #     recall_label = int(self.name[-1])
+        #     self.average_meter.update(recall(labels.copy(), preds.copy(), recall_label, self.numpy_))
         elif self.name == 'far':
             self.average_meter.update(false_detection_rate(preds, labels, self.label_to_detect, self.numpy_))
         elif self.name == 'accuracy':
@@ -96,6 +97,8 @@ class Metric:
             self.average_meter.update(balanced_accuracy_score(labels, preds))
         elif self.name == 'specificity':
             self.average_meter.update(specificity(labels, preds))
+        elif self.name == 'recall':
+            self.average_meter.update(recall_score(labels, preds))
         else:
             raise NotImplementedError
 

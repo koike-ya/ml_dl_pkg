@@ -80,7 +80,7 @@ class WrapperDataLoader(DataLoader):
 
 def make_weights_for_balanced_classes(labels, sample_balance):
     labels = np.array(labels, dtype=int)
-    class_count = pd.Series(labels).value_counts().values
+    class_count = pd.Series(labels).value_counts(sort=False).values
     label_kind = list(set(labels))
     weight_per_class = sum(class_count) / torch.Tensor(class_count)
     if sample_balance == 'same':
