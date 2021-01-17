@@ -96,7 +96,7 @@ class BaseExperimentor(metaclass=ABCMeta):
         if 'infer' in phases:
             pred_list['infer'] = self.train_manager.infer()
         elif 'test' in phases:
-            pred_list['test'], label_list, metrics = self.train_manager.test(return_metrics=True)
+            pred_list['test'], _, metrics = self.train_manager.test(return_metrics=True)
 
         return metrics, pred_list
 
@@ -243,7 +243,7 @@ def typical_train(expt_conf, load_func, label_func, process_func, dataset_cls, g
 
 def typical_experiment(expt_conf, load_func, label_func, process_func, dataset_cls, groups, metrics_names=None):
     infer = 'infer_path' in expt_conf.keys()
-    if expt_conf['cv_name'].value:
+    if (expt_conf['cv_name'] and expt_conf['cv_name'].value) or isinstance(groups, pd.Series):
         experimentor = CrossValidator(expt_conf, load_func, label_func, process_func, dataset_cls, expt_conf['cv_name'],
                                       expt_conf['n_splits'], groups)
     else:
