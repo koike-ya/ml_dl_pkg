@@ -103,7 +103,7 @@ class Metric:
             raise NotImplementedError
 
 
-def get_metric_list(metric_names, target_metric=None):
+def get_metric_list(metric_names, target_metric='loss'):
     for name in metric_names:
         assert name in ALLOWED_METRICS, f'You need to select metrics from {ALLOWED_METRICS}'
 
