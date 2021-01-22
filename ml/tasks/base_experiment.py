@@ -13,7 +13,6 @@ from ml.models.train_managers.base_train_manager import TrainConfig
 from ml.models.train_managers.ml_train_manager import MLTrainManager
 from ml.models.train_managers.multitask_train_manager import MultitaskTrainManager
 from ml.models.train_managers.nn_train_manager import NNTrainManager
-from ml.preprocess.parallel_transforms import ParallelTransform
 from ml.preprocess.transforms import TransConfig
 from ml.src.cv_manager import KFoldManager
 from ml.src.cv_manager import SupportedCV
@@ -74,20 +73,19 @@ class BaseExperimentor(metaclass=ABCMeta):
         self.infer = cfg.infer
         
     def _experiment(self, metrics, phases) -> Tuple[Metrics, Dict[str, np.array]]:
-        pred_list = {}
+        if not isinstance(self.process_func, dict):
+            self.process_func = {phase: self.process_func for phase in phases}
 
         dataloaders = {}
         for phase in phases:
-            if isinstance(self.process_func, list):
-                self.process_func = ParallelTransform(self.cfg.transformers, phase, self.process_func)
-
             dataset = self.dataset_cls(self.cfg.train[f'{phase}_path'], self.cfg.data, phase, self.load_func,
-                                       self.process_func, self.label_func)
+                                       self.process_func[phase], self.label_func)
             dataloaders[phase] = self.data_loader_cls(dataset, phase, self.cfg.data)
 
         self.train_manager = self.train_manager_cls(self.cfg.train['class_names'], self.cfg.train, dataloaders,
                                                     deepcopy(metrics))
-        
+
+        pred_list = {}
         if 'val' in phases:
             metrics, pred_list['val'] = self.train_manager.train()
         else:       # This is the case in ['train', 'infer'], ['train', 'test']
@@ -114,9 +112,11 @@ class BaseExperimentor(metaclass=ABCMeta):
         
         metrics, pred_list = self._experiment(metrics, phases)
         if self.infer:
-            return np.array([m.average_meter.best_score for m in metrics['val']]), pred_list
+            return {'val': np.array([m.average_meter.best_score for m in metrics['val']])}, pred_list
         else:
-            return np.array([m.average_meter.best_score for m in metrics['test']]), pred_list
+            result_series = {'val': np.array([m.average_meter.best_score for m in metrics['val']]),
+                             'test': np.array([m.average_meter.best_score for m in metrics['test']])}
+            return result_series, pred_list
 
     def experiment_without_validation(self, metrics: Metrics, infer: bool = False, seed_average: int = 0
                                       ) -> Tuple[Metrics, np.array]:
@@ -257,7 +257,9 @@ def typical_experiment(expt_conf, load_func, label_func, process_func, dataset_c
         metrics = {p: get_metric_list(metrics_names[p]) for p in phases}
 
     result_series, pred_list = experimentor.experiment_with_validation(metrics)
-    metric_names = [m.name for m in metrics['val' if infer else 'test']]
-    mlflow.log_metrics({metric_name: value for metric_name, value in zip(metric_names, result_series)})
+    # metric_names_list = [m.name for m in metrics['val' if infer else 'test']]
+    for phase in ['val'] if infer else ['val', 'test']:
+        metric_names = [m.name for m in metrics[phase]]
+        mlflow.log_metrics({f'{phase}_{metric_name}': value for metric_name, value in zip(metric_names, result_series[phase])})
 
     return result_series, pred_list, experimentor
