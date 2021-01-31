@@ -42,7 +42,7 @@ class BaseExptConfig:
 
     train: TrainConfig = TrainConfig()
     data: DataConfig = DataConfig()
-    transformers: List[TransConfig] = field(default_factory=lambda: [])
+    transformers: List[TransConfig] = field(default_factory=lambda: [TransConfig()])
 
 
 def get_metrics(phases, task_type, train_manager='normal'):

@@ -1,89 +1,60 @@
+from dataclasses import dataclass, field
+from typing import List, Dict
+
 import torch
-import torch.nn as nn
+from torch import Tensor
+from torchaudio.transforms import MelSpectrogram, TimeMasking, FrequencyMasking, ComputeDeltas, TimeStretch, \
+                                  AmplitudeToDB
 
 
-def spec_augment_args(parser):
-    spec_augment_parser = parser.add_argument_group("Spec augment arguments")
-    spec_augment_parser.add_argument('--time-drop-rate', type=float, default=0.0)
-    spec_augment_parser.add_argument('--freq-drop-rate', type=float, default=0.0)
-
-    return parser
-
-
-from dataclasses import dataclass
 @dataclass
-class SpecAugConfig:
-    time_drop_rate: float = 0.0
-    freq_drop_rate: float = 0.0
+class AugConfig:
+    time_mask_len: int = 10  # maximum possible length of the mask. Indices uniformly sampled from [0, time_mask_param)
+    freq_mask_len: int = 10  # maximum possible length of the mask. Indices uniformly sampled from [0, freq_mask_param).
+    mask_value: float = 1e-2  # Maximum possible value assigned to the masked columns.
+    trim_sec: float = 5  # Trim audio segment with speficied length, pad if shorter.
+    trim_randomly: bool = False  # Trim audio segment with random start index
+    amp_change_rate: float = 0.0  # Randomly Change amplitude of signal
 
 
-class DropStripes(nn.Module):
-    def __init__(self, dim, drop_rate, stripes_num):
-        """Drop stripes.
+class TimeFreqMask(TimeMasking, FrequencyMasking):
+    axes = ['time', 'freq']
+    def __init__(self, max_time_mask_idx: int, max_mask_value: float, axis='time') -> None:
+        assert axis in TimeFreqMask.axes
 
-        Args:
-          dim: int, dimension along which to drop
-          drop_width: int, maximum width of stripes to drop
-          stripes_num: int, how many stripes to drop
-        """
-        super(DropStripes, self).__init__()
-
-        assert dim in [2, 3]    # dim 2: time; dim 3: frequency
-
-        self.dim = dim
-        self.drop_rate = drop_rate
-        self.stripes_num = stripes_num
-
-    def forward(self, input):
-        """input: (batch_size, channels, time_steps, freq_bins)"""
-
-        assert input.ndimension() == 4
-
-        if self.training is False or self.drop_rate == 0.0:
-            return input
-
+        self.max_mask_value = max_mask_value
+        if axis == 'time':
+            super(TimeMasking, self).__init__(max_time_mask_idx, False)
         else:
-            batch_size = input.shape[0]
-            total_width = input.shape[self.dim]
+            super(FrequencyMasking, self).__init__(max_time_mask_idx, 1, False)
 
-            for n in range(batch_size):
-                self.transform_slice(input[n], total_width)
-
-            return input
-
-    def transform_slice(self, e, total_width):
-        """e: (channels, time_steps, freq_bins)"""
-
-        for _ in range(self.stripes_num):
-            distance = torch.randint(low=0, high=int(total_width * self.drop_rate), size=(1,))[0]
-            bgn = torch.randint(low=0, high=total_width - distance, size=(1,))[0]
-
-            if self.dim == 2:
-                e[:, bgn : bgn + distance, :] = 0
-            elif self.dim == 3:
-                e[:, :, bgn : bgn + distance] = 0
+    def forward(self, specgram: Tensor) -> Tensor:
+        mask_value = torch.rand(1).item() * self.max_mask_value
+        return super().forward(specgram, mask_value)
 
 
-class SpecAugment:
-    def __init__(self, time_drop_rate, freq_drop_rate, time_stripes_num=1, freq_stripes_num=1):
-        """Spec augmetation.
-        [ref] Park, D.S., Chan, W., Zhang, Y., Chiu, C.C., Zoph, B., Cubuk, E.D.
-        and Le, Q.V., 2019. Specaugment: A simple data augmentation method
-        for automatic speech recognition. arXiv preprint arXiv:1904.08779.
+class Trim(torch.nn.Module):
+    def __init__(self, sr, trim_sec, randomly=False):
+        super(Trim, self).__init__()
+        self.trim_idxs = int(sr * trim_sec)
+        self.randomly = randomly
 
-        Args:
-          time_drop_width: int
-          time_stripes_num: int
-          freq_drop_width: int
-          freq_stripes_num: int
-        """
-        self.time_dropper = DropStripes(dim=2, drop_rate=time_drop_rate,
-            stripes_num=time_stripes_num)
+    def forward(self, x: Tensor):
+        if x.size(0) < self.trim_idxs:
+            x = torch.nn.ReflectionPad1d(self.trim_idxs - x.size(0))(x)
 
-        self.freq_dropper = DropStripes(dim=3, drop_rate=freq_drop_rate,
-            stripes_num=freq_stripes_num)
+        if self.randomly:
+            start_idx = torch.randint(high=x.size(0) - self.trim_idxs, size=(1,)).item()
+        else:
+            start_idx = (x.size(0) - self.trim_idxs) // 2
+        return x[start_idx:start_idx + self.trim_idxs]
 
-    def __call__(self, spect):
-        y = self.time_dropper(spect)
-        y = self.freq_dropper(y)
-        return y
+
+class RandomAmpChange(torch.nn.Module):
+    def __init__(self, amp_change_rate):
+        super(RandomAmpChange, self).__init__()
+        self.amp_change_rate = amp_change_rate
+
+    def forward(self, x: Tensor):
+        random_amp_rate = torch.rand(1).item() * self.amp_change_rate
+        return x * (random_amp_rate + 1)
