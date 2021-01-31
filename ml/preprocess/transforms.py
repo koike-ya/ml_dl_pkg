@@ -1,11 +1,12 @@
 from dataclasses import dataclass, field
-from typing import List, Dict
+from typing import List, Dict, Tuple
 import pandas as pd
 
 import torch
 from torch import Tensor
 from torchaudio.transforms import MelSpectrogram, TimeMasking, FrequencyMasking, ComputeDeltas, TimeStretch, \
-                                  AmplitudeToDB
+                                  AmplitudeToDB, Spectrogram, MelScale
+from torchvision.transforms import RandomErasing
 
 
 from ml.utils.enums import TimeFrequencyFeature
@@ -26,15 +27,21 @@ class TransConfig(AugConfig):
     delta: int = 5  # Compute delta coefficients of a tensor, usually a spectrogram
     stretch_rate: float = 1.0  # Time Stretch speedup/slow down rate
 
+    random_erase_scale: Tuple[float, float] = (0.02, 0.33)
+    random_erase_ratio: Tuple[float, float] = (0.3, 3.3)
+    random_erase_prob: float = 0.5
+    random_erase_value: float = 0.0
+
 
 def _init_process(cfg, process):
     if process == 'trim':
         return Trim(cfg.sample_rate, cfg.trim_sec, cfg.trim_randomly)
-    if process == 'random_amp_change':
+    elif process == 'random_amp_change':
         return RandomAmpChange(cfg.amp_change_rate)
-    elif process == 'logmel':
-        return MelSpectrogram(cfg.sample_rate, cfg.n_fft, cfg.win_length, cfg.hop_length, cfg.f_min, cfg.f_max, pad=0,
-                              n_mels=cfg.n_mels)
+    elif process == 'spectrogram':
+        return Spectrogram(cfg.n_fft, cfg.win_length, cfg.hop_length)
+    elif process == 'mel_scale':
+        return MelScale(cfg.n_mels, cfg.sample_rate, cfg.f_min, cfg.f_max, cfg.n_fft // 2 + 1)
     elif process == 'delta':
         return ComputeDeltas(cfg.delta)
     elif process == 'time_mask':
@@ -47,6 +54,9 @@ def _init_process(cfg, process):
         return Normalize()
     elif process == 'power_to_db':
         return AmplitudeToDB()
+    elif process == 'random_erase':
+        return RandomErasing(cfg.random_erase_prob, cfg.random_erase_scale, cfg.random_erase_ratio,
+                             cfg.random_erase_value)
     else:
         raise NotImplementedError
 
@@ -59,7 +69,8 @@ class Normalize(torch.nn.Module):
 class Transform(torch.nn.Module):
     # TODO GPU対応(Multiprocess対応, spawn)
     # TODO TimeStretchに対応するためにlogmelに複素数を返させる
-    processes = ['trim', 'random_amp_change', 'logmel', 'time_mask', 'freq_mask', 'power_to_db', 'normalize']    # 'time_stretch': TimeStretch
+    processes = ['trim', 'random_amp_change', 'spectrogram', 'mel_scale', 'time_mask', 'freq_mask', 'power_to_db', 'random_erase',
+                 'normalize']    # 'time_stretch': TimeStretch
     only_train_processes = ['time_mask', 'freq_mask', 'time_stretch']
 
     def __init__(self,
@@ -85,5 +96,6 @@ class Transform(torch.nn.Module):
     def forward(self, x: Tensor):
         for component in self.components:
             x = component(x)
-        x = x.unsqueeze(dim=0)
+            if x.ndim == 2:
+                x = x.unsqueeze(dim=0)
         return x
