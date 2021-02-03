@@ -37,7 +37,7 @@ def _init_process(cfg, process):
     if process == 'trim':
         return Trim(cfg.sample_rate, cfg.trim_sec, cfg.trim_randomly)
     elif process == 'random_amp_change':
-        return RandomAmpChange(cfg.amp_change_rate)
+        return RandomAmpChange(cfg.amp_change_prob, cfg.amp_change_scale)
     elif process == 'spectrogram':
         return Spectrogram(cfg.n_fft, cfg.win_length, cfg.hop_length)
     elif process == 'mel_scale':
@@ -69,8 +69,8 @@ class Normalize(torch.nn.Module):
 class Transform(torch.nn.Module):
     # TODO GPU対応(Multiprocess対応, spawn)
     # TODO TimeStretchに対応するためにlogmelに複素数を返させる
-    processes = ['trim', 'random_amp_change', 'spectrogram', 'mel_scale', 'time_mask', 'freq_mask', 'power_to_db', 'random_erase',
-                 'normalize']    # 'time_stretch': TimeStretch
+    processes = ['trim', 'random_amp_change', 'spectrogram', 'mel_scale', 'time_mask', 'freq_mask', 'power_to_db',
+                 'random_erase', 'normalize']    # 'time_stretch': TimeStretch
     only_train_processes = ['time_mask', 'freq_mask', 'time_stretch']
 
     def __init__(self,

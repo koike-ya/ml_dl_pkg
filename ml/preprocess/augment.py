@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List, Dict, Tuple
 
+import random
 import torch
 from torch import Tensor
 from torchaudio.transforms import MelSpectrogram, TimeMasking, FrequencyMasking, ComputeDeltas, TimeStretch, \
@@ -12,16 +13,19 @@ class AugConfig:
     time_mask_len: int = 10  # maximum possible length of the mask. Indices uniformly sampled from [0, time_mask_param)
     freq_mask_len: int = 10  # maximum possible length of the mask. Indices uniformly sampled from [0, freq_mask_param).
     mask_value: float = 1e-2  # Maximum possible value assigned to the masked columns.
+    spec_aug_prob: float = 0.5  # Probability of SpecAugment.
     trim_sec: float = 5  # Trim audio segment with speficied length, pad if shorter.
     trim_randomly: bool = False  # Trim audio segment with random start index
-    amp_change_rate: float = 0.0  # Randomly Change amplitude of signal
+    amp_change_scale: List[float] = field(default_factory=lambda: [0.2, 5])  # Randomly Change amplitude of signal
+    amp_change_prob: float = 0.5   # Probability of randomly change amplitude of signal
 
 
 class TimeFreqMask(TimeMasking, FrequencyMasking):
     axes = ['time', 'freq']
-    def __init__(self, max_time_mask_idx: int, max_mask_value: float, axis='time') -> None:
-        assert axis in TimeFreqMask.axes
 
+    def __init__(self, p: float = 0.5, max_time_mask_idx: int = 1, max_mask_value: float = 0, axis='time') -> None:
+        assert axis in TimeFreqMask.axes
+        self.p = p
         self.max_mask_value = max_mask_value
         if axis == 'time':
             super(TimeMasking, self).__init__(max_time_mask_idx, False)
@@ -29,8 +33,10 @@ class TimeFreqMask(TimeMasking, FrequencyMasking):
             super(FrequencyMasking, self).__init__(max_time_mask_idx, 1, False)
 
     def forward(self, specgram: Tensor) -> Tensor:
-        mask_value = torch.rand(1).item() * self.max_mask_value
-        return super().forward(specgram, mask_value)
+        if random.uniform(0, 1) < self.p:
+            mask_value = torch.rand(1).item() * self.max_mask_value
+            return super().forward(specgram, mask_value)
+        return specgram
 
 
 class Trim(torch.nn.Module):
@@ -51,10 +57,12 @@ class Trim(torch.nn.Module):
 
 
 class RandomAmpChange(torch.nn.Module):
-    def __init__(self, amp_change_rate):
+    def __init__(self, p=0.5, scale=(0.2, 5.0)):
         super(RandomAmpChange, self).__init__()
-        self.amp_change_rate = amp_change_rate
+        self.p = p
+        self.scale = scale
 
     def forward(self, x: Tensor):
-        random_amp_rate = torch.rand(1).item() * self.amp_change_rate
-        return x * (random_amp_rate + 1)
+        if random.uniform(0, 1) < self.p:
+            return x * random.uniform(self.scale[0], self.scale[1])
+        return x
