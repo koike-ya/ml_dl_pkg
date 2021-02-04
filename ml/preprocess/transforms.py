@@ -8,13 +8,13 @@ from torchaudio.transforms import MelSpectrogram, TimeMasking, FrequencyMasking,
                                   AmplitudeToDB, Spectrogram, MelScale
 from torchvision.transforms import RandomErasing
 
-
+from ml.preprocess.heartsound_transforms import RespScale, HSTransConfig
 from ml.utils.enums import TimeFrequencyFeature
 from ml.preprocess.augment import TimeFreqMask, AugConfig, Trim, RandomAmpChange
 
 
 @dataclass
-class TransConfig(AugConfig):
+class TransConfig(AugConfig, HSTransConfig):
     sample_rate: float = 500.0  # The sample rate for the data/model features
     transform_order: List[str] = field(default_factory=lambda: ['trim', 'logmel', 'normalize'])
     n_fft: int = 800  # Size of FFT
@@ -57,6 +57,8 @@ def _init_process(cfg, process):
     elif process == 'random_erase':
         return RandomErasing(cfg.random_erase_prob, cfg.random_erase_scale, cfg.random_erase_ratio,
                              cfg.random_erase_value)
+    elif process == 'resp_scale':
+        return RespScale(cfg.resp_p, cfg.sample_rate, cfg.resp_period, cfg.resp_amp_scale)
     else:
         raise NotImplementedError
 
@@ -69,9 +71,9 @@ class Normalize(torch.nn.Module):
 class Transform(torch.nn.Module):
     # TODO GPU対応(Multiprocess対応, spawn)
     # TODO TimeStretchに対応するためにlogmelに複素数を返させる
-    processes = ['trim', 'random_amp_change', 'spectrogram', 'mel_scale', 'time_mask', 'freq_mask', 'power_to_db',
-                 'random_erase', 'normalize']    # 'time_stretch': TimeStretch
-    only_train_processes = ['time_mask', 'freq_mask', 'time_stretch']
+    processes = ['trim', 'random_amp_change', 'resp_scale', 'spectrogram', 'mel_scale', 'time_mask', 'freq_mask',
+                 'power_to_db', 'random_erase', 'normalize']    # 'time_stretch': TimeStretch
+    only_train_processes = ['random_amp_change', 'resp_scale', 'time_mask', 'freq_mask', 'time_stretch', 'random_erase']
 
     def __init__(self,
                  cfg: Dict,
