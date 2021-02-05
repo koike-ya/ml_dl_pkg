@@ -8,7 +8,7 @@ from torchaudio.transforms import MelSpectrogram, TimeMasking, FrequencyMasking,
                                   AmplitudeToDB, Spectrogram, MelScale
 from torchvision.transforms import RandomErasing
 
-from ml.preprocess.heartsound_transforms import RespScale, HSTransConfig
+from ml.preprocess.heartsound_transforms import RespScale, HSTransConfig, RandomFlip
 from ml.utils.enums import TimeFrequencyFeature
 from ml.preprocess.augment import TimeFreqMask, AugConfig, Trim, RandomAmpChange
 
@@ -45,9 +45,9 @@ def _init_process(cfg, process):
     elif process == 'delta':
         return ComputeDeltas(cfg.delta)
     elif process == 'time_mask':
-        return TimeFreqMask(cfg.time_mask_len, cfg.mask_value, 'time')
+        return TimeFreqMask(cfg.spec_aug_prob, cfg.time_mask_len, cfg.mask_value, 'time')
     elif process == 'freq_mask':
-        return TimeFreqMask(cfg.time_mask_len, cfg.mask_value, 'freq')
+        return TimeFreqMask(cfg.spec_aug_prob, cfg.freq_mask_len, cfg.mask_value, 'freq')
     elif process == 'time_stretch':
         return TimeStretch(hop_length=cfg.hop_length, n_freq=cfg.n_mels, fixed_rate=cfg.stretch_rate)
     elif process == 'normalize':
@@ -59,6 +59,8 @@ def _init_process(cfg, process):
                              cfg.random_erase_value)
     elif process == 'resp_scale':
         return RespScale(cfg.resp_p, cfg.sample_rate, cfg.resp_period, cfg.resp_amp_scale)
+    elif process == 'random_flip':
+        return RandomFlip(cfg.flip_p)
     else:
         raise NotImplementedError
 
@@ -71,7 +73,8 @@ class Normalize(torch.nn.Module):
 class Transform(torch.nn.Module):
     # TODO GPU対応(Multiprocess対応, spawn)
     # TODO TimeStretchに対応するためにlogmelに複素数を返させる
-    processes = ['trim', 'random_amp_change', 'resp_scale', 'spectrogram', 'mel_scale', 'time_mask', 'freq_mask',
+    processes = ['trim', 'random_amp_change', 'resp_scale', 'random_flip',
+                 'spectrogram', 'mel_scale', 'time_mask', 'freq_mask',
                  'power_to_db', 'random_erase', 'normalize']    # 'time_stretch': TimeStretch
     only_train_processes = ['random_amp_change', 'resp_scale', 'time_mask', 'freq_mask', 'time_stretch', 'random_erase']
 

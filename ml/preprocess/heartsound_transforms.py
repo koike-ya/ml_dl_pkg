@@ -33,3 +33,14 @@ class RespScale(torch.nn.Module):
             weight += amp_scale[0]
             return x * torch.from_numpy(weight).to(dtype=torch.float)
         return x
+
+
+class RandomFlip(torch.nn.Module):
+    def __init__(self, p: float = 0.5) -> None:
+        super(RandomFlip, self).__init__()
+        self.p = p
+
+    def forward(self, x: Tensor):
+        if random.uniform(0, 1) < self.p:
+            return -1 * x
+        return x

@@ -34,7 +34,7 @@ class TimeFreqMask(TimeMasking, FrequencyMasking):
 
     def forward(self, specgram: Tensor) -> Tensor:
         if random.uniform(0, 1) < self.p:
-            mask_value = torch.rand(1).item() * self.max_mask_value
+            mask_value = random.uniform(0, 1) * self.max_mask_value
             return super().forward(specgram, mask_value)
         return specgram
 
