@@ -10,12 +10,13 @@ from torchaudio.transforms import MelSpectrogram, TimeMasking, FrequencyMasking,
 
 @dataclass
 class AugConfig:
+    n_time_mask: int = 1  # maximum possible number of the mask.
     time_mask_len: int = 10  # maximum possible length of the mask. Indices uniformly sampled from [0, time_mask_param)
+    n_freq_mask: int = 1  # maximum possible number of the mask.
     freq_mask_len: int = 10  # maximum possible length of the mask. Indices uniformly sampled from [0, freq_mask_param).
     mask_value: float = 1e-2  # Maximum possible value assigned to the masked columns.
     spec_aug_prob: float = 0.5  # Probability of SpecAugment.
     trim_sec: float = 5  # Trim audio segment with speficied length, pad if shorter.
-    trim_randomly: bool = False  # Trim audio segment with random start index
     amp_change_scale: List[float] = field(default_factory=lambda: [0.2, 5])  # Randomly Change amplitude of signal
     amp_change_prob: float = 0.5   # Probability of randomly change amplitude of signal
 
@@ -23,10 +24,12 @@ class AugConfig:
 class TimeFreqMask(TimeMasking, FrequencyMasking):
     axes = ['time', 'freq']
 
-    def __init__(self, p: float = 0.5, max_time_mask_idx: int = 1, max_mask_value: float = 0, axis='time') -> None:
+    def __init__(self, p: float = 0.5, max_time_mask_idx: int = 1, max_mask_value: float = 0,
+                 max_n_mask: int = 1, axis='time') -> None:
         assert axis in TimeFreqMask.axes
         self.p = p
         self.max_mask_value = max_mask_value
+        self.max_n_mask = max_n_mask
         if axis == 'time':
             super(TimeMasking, self).__init__(max_time_mask_idx, False)
         else:
@@ -34,8 +37,10 @@ class TimeFreqMask(TimeMasking, FrequencyMasking):
 
     def forward(self, specgram: Tensor) -> Tensor:
         if random.uniform(0, 1) < self.p:
-            mask_value = random.uniform(0, 1) * self.max_mask_value
-            return super().forward(specgram, mask_value)
+            for _ in range(random.randint(1, self.max_n_mask)):
+                mask_value = random.uniform(0, 1) * self.max_mask_value
+                specgram = super().forward(specgram, mask_value)
+            return specgram
         return specgram
 
 

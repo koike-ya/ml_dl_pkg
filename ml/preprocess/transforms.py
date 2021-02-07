@@ -35,7 +35,9 @@ class TransConfig(AugConfig, HSTransConfig):
 
 def _init_process(cfg, process):
     if process == 'trim':
-        return Trim(cfg.sample_rate, cfg.trim_sec, cfg.trim_randomly)
+        return Trim(cfg.sample_rate, cfg.trim_sec, False)
+    elif process == 'random_trim':
+        return Trim(cfg.sample_rate, cfg.trim_sec, True)
     elif process == 'random_amp_change':
         return RandomAmpChange(cfg.amp_change_prob, cfg.amp_change_scale)
     elif process == 'spectrogram':
@@ -45,9 +47,9 @@ def _init_process(cfg, process):
     elif process == 'delta':
         return ComputeDeltas(cfg.delta)
     elif process == 'time_mask':
-        return TimeFreqMask(cfg.spec_aug_prob, cfg.time_mask_len, cfg.mask_value, 'time')
+        return TimeFreqMask(cfg.spec_aug_prob, cfg.time_mask_len, cfg.mask_value, cfg.n_time_mask, 'time')
     elif process == 'freq_mask':
-        return TimeFreqMask(cfg.spec_aug_prob, cfg.freq_mask_len, cfg.mask_value, 'freq')
+        return TimeFreqMask(cfg.spec_aug_prob, cfg.freq_mask_len, cfg.mask_value, cfg.n_freq_mask, 'freq')
     elif process == 'time_stretch':
         return TimeStretch(hop_length=cfg.hop_length, n_freq=cfg.n_mels, fixed_rate=cfg.stretch_rate)
     elif process == 'normalize':
@@ -73,7 +75,7 @@ class Normalize(torch.nn.Module):
 class Transform(torch.nn.Module):
     # TODO GPU対応(Multiprocess対応, spawn)
     # TODO TimeStretchに対応するためにlogmelに複素数を返させる
-    processes = ['trim', 'random_amp_change', 'resp_scale', 'random_flip',
+    processes = ['trim', 'random_trim', 'random_amp_change', 'resp_scale', 'random_flip',
                  'spectrogram', 'mel_scale', 'time_mask', 'freq_mask',
                  'power_to_db', 'random_erase', 'normalize']    # 'time_stretch': TimeStretch
     only_train_processes = ['random_amp_change', 'resp_scale', 'time_mask', 'freq_mask', 'time_stretch', 'random_erase']
