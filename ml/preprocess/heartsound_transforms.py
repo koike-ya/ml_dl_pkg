@@ -32,7 +32,7 @@ class RespScale(torch.nn.Module):
             weight = (-np.cos(t) + 1) / 2
             weight *= amp_scale[1] - amp_scale[0]
             weight += amp_scale[0]
-            return x * torch.from_numpy(weight).to(dtype=torch.float)
+            return x * torch.from_numpy(weight ** 5).to(dtype=torch.float)
         return x
 
 
