@@ -40,6 +40,7 @@ class TrainConfig(TensorboardConfig):
     train_path: str = 'input/train.csv'  # Data file for training
     val_path: str = 'input/val.csv'  # Data file for validation
     test_path: str = 'input/test.csv'  # Data file for testing
+    infer_path: str = 'input/infer.csv'  # Data file for inference
 
     gpu_id: int = 0  # ID of GPU to use
 
