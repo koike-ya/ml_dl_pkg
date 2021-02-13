@@ -6,6 +6,7 @@ import torch
 from torch import Tensor
 from torchaudio.transforms import MelSpectrogram, TimeMasking, FrequencyMasking, ComputeDeltas, TimeStretch, \
                                   AmplitudeToDB
+import numpy as np
 
 
 @dataclass
@@ -52,7 +53,8 @@ class Trim(torch.nn.Module):
 
     def forward(self, x: Tensor):
         if x.size(0) < self.trim_idxs:
-            x = torch.nn.ReflectionPad1d(self.trim_idxs - x.size(0))(x)
+            len_pad = self.trim_idxs - x.size(0)
+            x = torch.from_numpy(np.pad(x, (len_pad - len_pad // 2, len_pad // 2), mode='reflect'))
 
         if self.randomly:
             start_idx = torch.randint(high=x.size(0) - self.trim_idxs, size=(1,)).item()
