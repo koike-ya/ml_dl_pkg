@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import List, Any
 
 from ml.models.loss import LossConfig
-from ml.models.model_managers.base_model_manager import ModelConfig
+from ml.models.model_managers.base_model_manager import ExtendedModelConfig
 from ml.models.nn_models.attention import AttnConfig
 from ml.models.nn_models.multitask_predictor import MultitaskConfig
 from omegaconf import MISSING
@@ -32,7 +32,7 @@ class StackedModelConfig(AttnConfig, MultitaskConfig):
 
 
 @dataclass
-class NNModelConfig(ModelConfig, StackedModelConfig):
+class NNModelConfig(ExtendedModelConfig, StackedModelConfig):
     image_size: List[int] = field(default_factory=lambda: [])
     in_channels: int = 0
     attention: bool = False

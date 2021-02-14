@@ -69,7 +69,6 @@ class BaseExperimentor(metaclass=ABCMeta):
         self.train_manager_cls = TRAINMANAGERS[cfg.train_manager.value]
         self.train_manager = None
         self.process_func = process_func
-        self.test = cfg.test
         self.infer = cfg.infer
         
     def _experiment(self, metrics, phases) -> Tuple[Metrics, Dict[str, np.array]]:
@@ -88,9 +87,9 @@ class BaseExperimentor(metaclass=ABCMeta):
         pred_list = {}
         if 'val' in phases:
             metrics, pred_list['val'] = self.train_manager.train()
-        else:       # This is the case in ['train', 'infer'], ['train', 'test']
+        elif 'train' in phases:  # This is the case in ['train', 'infer'], ['train', 'test']
             metrics, _ = self.train_manager.train(with_validate=False)
-            
+
         if 'infer' in phases:
             pred_list['infer'] = self.train_manager.infer()
         elif 'test' in phases:
@@ -119,7 +118,7 @@ class BaseExperimentor(metaclass=ABCMeta):
             return result_series, pred_list
 
     def experiment_without_validation(self, metrics: Metrics, infer: bool = False, seed_average: int = 0
-                                      ) -> Tuple[Metrics, np.array]:
+                                      ) -> Tuple[np.array, np.array]:
         if self.infer:
             phases = ['train', 'infer']
         else:
@@ -127,17 +126,20 @@ class BaseExperimentor(metaclass=ABCMeta):
             
         if not seed_average:
             metrics, pred_list = self._experiment(metrics=metrics, phases=phases)
-            return metrics, pred_list
+            return np.array([m.average_meter.best_score for m in metrics['train']]), pred_list
 
         else:
             pred_list = []
+            metrics_list = []
             for seed in range(seed_average):
-                self.cfg.seed = seed
+                self.cfg.train.model.seed = seed
                 metrics, pred = self._experiment(metrics=metrics, phases=phases)
                 pred_list.append(pred)
+                metrics_list.append(np.array([m.average_meter.best_score for m in metrics['train']]))
 
-            assert np.array(pred_list).T.shape[1] == seed_average
-            return metrics, np.array(pred_list).T.mean(axis=1)
+            pred_list = [pred[phases[-1]] for pred in pred_list]
+            metrics = np.array(metrics_list).mean(axis=0)
+            return metrics, np.array(pred_list).mean(axis=0)
 
 
 class CrossValidator(BaseExperimentor):

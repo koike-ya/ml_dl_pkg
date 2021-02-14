@@ -20,4 +20,4 @@ xlrd
 seaborn
 opencv-python
 mlflow
-hydra-core==1.0.0rc1
+hydra-core==1.0.0
