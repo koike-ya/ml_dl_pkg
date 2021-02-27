@@ -21,6 +21,9 @@ class AugConfig:
     amp_change_scale: List[float] = field(default_factory=lambda: [0.2, 5])  # Randomly Change amplitude of signal
     amp_change_prob: float = 0.5   # Probability of randomly change amplitude of signal
 
+    white_p: float = 0.5  # Probability of white noise
+    sigma: float = 1.0  # sigma of gaussian distribution of white noise
+
 
 class TimeFreqMask(TimeMasking, FrequencyMasking):
     axes = ['time', 'freq']
@@ -72,4 +75,16 @@ class RandomAmpChange(torch.nn.Module):
     def forward(self, x: Tensor):
         if random.uniform(0, 1) < self.p:
             return x * random.uniform(self.scale[0], self.scale[1])
+        return x
+
+
+class WhiteNoise(torch.nn.Module):
+    def __init__(self, p=0.5, sigma=1.0):
+        super(WhiteNoise, self).__init__()
+        self.p = p
+        self.sigma = sigma
+
+    def forward(self, x: Tensor):
+        if random.uniform(0, 1) < self.p:
+            return x + torch.normal(0.0, self.sigma, x.size())
         return x

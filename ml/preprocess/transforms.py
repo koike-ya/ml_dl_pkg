@@ -10,7 +10,7 @@ from torchvision.transforms import RandomErasing
 
 from ml.preprocess.heartsound_transforms import RespScale, HSTransConfig, RandomFlip
 from ml.utils.enums import TimeFrequencyFeature
-from ml.preprocess.augment import TimeFreqMask, AugConfig, Trim, RandomAmpChange
+from ml.preprocess.augment import TimeFreqMask, AugConfig, Trim, RandomAmpChange, WhiteNoise
 
 
 @dataclass
@@ -63,6 +63,8 @@ def _init_process(cfg, process):
         return RespScale(cfg.resp_p, cfg.sample_rate, cfg.resp_period, cfg.resp_amp_scale)
     elif process == 'random_flip':
         return RandomFlip(cfg.flip_p)
+    elif process == 'white_noise':
+        return WhiteNoise(cfg.white_p, cfg.sigma)
     else:
         raise NotImplementedError
 
@@ -75,10 +77,12 @@ class Normalize(torch.nn.Module):
 class Transform(torch.nn.Module):
     # TODO GPU対応(Multiprocess対応, spawn)
     # TODO TimeStretchに対応するためにlogmelに複素数を返させる
-    processes = ['trim', 'random_trim', 'random_amp_change', 'resp_scale', 'random_flip',
+    processes = ['trim', 'random_trim', 'random_amp_change', 'resp_scale', 'random_flip', 'white_noise',
                  'spectrogram', 'mel_scale', 'time_mask', 'freq_mask',
                  'power_to_db', 'random_erase', 'normalize']    # 'time_stretch': TimeStretch
-    only_train_processes = ['random_amp_change', 'resp_scale', 'time_mask', 'freq_mask', 'time_stretch', 'random_erase']
+    only_train_processes = ['random_amp_change', 'white_noise', 'resp_scale', 'random_flip',
+                            'time_mask', 'freq_mask', 'time_stretch',
+                            'random_erase']
 
     def __init__(self,
                  cfg: Dict,
