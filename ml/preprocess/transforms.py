@@ -4,13 +4,13 @@ import pandas as pd
 
 import torch
 from torch import Tensor
-from torchaudio.transforms import MelSpectrogram, TimeMasking, FrequencyMasking, ComputeDeltas, TimeStretch, \
+from torchaudio.transforms import MelSpectrogram, TimeMasking, FrequencyMasking, ComputeDeltas, \
                                   AmplitudeToDB, Spectrogram, MelScale
 from torchvision.transforms import RandomErasing
 
 from ml.preprocess.heartsound_transforms import RespScale, HSTransConfig, RandomFlip
 from ml.utils.enums import TimeFrequencyFeature
-from ml.preprocess.augment import TimeFreqMask, AugConfig, Trim, RandomAmpChange, WhiteNoise
+from ml.preprocess.augment import TimeFreqMask, AugConfig, Trim, RandomAmpChange, WhiteNoise, DynamicTimeStretch
 
 
 @dataclass
@@ -25,7 +25,6 @@ class TransConfig(AugConfig, HSTransConfig):
     f_min: float = 0.0  # High pass filter
     f_max: float = sample_rate / 2  # Low pass filter
     delta: int = 5  # Compute delta coefficients of a tensor, usually a spectrogram
-    stretch_rate: float = 1.0  # Time Stretch speedup/slow down rate
 
     random_erase_scale: Tuple[float, float] = (0.02, 0.33)
     random_erase_ratio: Tuple[float, float] = (0.3, 3.3)
@@ -33,15 +32,16 @@ class TransConfig(AugConfig, HSTransConfig):
     random_erase_value: float = 0.0
 
 
-def _init_process(cfg, process):
+def _init_process(cfg, process, phase):
     if process == 'trim':
         return Trim(cfg.sample_rate, cfg.trim_sec, False)
     elif process == 'random_trim':
         return Trim(cfg.sample_rate, cfg.trim_sec, True)
     elif process == 'random_amp_change':
         return RandomAmpChange(cfg.amp_change_prob, cfg.amp_change_scale)
-    elif process == 'spectrogram':
-        return Spectrogram(cfg.n_fft, cfg.win_length, cfg.hop_length)
+    elif (process == 'spectrogram') or (process == 'time_stretch' and phase != 'train'):
+        power = None if 'time_stretch' in cfg.transform_order and phase == 'train' else 2.0
+        return Spectrogram(cfg.n_fft, cfg.win_length, cfg.hop_length, power=power)
     elif process == 'mel_scale':
         return MelScale(cfg.n_mels, cfg.sample_rate, cfg.f_min, cfg.f_max, cfg.n_fft // 2 + 1)
     elif process == 'delta':
@@ -50,10 +50,8 @@ def _init_process(cfg, process):
         return TimeFreqMask(cfg.spec_aug_prob, cfg.time_mask_len, cfg.mask_value, cfg.n_time_mask, 'time')
     elif process == 'freq_mask':
         return TimeFreqMask(cfg.spec_aug_prob, cfg.freq_mask_len, cfg.mask_value, cfg.n_freq_mask, 'freq')
-    elif process == 'time_stretch':
-        return TimeStretch(hop_length=cfg.hop_length, n_freq=cfg.n_mels, fixed_rate=cfg.stretch_rate)
-    elif process == 'normalize':
-        return Normalize()
+    elif process == 'standardize':
+        return Standardize()
     elif process == 'power_to_db':
         return AmplitudeToDB()
     elif process == 'random_erase':
@@ -65,22 +63,26 @@ def _init_process(cfg, process):
         return RandomFlip(cfg.flip_p)
     elif process == 'white_noise':
         return WhiteNoise(cfg.white_p, cfg.sigma)
+    elif process == 'time_stretch':
+        n_freq = cfg.n_mels if 'mel_scale' in cfg.transform_order else cfg.n_fft // 2 + 1
+        return DynamicTimeStretch(cfg.stretch_p, hop_length=cfg.hop_length, n_freq=n_freq,
+                                  stretch_range=cfg.stretch_range)
     else:
         raise NotImplementedError
 
 
-class Normalize(torch.nn.Module):
+class Standardize(torch.nn.Module):
     def forward(self, x: Tensor):
-        return (x - x.mean()) / x.std()
+        eps = 1e-5
+        return (x - x.mean()) / (x.std() + eps)
 
 
 class Transform(torch.nn.Module):
     # TODO GPU対応(Multiprocess対応, spawn)
-    # TODO TimeStretchに対応するためにlogmelに複素数を返させる
     processes = ['trim', 'random_trim', 'random_amp_change', 'resp_scale', 'random_flip', 'white_noise',
-                 'spectrogram', 'mel_scale', 'time_mask', 'freq_mask',
-                 'power_to_db', 'random_erase', 'normalize']    # 'time_stretch': TimeStretch
-    only_train_processes = ['random_amp_change', 'white_noise', 'resp_scale', 'random_flip',
+                 'spectrogram', 'mel_scale', 'time_mask', 'freq_mask', 'time_stretch',
+                 'power_to_db', 'random_erase', 'standardize']
+    only_train_processes = ['random_trim', 'random_amp_change', 'white_noise', 'resp_scale', 'random_flip',
                             'time_mask', 'freq_mask', 'time_stretch',
                             'random_erase']
 
@@ -92,16 +94,19 @@ class Transform(torch.nn.Module):
         self.phase = phase
         self.cfg = cfg
         self.components = []
+
         assert pd.Series(cfg.transform_order).isin(Transform.processes).all()
         self._init_components(cfg.transform_order)
 
     def _init_components(self, process_order):
         for process in process_order:
-            if self.phase != 'train' and process in self.only_train_processes:
+            if self.phase != 'train' and process == 'random_trim':
+                process = 'trim'
+            elif self.phase != 'train' and process in self.only_train_processes:
                 continue
 
             self.components.append(
-                _init_process(self.cfg, process)
+                _init_process(self.cfg, process, self.phase)
             )
 
     def forward(self, x: Tensor):
@@ -109,4 +114,5 @@ class Transform(torch.nn.Module):
             x = component(x)
             if x.ndim == 2:
                 x = x.unsqueeze(dim=0)
+        # assert (not torch.isnan(x).any()) and (not torch.isinf(x).any())
         return x
