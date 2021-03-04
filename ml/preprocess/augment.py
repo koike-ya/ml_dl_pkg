@@ -74,6 +74,8 @@ class DynamicTimeStretch(TimeStretch):
                 specgram = specgram[:, start_idx:start_idx + orig_time]
 
             assert (orig_time == specgram.size(1)) and (orig_freq == specgram.size(0)), (orig_freq, orig_time, specgram.size())
+        else:
+            specgram = specgram.pow(2.).sum(-1)
         return specgram
 
 
