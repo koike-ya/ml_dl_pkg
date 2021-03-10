@@ -10,7 +10,8 @@ from torchvision.transforms import RandomErasing
 
 from ml.preprocess.heartsound_transforms import RespScale, HSTransConfig, RandomFlip
 from ml.utils.enums import TimeFrequencyFeature
-from ml.preprocess.augment import TimeFreqMask, AugConfig, Trim, RandomAmpChange, WhiteNoise, DynamicTimeStretch
+from ml.preprocess.augment import TimeFreqMask, AugConfig, Trim, RandomAmpChange, WhiteNoise, DynamicTimeStretch, \
+                                  PitchShift
 
 
 @dataclass
@@ -67,6 +68,8 @@ def _init_process(cfg, process, phase):
         n_freq = cfg.n_mels if 'mel_scale' in cfg.transform_order else cfg.n_fft // 2 + 1
         return DynamicTimeStretch(cfg.stretch_p, hop_length=cfg.hop_length, n_freq=n_freq,
                                   stretch_range=cfg.stretch_range)
+    elif process == 'pitch_shift':
+        return PitchShift(cfg.pitch_p, cfg.sample_rate, cfg.pitch_step_range)
     else:
         raise NotImplementedError
 
@@ -79,12 +82,11 @@ class Standardize(torch.nn.Module):
 
 class Transform(torch.nn.Module):
     # TODO GPU対応(Multiprocess対応, spawn)
-    processes = ['trim', 'random_trim', 'random_amp_change', 'resp_scale', 'random_flip', 'white_noise',
+    processes = ['trim', 'random_trim', 'random_amp_change', 'resp_scale', 'random_flip', 'white_noise', 'pitch_shift',
                  'spectrogram', 'mel_scale', 'time_mask', 'freq_mask', 'time_stretch',
                  'power_to_db', 'random_erase', 'standardize']
     only_train_processes = ['random_trim', 'random_amp_change', 'white_noise', 'resp_scale', 'random_flip',
-                            'time_mask', 'freq_mask', 'time_stretch',
-                            'random_erase']
+                            'pitch_shift', 'time_mask', 'freq_mask', 'time_stretch', 'random_erase']
 
     def __init__(self,
                  cfg: Dict,
@@ -114,5 +116,5 @@ class Transform(torch.nn.Module):
             x = component(x)
             if x.ndim == 2:
                 x = x.unsqueeze(dim=0)
-        # assert (not torch.isnan(x).any()) and (not torch.isinf(x).any())
+        assert (not torch.isnan(x).any()) and (not torch.isinf(x).any())
         return x

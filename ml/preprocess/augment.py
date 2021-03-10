@@ -6,6 +6,7 @@ import torch
 from torch import Tensor
 from torchaudio.transforms import MelSpectrogram, TimeMasking, FrequencyMasking, ComputeDeltas, TimeStretch, \
                                   AmplitudeToDB
+import librosa
 import numpy as np
 
 
@@ -26,6 +27,9 @@ class AugConfig:
 
     stretch_p: float = 1.0  # Probability of time stretch
     stretch_range: Tuple[float, float] = (0.8, 1.2)  # Time Stretch speedup/slow down rate
+
+    pitch_p: float = 1.0  # Probability of pitch shift
+    pitch_step_range: Tuple[float, float] = (-10, 10)  # Time Stretch speedup/slow down rate
 
 
 class TimeFreqMask(TimeMasking, FrequencyMasking):
@@ -77,6 +81,21 @@ class DynamicTimeStretch(TimeStretch):
         else:
             specgram = specgram.pow(2.).sum(-1)
         return specgram
+
+
+class PitchShift(torch.nn.Module):
+    def __init__(self, p, sr, step_range):
+        super(PitchShift, self).__init__()
+        self.p = p
+        self.sr = sr
+        self.step_range = step_range
+
+    def forward(self, x: Tensor):
+        if random.uniform(0, 1) < self.p:
+            n_steps = random.uniform(self.step_range[0], self.step_range[1])
+            x = torch.from_numpy(librosa.effects.pitch_shift(x.numpy(), self.sr, n_steps=n_steps))
+
+        return x
 
 
 class Trim(torch.nn.Module):
