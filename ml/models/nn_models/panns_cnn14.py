@@ -132,7 +132,7 @@ class Cnn14(nn.Module):
         init_layer(self.fc1)
         init_layer(self.fc_audioset)
 
-    def feature_extract(self, x):
+    def extract_feature(self, x):
         x = x.transpose(1, 2)
         x = self.bn0(x)
         x = x.transpose(1, 2)
@@ -166,7 +166,7 @@ class Cnn14(nn.Module):
     def forward(self, input, feature_extract=False):
         """
         Input: (batch_size, n_mels, time_frames)"""
-        x = self.feature_extract(input)
+        x = self.extract_feature(input)
 
         return self.classify(x)
 
