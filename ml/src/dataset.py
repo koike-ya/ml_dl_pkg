@@ -2,6 +2,7 @@ import logging
 from abc import ABCMeta, abstractmethod
 
 import pandas as pd
+import torch
 from torch.utils.data import Dataset
 
 logger = logging.getLogger(__name__)
@@ -173,3 +174,27 @@ class ManifestWaveDataSet(ManifestDataSet):
         if self.transform:
             x = self.transform(x)
         return x.size(1)
+
+
+class MilDataSet(ManifestWaveDataSet):
+    def __init__(self, manifest_path, cfg, load_func=None, transform=None, label_func=None, phase='train'):
+        super(ManifestWaveDataSet, self).__init__(manifest_path, cfg, load_func, transform, label_func, phase)
+
+    def __getitem__(self, idx):
+        bag = self.load_func(self.path_df.iloc[idx, :])
+        label = self.labels[idx]
+
+        instance_list = []
+        for instance in bag:
+            if self.transform:
+                instance_list.append(self.transform(instance))
+            else:
+                instance_list.append(instance)
+
+        return torch.cat(instance_list, dim=0).unsqueeze(1), label
+
+    def get_feature_size(self):
+        instance = self.load_func(self.path_df.iloc[0, :])[0]
+        if self.transform:
+            instance = self.transform(instance)
+        return instance.size()

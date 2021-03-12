@@ -6,7 +6,7 @@ from typing import List
 import numpy as np
 from ml.models.loss import set_criterion
 from ml.utils import init_seed
-from ml.utils.enums import TaskType
+from ml.utils.enums import TaskType, MilType, MilAggType
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +27,15 @@ class ModelConfig:  # ML/DL model arguments
 
 
 @dataclass
-class ExtendedModelConfig(ModelConfig):
-    mixup_alpha: float = 0.0    # Beta distirbution alpha for mixup
+class MilConfig:    # Multiple instance learning config
+    train_mil: bool = False
+    mil_type: MilType = 'instance'            # Aggregation type
+    mil_agg_func: MilAggType = 'mean'           # Aggregation function if mil_type in ['instance', 'embedding']
+
+
+@dataclass
+class ExtendedModelConfig(ModelConfig, MilConfig):
+    mixup_alpha: float = 0.0    # Alpha of beta distirbution for mixup
 
 
 class BaseModelManager(metaclass=ABCMeta):

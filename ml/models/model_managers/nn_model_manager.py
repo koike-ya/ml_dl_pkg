@@ -16,6 +16,7 @@ from ml.models.nn_models.nn import construct_nn
 from ml.models.nn_models.nn_utils import get_param_size
 from ml.models.nn_models.panns_cnn14 import construct_panns
 from ml.models.nn_models.pretrained_models import construct_pretrained, supported_pretrained_models
+from ml.models.nn_models.mil_wrapper import construct_mil
 from ml.models.nn_models.rnn import construct_rnn, RNNConfig
 from ml.utils.nn_config import SGDConfig, AdamConfig
 from omegaconf import OmegaConf
@@ -91,6 +92,9 @@ class NNModelManager(BaseModelManager):
         else:
             raise NotImplementedError(
                 'model_type should be either rnn or cnn, nn would be implemented in the future.')
+
+        if self.cfg.train_mil:
+            model = construct_mil(model, self.cfg)
 
         # model = StackedNNModel(self.cfg, class_labels, multitask=False)
         logger.info(f'Model Parameters: {get_param_size(model)}')

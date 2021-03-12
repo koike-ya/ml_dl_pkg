@@ -120,3 +120,14 @@ class TrainManagerType(Enum):
 class DataLoaderType(Enum):
     normal = 'normal'
     ml = 'ml'
+
+
+class MilType(Enum):
+    instance = 'instance'
+    embedding = 'embedding'
+    attention = 'attention'
+
+
+class MilAggType(Enum):
+    max = 'max'
+    mean = 'mean'
