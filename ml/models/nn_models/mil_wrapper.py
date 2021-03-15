@@ -19,6 +19,8 @@ class InstanceAggMil(nn.Module):
         # TODO extend more than 2 classes
         pred_list = []
         for bag in bags:
+            not_zeros_idx = [i for i, seg in enumerate(bag) if seg.sum()]
+            bag = bag[not_zeros_idx]
             prob_instances = self.model(bag)
 
             prob_instances = torch.sigmoid(prob_instances)
@@ -48,6 +50,8 @@ class EmbeddingAggMil(nn.Module):
         # TODO extend more than 2 classes
         pred_list = []
         for bag in bags:
+            not_zeros_idx = [i for i, seg in enumerate(bag) if seg.sum()]
+            bag = bag[not_zeros_idx]
             bag_features = self.model.extract_feature(bag)
 
             if self.agg_func == MilAggType.mean:
@@ -87,6 +91,8 @@ class AttentionMil(nn.Module):
         # TODO extend more than 2 classes
         pred_list = []
         for bag in bags:
+            not_zeros_idx = [i for i, seg in enumerate(bag) if seg.sum()]
+            bag = bag[not_zeros_idx]
             H = self.model.extract_feature(bag)
 
             A = self.attention(H)  # NxK
@@ -97,7 +103,7 @@ class AttentionMil(nn.Module):
             M = M.view(1, -1)
             prob = self.classifier(M)
             prob = prob / prob.sum()
-            print(prob.size())
+
             pred_list.append(prob)
 
         pred_list = torch.cat(pred_list, dim=0)
