@@ -20,10 +20,11 @@ class DataConfig:
     tta: int = 0  # Number of test time augmentation ensemble
 
 
-def set_dataloader(dataset, phase, cfg, shuffle=False):
+def set_dataloader(dataset, phase, cfg, shuffle=False, collate_fn=None):
     if phase != 'train':
         dataloader = WrapperDataLoader(dataset, batch_size=cfg.batch_size, num_workers=cfg.n_jobs,
-                                       pin_memory=False, sampler=None, shuffle=False, drop_last=False)
+                                       pin_memory=False, sampler=None, shuffle=False, drop_last=False,
+                                       collate_fn=collate_fn)
     else:
         if cfg.sample_balance:
             if cfg.task_type.value == 'classify':
@@ -34,7 +35,8 @@ def set_dataloader(dataset, phase, cfg, shuffle=False):
         else:
             sampler = None
         dataloader = WrapperDataLoader(dataset, batch_size=cfg.batch_size, num_workers=cfg.n_jobs,
-                                       pin_memory=False, sampler=sampler, drop_last=True, shuffle=shuffle)
+                                       pin_memory=False, sampler=sampler, drop_last=True, shuffle=shuffle,
+                                       collate_fn=collate_fn)
     return dataloader
 
 

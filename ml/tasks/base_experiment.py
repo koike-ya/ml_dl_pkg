@@ -60,7 +60,7 @@ def get_metrics(phases, task_type, train_manager='normal'):
 
 
 class BaseExperimentor(metaclass=ABCMeta):
-    def __init__(self, cfg, load_func, label_func, process_func=None, dataset_cls=None):
+    def __init__(self, cfg, load_func, label_func, process_func=None, dataset_cls=None, collate_fn=None):
         self.cfg = cfg
         self.load_func = load_func
         self.label_func = label_func
@@ -69,6 +69,7 @@ class BaseExperimentor(metaclass=ABCMeta):
         self.train_manager_cls = TRAINMANAGERS[cfg.train_manager.value]
         self.train_manager = None
         self.process_func = process_func
+        self.collate_fn = collate_fn
         self.infer = cfg.infer
         
     def _experiment(self, metrics, phases) -> Tuple[Metrics, Dict[str, np.array]]:
@@ -79,7 +80,7 @@ class BaseExperimentor(metaclass=ABCMeta):
         for phase in phases:
             dataset = self.dataset_cls(self.cfg.train[f'{phase}_path'], self.cfg.data, phase, self.load_func,
                                        self.process_func[phase], self.label_func)
-            dataloaders[phase] = self.data_loader_cls(dataset, phase, self.cfg.data)
+            dataloaders[phase] = self.data_loader_cls(dataset, phase, self.cfg.data, collate_fn=self.collate_fn)
 
         self.train_manager = self.train_manager_cls(self.cfg.train['class_names'], self.cfg.train, dataloaders,
                                                     deepcopy(metrics))
@@ -144,8 +145,8 @@ class BaseExperimentor(metaclass=ABCMeta):
 
 class CrossValidator(BaseExperimentor):
     def __init__(self, cfg: Dict, load_func, label_func, process_func, dataset_cls, cv_name: str, n_splits: int,
-                 groups: str = None):
-        super().__init__(cfg, load_func, label_func, process_func, dataset_cls)
+                 groups: str = None, collate_fn=None):
+        super().__init__(cfg, load_func, label_func, process_func, dataset_cls, collate_fn)
         self.orig_cfg = deepcopy(self.cfg)
         self.cv_name = cv_name
         self.n_splits = n_splits
@@ -222,12 +223,13 @@ class CrossValidator(BaseExperimentor):
         raise NotImplementedError
 
 
-def typical_train(expt_conf, load_func, label_func, process_func, dataset_cls, groups=None, metrics_names=None):
+def typical_train(expt_conf, load_func, label_func, process_func, dataset_cls, groups=None, metrics_names=None,
+                  collate_fn=None):
     if (expt_conf['cv_name'] and expt_conf['cv_name'].value) or isinstance(groups, pd.Series):
         experimentor = CrossValidator(expt_conf, load_func, label_func, process_func, dataset_cls, expt_conf['cv_name'],
-                                      expt_conf['n_splits'], groups)
+                                      expt_conf['n_splits'], groups, collate_fn=collate_fn)
     else:
-        experimentor = BaseExperimentor(expt_conf, load_func, label_func, process_func, dataset_cls)
+        experimentor = BaseExperimentor(expt_conf, load_func, label_func, process_func, dataset_cls, collate_fn)
 
     phases = ['train', 'val']
 
