@@ -44,6 +44,7 @@ class EmbeddingAggMil(nn.Module):
     def __init__(self, model, agg_func=MilAggType.mean):
         super(EmbeddingAggMil, self).__init__()
         self.model = model
+        # TODO finetune
         self.agg_func = agg_func
 
     def forward(self, bags):
@@ -70,12 +71,15 @@ class EmbeddingAggMil(nn.Module):
 
 
 class AttentionMil(nn.Module):
-    def __init__(self, model):
+    def __init__(self, model, finetune=True):
         super(AttentionMil, self).__init__()
         self.model = model
+        if not finetune:
+            for param in self.model.parameters():
+                param.requires_grad = False
         self.L = 2048
         self.D = 128
-        self.K = 2
+        self.K = 1
         self.attention = nn.Sequential(
             nn.Linear(self.L, self.D),
             nn.Tanh(),
@@ -116,6 +120,6 @@ def construct_mil(model, cfg):
     elif cfg.mil_type == MilType.embedding:
         return EmbeddingAggMil(model, cfg.mil_agg_func)
     elif cfg.mil_type == MilType.attention:
-        return AttentionMil(model)
+        return AttentionMil(model, cfg.mil_finetune)
     else:
         raise NotImplementedError

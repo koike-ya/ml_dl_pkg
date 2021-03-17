@@ -29,6 +29,7 @@ class ModelConfig:  # ML/DL model arguments
 @dataclass
 class MilConfig:    # Multiple instance learning config
     train_mil: bool = False
+    mil_finetune: bool = True
     mil_type: MilType = 'instance'            # Aggregation type
     mil_agg_func: MilAggType = 'mean'           # Aggregation function if mil_type in ['instance', 'embedding']
 
