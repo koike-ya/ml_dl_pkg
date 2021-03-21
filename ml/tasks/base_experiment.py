@@ -245,13 +245,15 @@ def typical_train(expt_conf, load_func, label_func, process_func, dataset_cls, g
     return result_series, val_pred, experimentor
 
 
-def typical_experiment(expt_conf, load_func, label_func, process_func, dataset_cls, groups, metrics_names=None):
+def typical_experiment(expt_conf, load_func, label_func, process_func, dataset_cls, groups, metrics_names=None,
+                       collate_fn=None):
     infer = 'infer_path' in expt_conf.keys()
     if (expt_conf['cv_name'] and expt_conf['cv_name'].value) or isinstance(groups, pd.Series):
         experimentor = CrossValidator(expt_conf, load_func, label_func, process_func, dataset_cls, expt_conf['cv_name'],
-                                      expt_conf['n_splits'], groups)
+                                      expt_conf['n_splits'], groups, collate_fn=collate_fn)
     else:
-        experimentor = BaseExperimentor(expt_conf, load_func, label_func, process_func, dataset_cls)
+        experimentor = BaseExperimentor(expt_conf, load_func, label_func, process_func, dataset_cls,
+                                        collate_fn=collate_fn)
 
     phases = ['train', 'val', 'infer'] if infer else ['train', 'val', 'test']
 

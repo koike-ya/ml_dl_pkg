@@ -171,7 +171,7 @@ class NNTrainManager(BaseTrainManager):
 
                     self._verbose(epoch, phase, self.metrics, i, elapsed=int(time.time() - start))
 
-                # save metrics in one batch
+                # save metrics in one epoch
                 [metric.update(0.0, pred_list, label_list) for metric in self.metrics[phase][1:]]
 
                 self._epoch_verbose(epoch, self.metrics, phase)

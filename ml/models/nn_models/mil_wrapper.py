@@ -106,7 +106,7 @@ class AttentionMil(nn.Module):
             M = torch.mm(A, H)  # KxL
             M = M.view(1, -1)
             prob = self.classifier(M)
-            prob = prob / prob.sum()
+            # prob = prob / prob.sum()
 
             pred_list.append(prob)
 
