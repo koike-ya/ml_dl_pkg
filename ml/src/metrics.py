@@ -96,7 +96,7 @@ class Metric:
         elif self.name == 'uar':
             self.average_meter.update(balanced_accuracy_score(labels, preds))
         elif self.name == 'specificity':
-            self.average_meter.update(specificity(labels, preds))
+            self.average_meter.update(recall_score(labels, preds, pos_label=0))
         elif self.name == 'recall':
             self.average_meter.update(recall_score(labels, preds))
         else:
@@ -146,8 +146,3 @@ def recall(labels, preds, recall_label: int = 1, numpy_: bool = False):
         return recall_score(labels, preds)
 
     return recall_score(labels, preds)
-
-
-def specificity(pred, true):
-    cm1 = confusion_matrix(true, pred)
-    return cm1[0, 0] / (cm1[0, 0] + cm1[0, 1])
