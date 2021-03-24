@@ -245,26 +245,25 @@ def typical_train(expt_conf, load_func, label_func, process_func, dataset_cls, g
     return result_series, val_pred, experimentor
 
 
-def typical_experiment(expt_conf, load_func, label_func, process_func, dataset_cls, groups, metrics_names=None,
+def typical_experiment(cfg, load_func, label_func, process_func, dataset_cls, groups, metrics_names=None,
                        collate_fn=None):
-    infer = 'infer_path' in expt_conf.keys()
-    if (expt_conf['cv_name'] and expt_conf['cv_name'].value) or isinstance(groups, pd.Series):
-        experimentor = CrossValidator(expt_conf, load_func, label_func, process_func, dataset_cls, expt_conf['cv_name'],
-                                      expt_conf['n_splits'], groups, collate_fn=collate_fn)
+    if (cfg['cv_name'] and cfg['cv_name'].value) or isinstance(groups, pd.Series):
+        experimentor = CrossValidator(cfg, load_func, label_func, process_func, dataset_cls, cfg['cv_name'],
+                                      cfg['n_splits'], groups, collate_fn=collate_fn)
     else:
-        experimentor = BaseExperimentor(expt_conf, load_func, label_func, process_func, dataset_cls,
+        experimentor = BaseExperimentor(cfg, load_func, label_func, process_func, dataset_cls,
                                         collate_fn=collate_fn)
 
-    phases = ['train', 'val', 'infer'] if infer else ['train', 'val', 'test']
+    phases = ['train', 'val', 'infer'] if cfg['infer'] else ['train', 'val', 'test']
 
     if not metrics_names:
-        metrics = get_metrics(phases, expt_conf.train.task_type.value, expt_conf['train_manager'])
+        metrics = get_metrics(phases, cfg.train.task_type.value, cfg['train_manager'])
     else:
         metrics = {p: get_metric_list(metrics_names[p]) for p in phases}
 
     result_series, pred_list = experimentor.experiment_with_validation(metrics)
     # metric_names_list = [m.name for m in metrics['val' if infer else 'test']]
-    for phase in ['val'] if infer else ['val', 'test']:
+    for phase in ['val'] if cfg.infer else ['val', 'test']:
         metric_names = [m.name for m in metrics[phase]]
         mlflow.log_metrics({f'{phase}_{metric_name}': value for metric_name, value in zip(metric_names, result_series[phase])})
 
